@@ -2,8 +2,12 @@ import { Router } from 'express';
 import { globalRegistry } from '../registry/TemplateRegistry';
 import { RuleEngine } from '../rules/RuleEngine';
 import { SVGExporter } from '../exporters/SVGExporter';
+import workflowRouter from '../workflow/workflowRouter';
 
 const router = Router();
+
+// Mount Ashk24 Production Workflow Router
+router.use('/workflow', workflowRouter);
 
 router.post('/generate', async (req, res) => {
   try {

@@ -26,9 +26,12 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<'ALL' | 'FEFCO' | 'ECMA'>('ALL');
-  const [selectedRule, setSelectedRule] = useState<StandardRule | null>(
-    STANDARDS_METADATA['ecma-a2020'] || Object.values(STANDARDS_METADATA)[0]
-  );
+  const [selectedRule, setSelectedRule] = useState<(StandardRule & { id: string }) | null>(() => {
+    const defaultKey = 'ecma-a2020';
+    const rule = STANDARDS_METADATA[defaultKey] || Object.values(STANDARDS_METADATA)[0];
+    const firstKey = Object.keys(STANDARDS_METADATA)[0] || defaultKey;
+    return rule ? { id: STANDARDS_METADATA[defaultKey] ? defaultKey : firstKey, ...rule } : null;
+  });
   const [applySuccess, setApplySuccess] = useState<string | null>(null);
 
   // Custom blueprint upload states

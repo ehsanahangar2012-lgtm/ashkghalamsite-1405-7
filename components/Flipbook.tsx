@@ -1114,7 +1114,7 @@ export const Flipbook: React.FC<FlipbookProps> = ({ items: initialItems }) => {
     selectBookToRead(customMediaBook);
   };
 
-  const handleDeleteBook = (id: number, e: React.MouseEvent) => {
+  const handleDeleteBook = (id: number | string, e: React.MouseEvent) => {
     e.stopPropagation();
     const isCustom = catalogs.some(c => c.id === id && c.category === 'افزوده شده شخصی');
     if (!isCustom) return;
