@@ -13,7 +13,7 @@ export const SeoHead: React.FC<{ view: AppView }> = ({ view }) => {
 
   useEffect(() => {
     // 1. Dynamic Document Title
-    const baseTitle = config.title || 'اشک قلم | مرکز تخصصی چاپ، جعبه‌سازی و بسته‌بندی هوشمند';
+    const baseTitle = config.title || 'اشک قلم | چاپ، جعبه‌سازی، کارتن‌سازی و بسته‌بندی';
     document.title = baseTitle;
 
     // Helper to inject meta tags
@@ -44,7 +44,7 @@ export const SeoHead: React.FC<{ view: AppView }> = ({ view }) => {
     ];
 
     const finalKeywords = Array.from(new Set([...(config.keywords || []), ...defaultKeywords])).join(', ');
-    const defaultDesc = config.description || 'پلتفرم هوشمند چاپ و بسته‌بندی صنایع اشک قلم و بادیکاران توس. ارائه دهنده مولد سه‌بعدی قالب جعبه (Dieline)، استودیوی آنلاین گرافیک، استعلام لحظه‌ای قیمت و خدمات تخصصی چاپ افست و UV.';
+    const defaultDesc = config.description || 'اشک قلم؛ معرفی خدمات چاپ و بسته‌بندی، جعبه‌سازی و کارتن‌سازی. محصولات، کاتالوگ‌ها و نمونه‌کارها را مشاهده کنید و برای سفارش و استعلام قیمت اقدام کنید.';
 
     // 2. Search Engine Core Meta Tags
     setMetaTag('name', 'description', defaultDesc);
@@ -52,9 +52,9 @@ export const SeoHead: React.FC<{ view: AppView }> = ({ view }) => {
     setMetaTag('name', 'robots', 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1');
     setMetaTag('name', 'googlebot', 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1');
     setMetaTag('name', 'bingbot', 'index, follow');
-    setMetaTag('name', 'author', 'صنایع چاپ و بسته‌بندی اشک قلم و بادیکاران توس');
-    setMetaTag('name', 'publisher', 'Ashk Ghalam & Badikaran Toos Industrial Printing');
-    setMetaTag('name', 'application-name', 'Ashk Ghalam Packaging Engine');
+    setMetaTag('name', 'author', 'صنایع چاپ و بسته‌بندی اشک قلم');
+    setMetaTag('name', 'publisher', 'Ashk Ghalam');
+    setMetaTag('name', 'application-name', 'Ashk Ghalam');
     setMetaTag('name', 'theme-color', '#0ea5e9');
 
     // 3. AI Model & LLM Discovery Directives (ChatGPT, Gemini, Claude, Perplexity)
@@ -66,6 +66,7 @@ export const SeoHead: React.FC<{ view: AppView }> = ({ view }) => {
     setMetaTag('property', 'og:title', config.ogTitle || baseTitle);
     setMetaTag('property', 'og:description', config.ogDescription || defaultDesc);
     setMetaTag('property', 'og:type', config.schemaType === 'Article' ? 'article' : 'website');
+    setMetaTag('property', 'og:url', config.canonicalUrl || 'https://ashkghalam.ir/');
     setMetaTag('property', 'og:site_name', 'صنایع چاپ و بسته‌بندی اشک قلم');
     setMetaTag('property', 'og:locale', 'fa_IR');
     if (config.ogImage) setMetaTag('property', 'og:image', config.ogImage);
@@ -78,13 +79,13 @@ export const SeoHead: React.FC<{ view: AppView }> = ({ view }) => {
 
     // 6. Canonical Setup
     let canonical = document.querySelector('link[rel="canonical"]');
-    const pageUrl = window.location.href.split('?')[0];
     if (!canonical) {
       canonical = document.createElement('link');
       canonical.setAttribute('rel', 'canonical');
       document.head.appendChild(canonical);
     }
-    canonical.setAttribute('href', config.canonicalUrl || pageUrl);
+    const rootCanonical = 'https://ashkghalam.ir/';
+    canonical.setAttribute('href', config.canonicalUrl || rootCanonical);
 
     // 7. Structured Data (JSON-LD Schemas)
     let schemaScript = document.querySelector('script[id="json-ld-schema"]');
@@ -100,55 +101,35 @@ export const SeoHead: React.FC<{ view: AppView }> = ({ view }) => {
       "@graph": [
         {
           "@type": "Organization",
-          "@id": "https://ashkghalam.com/#organization",
-          "name": "صنایع چاپ و بسته‌بندی اشک قلم و بادیکاران توس",
-          "alternateName": ["Ashk Ghalam Packaging", "Badikaran Toos Printing"],
-          "url": "https://ashkghalam.com",
-          "logo": "https://ashkghalam.com/public/icon.png",
-          "description": "مرکز تخصصی مهندسی بسته‌بندی، طراحی قالب‌های ۳D، خدمات چاپ افست، UV و جعبه‌سازی",
-          "telephone": "021-88880000",
-          "email": "info@ashkghalam.com",
-          "sameAs": [
-            "https://instagram.com/ashkghalam",
-            "https://linkedin.com/company/ashkghalam"
-          ],
+          "@id": "https://ashkghalam.ir/#organization",
+          "name": "صنایع چاپ و بسته‌بندی اشک قلم",
+          "alternateName": ["Ashk Ghalam Packaging"],
+          "url": "https://ashkghalam.ir",
+          "description": "مرکز تخصصی چاپ، بسته‌بندی، کارتن‌سازی و جعبه‌سازی",
           "knowsAbout": [
-            "Packaging CAD Engineering",
-            "3D Box Dieline Generator",
-            "Offset Printing Technology",
-            "UV Coating & Box Manufacturing"
+            "چاپ و بسته‌بندی",
+            "جعبه‌سازی",
+            "کارتن‌سازی",
+            "طراحی قالب و دایلاین"
           ]
         },
         {
           "@type": "LocalBusiness",
-          "@id": "https://ashkghalam.com/#localbusiness",
-          "name": "مجتمع صنعتی چاپ اشک قلم و بادیکاران توس",
-          "image": "https://ashkghalam.com/public/icon.png",
-          "telephone": "021-88880000",
+          "@id": "https://ashkghalam.ir/#localbusiness",
+          "name": "صنایع چاپ و بسته‌بندی اشک قلم",
+          "url": "https://ashkghalam.ir",
           "priceRange": "$$",
           "address": {
             "@type": "PostalAddress",
-            "addressLocality": "تهران",
             "addressCountry": "IR"
-          },
-          "openingHoursSpecification": {
-            "@type": "OpeningHoursSpecification",
-            "dayOfWeek": ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"],
-            "opens": "08:00",
-            "closes": "18:00"
           }
         },
         {
           "@type": "SoftwareApplication",
-          "@id": "https://ashkghalam.com/#dieline-app",
+          "@id": "https://ashkghalam.ir/#dieline-app",
           "name": "مولد سه‌بعدی قالب جعبه و دایلاین اشک قلم",
           "operatingSystem": "Web, All Platforms",
-          "applicationCategory": "DesignApplication",
-          "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "IRR"
-          }
+          "applicationCategory": "DesignApplication"
         }
       ]
     };
