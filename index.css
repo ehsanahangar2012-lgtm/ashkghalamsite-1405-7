@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@700&family=Vazirmatn:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  
+  --color-primary-50: #f0f9ff;
+  --color-primary-100: #e0f2fe;
+  --color-primary-500: #0ea5e9;
+  --color-primary-600: #0284c7;
+  --color-primary-700: #0369a1;
+  --color-primary-900: #0c4a6e;
+  
+  --color-secondary-500: #f59e0b;
+  --color-secondary-600: #d97706;
+}
+
+@layer base {
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f1f1; }
+  
+  @media (prefers-color-scheme: dark) {
+    ::-webkit-scrollbar-track { background: #1f2937; }
+  }
+  
+  ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #555; }
+  
+  #root { height: 100vh; display: flex; flex-direction: column; }
+}
+
+/* Custom scrollbar hiding utility */
+.scrollbar-none::-webkit-scrollbar,
+.custom-scrollbar-none::-webkit-scrollbar {
+  display: none !important;
+}
+.scrollbar-none,
+.custom-scrollbar-none {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}

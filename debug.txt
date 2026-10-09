@@ -1,0 +1,331 @@
+      };
+    } else if (isTelescopic) {
+
+      // --- TELESCOPIC 2-PIECE MODEL (LID & TRAY) ---
+      const trayGroup = new THREE.Group();
+      boxRoot.add(trayGroup);
+
+      const lidGroup = new THREE.Group();
+      boxRoot.add(lidGroup);
+
+      // Tray panels (w x d bottom plate, and 4 walls of height h)
+      const bottomPlate = createPanel(w, d);
+      bottomPlate.rotation.x = -Math.PI / 2;
+      bottomPlate.position.y = -h / 2;
+      trayGroup.add(bottomPlate);
+
+      const frontPlate = createPanel(w, h);
+      frontPlate.position.set(0, 0, d/2);
+      trayGroup.add(frontPlate);
+
+      const backPlate = createPanel(w, h);
+      backPlate.position.set(0, 0, -d/2);
+      trayGroup.add(backPlate);
+
+      const leftPlate = createPanel(d, h);
+      leftPlate.rotation.y = -Math.PI / 2;
+      leftPlate.position.set(-w/2, 0, 0);
+      trayGroup.add(leftPlate);
+
+      const rightPlate = createPanel(d, h);
+      rightPlate.rotation.y = Math.PI / 2;
+      rightPlate.position.set(w/2, 0, 0);
+      trayGroup.add(rightPlate);
+
+      // Lid panels (larger by tolerance factor, walls of height h * 0.55)
+      const lw = w * 1.04;
+      const ld = d * 1.04;
+      const lh = h * 0.55;
+
+      const topPlate = createPanel(lw, ld);
+      topPlate.rotation.x = Math.PI / 2;
+      topPlate.position.y = h/2 + 0.01;
+      lidGroup.add(topPlate);
+
+      const lFrontPlate = createPanel(lw, lh);
+      lFrontPlate.position.set(0, h/2 - lh/2, ld/2);
+      lidGroup.add(lFrontPlate);
+
+      const lBackPlate = createPanel(lw, lh);
+      lBackPlate.position.set(0, h/2 - lh/2, -ld/2);
+      lidGroup.add(lBackPlate);
+
+      const lLeftPlate = createPanel(ld, lh);
+      lLeftPlate.rotation.y = -Math.PI / 2;
+      lLeftPlate.position.set(-lw/2, h/2 - lh/2, 0);
+      lidGroup.add(lLeftPlate);
+
+      const lRightPlate = createPanel(ld, lh);
+      lRightPlate.rotation.y = Math.PI / 2;
+      lRightPlate.position.set(lw/2, h/2 - lh/2, 0);
+      lidGroup.add(lRightPlate);
+
+      updateFolds = () => {
+        const ratio = isOpenRatioRef.current;
+        // Slide the lid group upwards dynamically to show reveal
+        const offset = h * 1.8 * ratio;
+        lidGroup.position.y = offset;
+
+        const explodeOffset = isExplodedRef.current ? 3 : 0;
+        lFrontPlate.position.z = ld/2 + explodeOffset;
+        lBackPlate.position.z = -ld/2 - explodeOffset;
+        lLeftPlate.position.x = -lw/2 - explodeOffset;
+        lRightPlate.position.x = lw/2 + explodeOffset;
+
+        frontPlate.position.z = d/2 + explodeOffset;
+        backPlate.position.z = -d/2 - explodeOffset;
+        leftPlate.position.x = -w/2 - explodeOffset;
+        rightPlate.position.x = w/2 + explodeOffset;
+      };
+
+        } else if (isMailer) {
+      // --- MAILER (KIBORDI) BOX ---
+      // Accurate 0427 Dieline 3D Model
+      
+      const createRectShape = (rw, rh) => {
+         const sh = new THREE.Shape();
+         sh.moveTo(-rw/2, 0);
+         sh.lineTo(rw/2, 0);
+         sh.lineTo(rw/2, rh);
+         sh.lineTo(-rw/2, rh);
+         sh.lineTo(-rw/2, 0);
+         return sh;
+      };
+
+      const createLidTuckShape = (tw, th) => {
+         const sh = new THREE.Shape();
+         const radius = th * 0.3;
+         sh.moveTo(-tw/2, 0);
+         sh.lineTo(-tw/2 + radius, th - radius);
+         sh.quadraticCurveTo(-tw/2 + radius*1.5, th, -tw/2 + radius*3, th);
+         sh.lineTo(tw/2 - radius*3, th);
+         sh.quadraticCurveTo(tw/2 - radius*1.5, th, tw/2 - radius, th - radius);
+         sh.lineTo(tw/2, 0);
+         sh.lineTo(-tw/2, 0);
+         return sh;
+      };
+
+      const createSideDustFlap = (fw, fh, isFront) => {
+         const sh = new THREE.Shape();
+         const cx = 0; // Attached to edge
+         if (isFront) {
+            sh.moveTo(0, 0);
+            sh.lineTo(fw, 0);
+            sh.lineTo(fw - fw*0.2, fh);
+            sh.lineTo(0, fh);
+         } else {
+            sh.moveTo(0, 0);
+            sh.lineTo(-fw, 0);
+            sh.lineTo(-fw + fw*0.2, fh);
+            sh.lineTo(0, fh);
+         }
+         sh.lineTo(0, 0);
+         return sh;
+      };
+
+      const base = createPanel(w, d); // centered
+      base.rotation.x = -Math.PI / 2;
+      base.position.y = -h / 2;
+      boxRoot.add(base);
+
+      // Back wall & Lid
+      const backHinge = new THREE.Group();
+      backHinge.position.set(0, 0, -d/2);
+      base.add(backHinge);
+      
+      const back = createPanel(w, h, createRectShape(w, h));
+      back.rotation.x = Math.PI / 2;
+      backHinge.add(back);
+
+      const lidHinge = new THREE.Group();
+      lidHinge.position.set(0, h, 0);
+      back.add(lidHinge);
+      
+      const lid = createPanel(w, d, createRectShape(w, d));
+      lid.rotation.x = -Math.PI / 2;
+      lidHinge.add(lid);
+
+      const lidTuckHinge = new THREE.Group();
+      lidTuckHinge.position.set(0, d, 0);
+      lid.add(lidTuckHinge);
+      
+      const lidTuck = createPanel(w * 0.9, h * 0.4, createLidTuckShape(w * 0.9, h * 0.4));
+      lidTuck.rotation.x = Math.PI / 2;
+      lidTuckHinge.add(lidTuck);
+
+      // Front wall & Roll-over
+      const frontHinge = new THREE.Group();
+      frontHinge.position.set(0, 0, d/2);
+      base.add(frontHinge);
+      
+      const front = createPanel(w, h, createRectShape(w, h));
+      front.rotation.x = -Math.PI / 2;
+      frontHinge.add(front);
+
+      const frontRollHinge = new THREE.Group();
+      frontRollHinge.position.set(0, h, 0);
+      front.add(frontRollHinge);
+
+      const frontRoll = createPanel(w, h, createRectShape(w, h));
+      frontRoll.rotation.x = -Math.PI / 2;
+      frontRollHinge.add(frontRoll);
+
+      // Left fold sidewall
+      const leftHinge = new THREE.Group();
+      leftHinge.position.set(-w/2, 0, 0);
+      base.add(leftHinge);
+      
+      const leftWall = createPanel(d, h, createRectShape(d, h));
+      leftWall.rotation.y = -Math.PI / 2;
+      leftWall.rotation.x = -Math.PI / 2;
+      leftHinge.add(leftWall);
+
+      const leftRollHinge = new THREE.Group();
+      leftRollHinge.position.set(0, h, 0);
+      leftWall.add(leftRollHinge);
+
+      const leftRoll = createPanel(d, h, createRectShape(d, h));
+      leftRoll.rotation.x = Math.PI / 2;
+      leftRollHinge.add(leftRoll);
+
+      // Left Dust Flaps (attached to leftWall)
+      const leftFrontFlapHinge = new THREE.Group();
+      leftFrontFlapHinge.position.set(d/2, 0, 0);
+      leftWall.add(leftFrontFlapHinge);
+      const leftFrontFlap = createPanel(d/2, h*0.9, createSideDustFlap(d/2, h*0.9, true));
+      leftFrontFlapHinge.add(leftFrontFlap);
+
+      const leftBackFlapHinge = new THREE.Group();
+      leftBackFlapHinge.position.set(-d/2, 0, 0);
+      leftWall.add(leftBackFlapHinge);
+      const leftBackFlap = createPanel(d/2, h*0.9, createSideDustFlap(d/2, h*0.9, false));
+      leftBackFlapHinge.add(leftBackFlap);
+
+      // Right fold sidewall
+      const rightHinge = new THREE.Group();
+      rightHinge.position.set(w/2, 0, 0);
+      base.add(rightHinge);
+      
+      const rightWall = createPanel(d, h, createRectShape(d, h));
+      rightWall.rotation.y = Math.PI / 2;
+      rightWall.rotation.x = -Math.PI / 2;
+      rightHinge.add(rightWall);
+
+      const rightRollHinge = new THREE.Group();
+      rightRollHinge.position.set(0, h, 0);
+      rightWall.add(rightRollHinge);
+
+      const rightRoll = createPanel(d, h, createRectShape(d, h));
+      rightRoll.rotation.x = Math.PI / 2;
+      rightRollHinge.add(rightRoll);
+
+      // Right Dust Flaps (attached to rightWall)
+      const rightFrontFlapHinge = new THREE.Group();
+      rightFrontFlapHinge.position.set(-d/2, 0, 0); // Note: due to rotation, front is -d/2 or +d/2 depending on orientation.
+      rightWall.add(rightFrontFlapHinge);
+      const rightFrontFlap = createPanel(d/2, h*0.9, createSideDustFlap(d/2, h*0.9, false));
+      rightFrontFlapHinge.add(rightFrontFlap);
+
+      const rightBackFlapHinge = new THREE.Group();
+      rightBackFlapHinge.position.set(d/2, 0, 0);
+      rightWall.add(rightBackFlapHinge);
+      const rightBackFlap = createPanel(d/2, h*0.9, createSideDustFlap(d/2, h*0.9, true));
+      rightBackFlapHinge.add(rightBackFlap);
+
+      updateFolds = () => {
+        const ratio = isOpenRatioRef.current;
+        const angle = (Math.PI / 2) * ratio;
+
+        // Folding Sequence for Mailer (from open to closed)
+        // angle goes from 0 (closed) to Math.PI/2 (open)
+        
+        // 1. Dust flaps fold in (when closing, they go to 90 deg)
+        // When open, ratio=1 -> angle=90. Wait, if ratio=1, it means open.
+        // Closed means ratio=0, angle=0.
+        // If angle=0 (closed), dust flap should be rotated 90 deg relative to side wall!
+        const closedAngle = Math.PI / 2 - angle; // 90 when closed, 0 when open
+        
+        leftFrontFlapHinge.rotation.y = -closedAngle;
+        leftBackFlapHinge.rotation.y = closedAngle;
+        
+        // Right wall is rotated +90 deg, so its local axes are flipped relative to left wall
+        rightFrontFlapHinge.rotation.y = closedAngle;
+        rightBackFlapHinge.rotation.y = -closedAngle;
+
+        // 2. Side walls fold up
+        leftHinge.rotation.y = -angle;
+        rightHinge.rotation.y = angle;
+
+        // 3. Side roll-overs fold down
+        leftRollHinge.rotation.x = -closedAngle;
+        rightRollHinge.rotation.x = -closedAngle;
+
+        // 4. Front wall folds up
+        frontHinge.rotation.y = angle;
+        
+        // 5. Front roll-over folds down over front dust flaps
+        frontRollHinge.rotation.x = closedAngle;
+
+        // 6. Back wall folds up
+        backHinge.rotation.y = -angle;
+
+        // 7. Lid folds down
+        lidHinge.rotation.x = closedAngle;
+
+        // 8. Lid tuck folds down
+        lidTuckHinge.rotation.x = closedAngle;
+      };
+} else if (isTelescopic) {
+
+      // --- TELESCOPIC 2-PIECE MODEL (LID & TRAY) ---
+      const trayGroup = new THREE.Group();
+      boxRoot.add(trayGroup);
+
+      const lidGroup = new THREE.Group();
+      boxRoot.add(lidGroup);
+
+      // Tray panels (w x d bottom plate, and 4 walls of height h)
+      const bottomPlate = createPanel(w, d);
+      bottomPlate.rotation.x = -Math.PI / 2;
+      bottomPlate.position.y = -h / 2;
+      trayGroup.add(bottomPlate);
+
+      const frontPlate = createPanel(w, h);
+      frontPlate.position.set(0, 0, d/2);
+      trayGroup.add(frontPlate);
+
+      const backPlate = createPanel(w, h);
+      backPlate.position.set(0, 0, -d/2);
+      trayGroup.add(backPlate);
+
+      const leftPlate = createPanel(d, h);
+      leftPlate.rotation.y = -Math.PI / 2;
+      leftPlate.position.set(-w/2, 0, 0);
+      trayGroup.add(leftPlate);
+
+      const rightPlate = createPanel(d, h);
+      rightPlate.rotation.y = Math.PI / 2;
+      rightPlate.position.set(w/2, 0, 0);
+      trayGroup.add(rightPlate);
+
+      // Lid panels (larger by tolerance factor, walls of height h * 0.55)
+      const lw = w * 1.04;
+      const ld = d * 1.04;
+      const lh = h * 0.55;
+
+      const topPlate = createPanel(lw, ld);
+      topPlate.rotation.x = Math.PI / 2;
+      topPlate.position.y = h/2 + 0.01;
+      lidGroup.add(topPlate);
+
+      const lFrontPlate = createPanel(lw, lh);
+      lFrontPlate.position.set(0, h/2 - lh/2, ld/2);
+      lidGroup.add(lFrontPlate);
+
+      const lBackPlate = createPanel(lw, lh);
+      lBackPlate.position.set(0, h/2 - lh/2, -ld/2);
+      lidGroup.add(lBackPlate);
+
+      const lLeftPlate = createPanel(ld, lh);
+      lLeftPlate.rotation.y = -Math.PI / 2;
+      lLeftPlate.position.set(-lw/2, h/2 - lh/2, 0);

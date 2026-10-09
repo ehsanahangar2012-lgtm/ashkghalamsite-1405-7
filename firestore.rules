@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /packaging_models/{modelId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /custom_templates/{templateId} {
+      allow read, write: if true;
+    }
+    match /projects/{projectId} {
+      allow read, write: if true;
+    }
+    match /custom_catalogs/{catalogId} {
+      allow read, write: if true;
+    }
+    match /catalogs/{catalogId} {
+      allow read, write: if true;
+    }
+    match /catalog_pages/{pageId} {
+      allow read, write: if true;
+    }
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+    match /ai_covers/{coverId} {
+      allow read, write: if true;
+    }
+  }
+}

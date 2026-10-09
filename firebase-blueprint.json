@@ -1,0 +1,16 @@
+{
+  "collections": [
+    {
+      "name": "packaging_models",
+      "fields": ["id", "name", "code", "category", "defaultDims", "description"]
+    },
+    {
+      "name": "custom_templates",
+      "fields": ["id", "name", "code", "category", "baseModelId", "defaultDims", "features", "complexity", "material", "grainDirection", "userId"]
+    },
+    {
+      "name": "projects",
+      "fields": ["id", "name", "dims", "selectedModel", "material", "createdAt", "userId"]
+    }
+  ]
+}
