@@ -6,7 +6,8 @@ import {
   Route, 
   Navigate, 
   useLocation, 
-  useNavigate 
+  useNavigate,
+  Link
 } from 'react-router-dom';
 import { AppView, User, UserRole, Project, SitePortalId } from './types';
 import { Dashboard } from './components/Dashboard';
@@ -38,7 +39,7 @@ import { SoftwareMarketplace } from './components/SoftwareMarketplace';
 
 import { 
   Menu, X, Home, Grid, Users, Moon, Sun, MessageSquare, 
-  Phone, Mail, ArrowLeft, Send, CheckCircle, Image as ImageIcon, Sparkles, X as CloseIcon, Box, Lock, LogOut, LogIn, User as UserIcon, BookOpen, Clock, ChevronRight, Rocket, Palette, TrendingUp, Layers, Search, Zap, Folder, PenTool, Globe, Download,
+  Phone, Mail, ArrowLeft, Send, CheckCircle, Image as ImageIcon, Sparkles, X as CloseIcon, Box, Package, Lock, LogOut, LogIn, User as UserIcon, BookOpen, Clock, ChevronRight, Rocket, Palette, TrendingUp, Layers, Search, Zap, Folder, PenTool, Globe, Download,
   Cpu, ShieldCheck, Terminal, Laptop, HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -513,17 +514,25 @@ const Footer = ({ setView }: { setView: (v: AppView) => void }) => {
         <div>
           <h4 className="text-white font-bold mb-4">دسترسی سریع</h4>
           <ul className="space-y-2 text-sm">
-            <li className="hover:text-white cursor-pointer transition-colors" onClick={() => setView(AppView.SOFTWARE_STORE)}>نرم‌افزارهای صنعتی و IT اشک قلم</li>
-            <li className="hover:text-white cursor-pointer transition-colors" onClick={() => setView(AppView.DIELINE_GENERATOR)}>جعبه‌ساز و دایلاین ۳D</li>
-            <li className="hover:text-white cursor-pointer transition-colors" onClick={() => setView(AppView.ABOUT)}>درباره ما</li>
-            <li className="hover:text-white cursor-pointer transition-colors" onClick={() => setView(AppView.BLOG)}>مجله خبری (وبلاگ)</li>
-            <li className="hover:text-white cursor-pointer transition-colors">قوانین و مقررات</li>
-            <li 
-              className="text-gray-600 hover:text-red-400 cursor-pointer transition-colors mt-4 text-xs flex items-center gap-1"
-              onClick={() => setView(AppView.ADMIN_PANEL)}
-            >
-              <Lock className="h-3 w-3" />
-              ورود مدیران
+            <li><Link to="/services" className="hover:text-white transition-colors">خدمات صنعتی و مهندسی چاپ</Link></li>
+            <li><Link to="/products" className="hover:text-white transition-colors">محصولات و رده‌های بسته‌بندی</Link></li>
+            <li><Link to="/catalog" className="hover:text-white transition-colors">ژورنال و کاتالوگ ۳D</Link></li>
+            <li><Link to="/portfolio" className="hover:text-white transition-colors">گالری نمونه‌کارها</Link></li>
+            <li><Link to="/software" className="hover:text-white transition-colors">نرم‌افزارهای صنعتی و IT اشک قلم</Link></li>
+            <li><Link to="/tools/dieline" className="hover:text-white transition-colors">جعبه‌ساز و دایلاین ۳D</Link></li>
+            <li><Link to="/tools/design-studio" className="hover:text-white transition-colors">استودیو آنلاین گرافیک</Link></li>
+            <li><Link to="/about" className="hover:text-white transition-colors">درباره ما</Link></li>
+            <li><Link to="/blog" className="hover:text-white transition-colors">مجله تخصصی چاپ (وبلاگ)</Link></li>
+            <li><Link to="/inquiry" className="hover:text-white transition-colors">استعلام آنلاین قیمت</Link></li>
+            <li>
+              <button 
+                type="button"
+                className="text-gray-500 hover:text-red-400 cursor-pointer transition-colors mt-2 text-xs flex items-center gap-1"
+                onClick={() => setView(AppView.ADMIN_PANEL)}
+              >
+                <Lock className="h-3 w-3" />
+                ورود مدیران
+              </button>
             </li>
           </ul>
         </div>
@@ -925,10 +934,20 @@ const AppContent = () => {
 
   const NavItem = ({ view, icon: Icon, label, isHeader = false }: { view: AppView, icon: any, label: string, isHeader?: boolean }) => {
     const active = currentView === view;
+    const path = getPathForView(view);
+
+    const handleClick = (e: React.MouseEvent) => {
+      if (e.metaKey || e.ctrlKey) return;
+      e.preventDefault();
+      toggleView(view);
+      setIsMobileMenuOpen(false);
+    };
+
     if (isHeader) {
       return (
-        <button 
-          onClick={() => { toggleView(view); setIsMobileMenuOpen(false); }}
+        <Link 
+          to={path}
+          onClick={handleClick}
           className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-xl transition-all duration-200 whitespace-nowrap shrink-0 text-xs xl:text-sm font-bold cursor-pointer ${
             active 
               ? 'bg-primary-50 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400 border border-primary-200/80 dark:border-primary-800/60 shadow-sm' 
@@ -937,13 +956,14 @@ const AppContent = () => {
         >
           <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-primary-500' : 'text-gray-400 dark:text-gray-400'}`} />
           <span className="whitespace-nowrap">{label}</span>
-        </button>
+        </Link>
       );
     }
 
     return (
-      <button 
-        onClick={() => { toggleView(view); setIsMobileMenuOpen(false); }}
+      <Link 
+        to={path}
+        onClick={handleClick}
         className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 w-full text-right ${
           active 
             ? 'bg-gradient-to-r from-primary-50 to-primary-100/50 dark:from-primary-900/40 dark:to-primary-800/20 text-primary-600 dark:text-primary-400 font-extrabold border border-primary-200 dark:border-primary-800/50' 
@@ -952,7 +972,7 @@ const AppContent = () => {
       >
         <Icon className={`h-5 w-5 shrink-0 ${active ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'}`} />
         <span className="text-sm font-bold whitespace-nowrap">{label}</span>
-      </button>
+      </Link>
     );
   };
 
@@ -1018,11 +1038,12 @@ const AppContent = () => {
 
             <nav className="hidden lg:flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
               <NavItem view={AppView.HOME} icon={Home} label="خانه" isHeader />
+              <NavItem view={AppView.SERVICES} icon={Layers} label="خدمات" isHeader />
+              <NavItem view={AppView.PRODUCTS} icon={Package} label="محصولات" isHeader />
+              <NavItem view={AppView.CATALOG} icon={ImageIcon} label="کاتالوگ" isHeader />
               <NavItem view={AppView.DIELINE_GENERATOR} icon={Box} label="جعبه‌ساز ۳D" isHeader />
               <NavItem view={AppView.SOFTWARE_STORE} icon={Laptop} label="نرم‌افزارها" isHeader />
               <NavItem view={AppView.DESIGN_STUDIO} icon={Palette} label="استودیو آنلاین" isHeader />
-              <NavItem view={AppView.AUTOCAD_STUDIO} icon={PenTool} label="اتوکد حرفه‌ای" isHeader />
-              <NavItem view={AppView.CATALOG} icon={ImageIcon} label="کاتالوگ" isHeader />
               <NavItem view={AppView.LIBRARY} icon={Download} label="کتابخانه" isHeader />
               <NavItem view={AppView.ABOUT} icon={Users} label="درباره ما" isHeader />
             </nav>
@@ -1225,6 +1246,8 @@ const AppContent = () => {
                     <div className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2 text-right">
                       محصولات، خدمات و کتابخانه
                     </div>
+                    <NavItem view={AppView.SERVICES} icon={Layers} label="خدمات صنعتی و مهندسی" />
+                    <NavItem view={AppView.PRODUCTS} icon={Package} label="محصولات و رده‌های بسته‌بندی" />
                     <NavItem view={AppView.CATALOG} icon={ImageIcon} label="ژورنال و کاتالوگ‌های اختصاصی" />
                     <NavItem view={AppView.SOFTWARE_STORE} icon={Laptop} label="فروشگاه نرم‌افزار تخصصی" />
                     <NavItem view={AppView.LIBRARY} icon={Download} label="کتابخانه دیجیتال قالب‌ها" />
@@ -1470,6 +1493,7 @@ const AppContent = () => {
             )
           } />
           <Route path="/admin-panel" element={<Navigate to="/admin" replace />} />
+          <Route path="/b2b" element={<Navigate to="/services" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
