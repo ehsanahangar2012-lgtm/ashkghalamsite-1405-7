@@ -26,6 +26,7 @@ export enum AppView {
   ENTERPRISE_DXP = 'ENTERPRISE_DXP',
   SUPPORT = 'SUPPORT',
   SERVICES = 'SERVICES',
+  PRODUCTS = 'PRODUCTS',
   DIELINE_GENERATOR = 'DIELINE_GENERATOR',
   DESIGN_STUDIO = 'DESIGN_STUDIO',
   ENGINEERING_CAD = 'ENGINEERING_CAD',
@@ -34,7 +35,8 @@ export enum AppView {
   B2B_SUITE = 'B2B_SUITE',
   ABOUT = 'ABOUT',
   LIBRARY = 'LIBRARY',
-  SOFTWARE_STORE = 'SOFTWARE_STORE'
+  SOFTWARE_STORE = 'SOFTWARE_STORE',
+  NOT_FOUND = 'NOT_FOUND'
 }
 
 export type SitePortalId = 'ashk' | 'badikaran' | 'software' | 'b2b' | string;

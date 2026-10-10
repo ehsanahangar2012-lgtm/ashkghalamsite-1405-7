@@ -107,7 +107,9 @@ function addDirToZip(zip, currentDir, baseDir, ignoreSubDirs = []) {
 }
 
 // Ensure .htaccess exists in dist
-const htaccessPath = path.join(rootDir, '.htaccess');
+const htaccessPath = fs.existsSync(path.join(rootDir, '.htaccess'))
+  ? path.join(rootDir, '.htaccess')
+  : path.join(publicDir, '.htaccess');
 if (fs.existsSync(htaccessPath)) {
   fs.copyFileSync(htaccessPath, path.join(distDir, '.htaccess'));
 }

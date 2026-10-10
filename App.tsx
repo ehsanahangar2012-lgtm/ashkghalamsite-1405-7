@@ -1,5 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { 
+  BrowserRouter, 
+  Routes, 
+  Route, 
+  Navigate, 
+  useLocation, 
+  useNavigate 
+} from 'react-router-dom';
 import { AppView, User, UserRole, Project, SitePortalId } from './types';
 import { Dashboard } from './components/Dashboard';
 import { Inquiry } from './components/Inquiry';
@@ -16,6 +24,10 @@ import { AdminPanel } from './components/AdminPanel';
 import { SeoHead } from './components/SeoHead';
 import { Blog } from './components/Blog';
 import { NexusDXP } from './dxp/NexusDXP';
+import { ServicesHub } from './components/ServicesHub';
+import { ProductsHub } from './components/ProductsHub';
+import { NotFound } from './components/NotFound';
+import { getPathForView, getViewForPath } from './utils/navigationRoutes';
 
 import { AutoCADStudio } from './components/AutoCADStudio';
 import { EmergencyNotificationBar } from './components/EmergencyNotificationBar';
@@ -595,6 +607,82 @@ const getHelpContent = (view: AppView) => {
           "نتایج را می‌توانید ذخیره کنید یا به صورت پیش‌فاکتور دانلود نمایید."
         ]
       };
+    case AppView.SERVICES:
+      return {
+        title: "راهنمای خدمات صنعتی اشک قلم",
+        desc: "مشاهده مشخصات خطوط تولید چاپ افست ۵ رنگ، کارتن لمینتی، تیغ‌سازی لیزری و خدمات تکمیلی چاپ.",
+        tips: [
+          "برای برآورد آنلاین هزینه‌ها از دکمه استعلام قیمت استفاده نمایید.",
+          "جهت آزمایش قالب‌ها به جعبه‌ساز ۳D مراجعه فرمایید."
+        ]
+      };
+    case AppView.PRODUCTS:
+      return {
+        title: "راهنمای محصولات و رده‌های بسته‌بندی",
+        desc: "آشنایی با انواع کارتن‌های لمینتی، جعبه‌های دارویی، هاردباکس و کارتن‌های پستی.",
+        tips: [
+          "برای دیدن تصاویر واقعی محصولات به کاتالوگ ۳D مراجعه کنید.",
+          "برای تغییر ابعاد جعبه‌ها به ابزار دایلاین بروید."
+        ]
+      };
+    case AppView.PORTFOLIO:
+      return {
+        title: "راهنمای گالری نمونه‌کارها",
+        desc: "آرشیو پروژه‌های چاپ و بسته‌بندی به همراه تحلیل هوشمند سبک طراحی.",
+        tips: [
+          "روی هر نمونه‌کار کلیک کنید تا تحلیل هوش مصنوعی آن را مشاهده کنید.",
+          "از فیلترهای بالای صفحه برای دسته‌بندی موضوعی استفاده نمایید."
+        ]
+      };
+    case AppView.BLOG:
+      return {
+        title: "راهنمای مجله تخصصی چاپ",
+        desc: "مقالات تخصصی در حوزه صنعت چاپ، لیتوگرافی، بسته‌بندی و استانداردهای جهانی.",
+        tips: [
+          "مطالب آموزشی را بر اساس دسته‌بندی مطالعه فرمایید.",
+          "نکات فنی برای کارفرمایان و طراحان در مقالات درج شده است."
+        ]
+      };
+    case AppView.ABOUT:
+      return {
+        title: "راهنمای درباره ما",
+        desc: "معرفی صنایع چاپ و بسته‌بندی اشک قلم و بادیکاران توس، تجهیزات، ناوگان افست و راه‌های ارتباطی.",
+        tips: [
+          "اطلاعات تماس مستقیم و آدرس کارخانه در این صفحه قرار دارد."
+        ]
+      };
+    case AppView.LIBRARY:
+      return {
+        title: "راهنمای کتابخانه دیجیتال",
+        desc: "مرکز دانلود رایگان استانداردهای مهندسی کارتن، قالب‌های CAD، کتاب‌های تخصصی و پروفایل‌های رنگی.",
+        tips: [
+          "فایل‌ها کاملاً آفلاین و با فرمت وکتور یا PDF قابل دریافت هستند."
+        ]
+      };
+    case AppView.DASHBOARD:
+      return {
+        title: "راهنمای داشبورد کاربری",
+        desc: "کنترل پنل پیگیری سفارشات، استعلام‌های ثبت‌شده و پروژه‌های اختصاصی شما.",
+        tips: [
+          "وضعیت سفارشات خود را به صورت لحظه‌ای بررسی کنید."
+        ]
+      };
+    case AppView.ADMIN_PANEL:
+      return {
+        title: "راهنمای پنل مدیریت",
+        desc: "مرکز کنترل کل پرتال، مدیریت کاتالوگ‌ها، فایل‌های رسانه، فرمول قیمت‌گذاری و بکاپ سیستم.",
+        tips: [
+          "تغییرات ذخیره‌شده فوراً در سایت اعمال می‌شوند."
+        ]
+      };
+    case AppView.NOT_FOUND:
+      return {
+        title: "راهنمای صفحه ۴۰۴",
+        desc: "آدرس مورد نظر شما در سامانه یافت نشد. از دکمه‌های ناوبری جهت بازگشت به سامانه استفاده کنید.",
+        tips: [
+          "دکمه صفحه اصلی شما را به صفحه نخست هدایت خواهد کرد."
+        ]
+      };
     default:
       return {
         title: "راهنمای هوشمند اشک قلم",
@@ -612,7 +700,10 @@ const AppContent = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const { globalSettings, catalogItems } = useContent();
 
-  const [currentView, setCurrentView] = useState<AppView>(AppView.HOME);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const currentView = getViewForPath(location.pathname);
+
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [loginTargetRole, setLoginTargetRole] = useState<UserRole | undefined>(undefined);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -632,7 +723,13 @@ const AppContent = () => {
   });
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const isImmersiveView = (currentView as any) === AppView.DESIGN_STUDIO || (currentView as any) === AppView.DIELINE_GENERATOR || currentView === AppView.AUTOCAD_STUDIO;
+  const isImmersiveView = 
+    location.pathname.startsWith('/tools/design-studio') || 
+    location.pathname.startsWith('/design-studio') ||
+    location.pathname.startsWith('/tools/dieline') || 
+    location.pathname.startsWith('/dieline') ||
+    location.pathname.startsWith('/tools/autocad') ||
+    location.pathname.startsWith('/autocad');
 
   const [activePortal, setActivePortal] = useState<SitePortalId>(() => {
     if (typeof window !== 'undefined') {
@@ -679,7 +776,7 @@ const AppContent = () => {
     if (targetView && typeof targetView === 'string') {
       const matchedView = Object.values(AppView).find(v => v === targetView);
       if (matchedView) {
-        setCurrentView(matchedView);
+        navigate(getPathForView(matchedView));
       }
     }
   };
@@ -704,14 +801,29 @@ const AppContent = () => {
   // Listener for custom event from Inquiry component
   useEffect(() => {
     const handleOpenLogin = () => openLoginModal();
-    const handleExitCad = () => setCurrentView(AppView.HOME);
+    const handleExitCad = () => navigate('/');
     window.addEventListener('open-login', handleOpenLogin);
     window.addEventListener('exit-cad-view', handleExitCad);
     return () => {
       window.removeEventListener('open-login', handleOpenLogin);
       window.removeEventListener('exit-cad-view', handleExitCad);
     };
-  }, []);
+  }, [navigate]);
+
+  // Handle direct navigation to protected paths
+  useEffect(() => {
+    if (location.pathname === '/admin' || location.pathname === '/admin-panel') {
+      if (!isAuthenticated || user?.role !== UserRole.ADMIN) {
+        setLoginTargetRole(UserRole.ADMIN);
+        setIsLoginOpen(true);
+      }
+    } else if (location.pathname === '/dashboard') {
+      if (!isAuthenticated) {
+        setLoginTargetRole(undefined);
+        setIsLoginOpen(true);
+      }
+    }
+  }, [location.pathname, isAuthenticated, user?.role]);
 
   // Welcome Notification Logic
   useEffect(() => {
@@ -781,7 +893,8 @@ const AppContent = () => {
       }
     }
 
-    setCurrentView(view);
+    const targetPath = getPathForView(view);
+    navigate(targetPath);
     setIsMobileMenuOpen(false);
   };
 
@@ -793,9 +906,16 @@ const AppContent = () => {
   const handleLoginSuccess = (loggedInUser: User) => {
     setIsLoginOpen(false);
     if (loggedInUser.role === UserRole.ADMIN) {
-      setCurrentView(AppView.ADMIN_PANEL);
+      navigate('/admin');
     } else {
-      setCurrentView(AppView.DASHBOARD);
+      navigate('/dashboard');
+    }
+  };
+
+  const handleLoginCancel = () => {
+    setIsLoginOpen(false);
+    if (location.pathname === '/admin' || location.pathname === '/admin-panel' || location.pathname === '/dashboard') {
+      navigate('/');
     }
   };
   
@@ -840,12 +960,12 @@ const AppContent = () => {
   if (isLoginOpen) {
     return (
       <Login 
-        onBack={() => setIsLoginOpen(false)} 
+        onBack={handleLoginCancel} 
         onLoginSuccess={handleLoginSuccess}
         targetRole={loginTargetRole}
         onNavigateView={(view) => {
           setIsLoginOpen(false);
-          setCurrentView(view);
+          navigate(getPathForView(view));
         }}
       />
     );
@@ -855,8 +975,8 @@ const AppContent = () => {
   if (currentView === AppView.ADMIN_PANEL && isAuthenticated && user?.role === UserRole.ADMIN) {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300 font-sans">
-        <SeoHead view={AppView.ADMIN_PANEL} />
-        <AdminPanel isDarkMode={isDarkMode} onBackToHome={() => setCurrentView(AppView.HOME)} />
+        <SeoHead view={AppView.ADMIN_PANEL} canonicalPath="/admin" noIndex={true} />
+        <AdminPanel isDarkMode={isDarkMode} onBackToHome={() => navigate('/')} />
       </div>
     );
   }
@@ -866,11 +986,11 @@ const AppContent = () => {
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 transition-colors duration-300 font-sans">
       
       {!isImmersiveView && (
-        <EmergencyNotificationBar currentView={currentView} />
+        <EmergencyNotificationBar currentView={currentView} onNavigate={toggleView} />
       )}
 
       {/* Dynamic Head SEO */}
-      <SeoHead view={currentView} />
+      <SeoHead view={currentView} canonicalPath={location.pathname} />
 
       {/* Sleek Top Navigation Bar */}
       {!isImmersiveView && (
@@ -930,7 +1050,7 @@ const AppContent = () => {
                     <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200 hidden md:inline-block">{user?.name}</span>
                     {user?.role === UserRole.ADMIN ? (
                       <button 
-                        onClick={() => setCurrentView(AppView.ADMIN_PANEL)}
+                        onClick={() => toggleView(AppView.ADMIN_PANEL)}
                         className="bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/25 px-1.5 sm:px-2 py-0.5 rounded text-[10px] font-black transition-colors"
                         title="پنل مدیریت"
                       >
@@ -938,7 +1058,7 @@ const AppContent = () => {
                       </button>
                     ) : (
                       <button 
-                        onClick={() => setCurrentView(AppView.DASHBOARD)}
+                        onClick={() => toggleView(AppView.DASHBOARD)}
                         className="bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 hover:bg-indigo-500/25 px-1.5 sm:px-2 py-0.5 rounded text-[10px] font-black transition-colors"
                         title="داشبورد کاربر"
                       >
@@ -946,7 +1066,7 @@ const AppContent = () => {
                       </button>
                     )}
                     {user?.avatar && <img src={user.avatar} className="w-8 h-8 rounded-full border border-gray-200 hidden sm:block" />}
-                    <button onClick={() => { logout(); setCurrentView(AppView.HOME); }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1 sm:p-2 rounded-full" title="خروج">
+                    <button onClick={() => { logout(); navigate('/'); }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1 sm:p-2 rounded-full" title="خروج">
                        <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                  </div>
@@ -1132,7 +1252,7 @@ const AppContent = () => {
 
                <div className="mt-auto flex flex-col gap-3 border-t border-gray-150 dark:border-slate-800/80 pt-4">
                 {isAuthenticated ? (
-                  <button onClick={() => { logout(); setCurrentView(AppView.HOME); setIsMobileMenuOpen(false); }} className="flex items-center justify-center gap-2 px-3 py-2.5 text-red-500 w-full hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold text-xs transition-colors">
+                  <button onClick={() => { logout(); navigate('/'); setIsMobileMenuOpen(false); }} className="flex items-center justify-center gap-2 px-3 py-2.5 text-red-500 w-full hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl font-bold text-xs transition-colors">
                     <LogOut className="h-4 w-4" /> خروج از حساب
                   </button>
                 ) : (
@@ -1268,49 +1388,90 @@ const AppContent = () => {
       <main className={`flex-1 w-full ${(isImmersiveView || currentView === AppView.HOME || currentView === AppView.CATALOG) ? 'max-w-none px-0' 
           : 'max-w-7xl mx-auto px-4 md:px-8'
       }`}>
-        {currentView === AppView.HOME && (
-          <>
-            <ThreeDProductSlider onNavigate={toggleView} />
-            
-            <div id="catalog-section" className="w-full">
-               <CatalogSection />
-            </div>
-
-            <div className="max-w-7xl mx-auto px-4 md:px-8 mt-12">
-              <SmartPortfolio />
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-8">
-                <Card className="text-center hover:-translate-y-1 transition-transform duration-300" iconName="Grid" iconColor="blue" title="کاتالوگ هوشمند">
-                  <p className="text-gray-500 text-sm">انتخاب محصول با کمک هوش مصنوعی و مشاهده سه بعدی</p>
-                </Card>
-                <Card className="text-center hover:-translate-y-1 transition-transform duration-300" iconName="Phone" iconColor="green" title="پشتیبانی ۲۴ ساعته">
-                  <p className="text-gray-500 text-sm">پاسخگویی سریع از طریق چت، واتس‌اپ و تماس تلفنی</p>
-                </Card>
-                <Card className="text-center hover:-translate-y-1 transition-transform duration-300" iconName="CheckCircle" iconColor="purple" title="تضمین کیفیت">
-                  <p className="text-gray-500 text-sm">کنترل کیفیت چند مرحله‌ای و گارانتی چاپ</p>
-                </Card>
-              </div>
+        <Routes>
+          <Route path="/" element={
+            <>
+              <ThreeDProductSlider onNavigate={toggleView} />
               
-              <LatestBlogSection onViewAll={() => toggleView(AppView.BLOG)} />
-            </div>
-          </>
-        )}
-        {currentView === AppView.INQUIRY && <Inquiry />}
-        {currentView === AppView.CATALOG && <CatalogSection />}
-        {currentView === AppView.PORTFOLIO && <SmartPortfolio />}
-        {(currentView as any) === AppView.DESIGN_STUDIO && <DesignStudio isDarkMode={isDarkMode} />}
-        {currentView === AppView.AUTOCAD_STUDIO && <AutoCADStudio onExit={() => setCurrentView(AppView.HOME)} />}
-        {(currentView as any) === AppView.DIELINE_GENERATOR && <DielineGenerator onSaveProject={handleSaveProject} />}
-        {currentView === AppView.SOFTWARE_STORE && (
-          <SoftwareMarketplace 
-            onBackToHome={() => setCurrentView(AppView.HOME)} 
-            onNavigateToDieline={() => setCurrentView(AppView.DIELINE_GENERATOR)} 
-          />
-        )}
-        {currentView === AppView.BLOG && <Blog />}
-        {currentView === AppView.ABOUT && <AboutUs />}
-        {currentView === AppView.LIBRARY && <Library />}
-        
-        {currentView === AppView.DASHBOARD && isAuthenticated && <Dashboard user={user!} activeRole={user!.role} projects={projects} />}
+              <div id="catalog-section" className="w-full">
+                 <CatalogSection />
+              </div>
+
+              <div className="max-w-7xl mx-auto px-4 md:px-8 mt-12">
+                <SmartPortfolio />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-8">
+                  <Card className="text-center hover:-translate-y-1 transition-transform duration-300" iconName="Grid" iconColor="blue" title="کاتالوگ هوشمند">
+                    <p className="text-gray-500 text-sm">انتخاب محصول با کمک هوش مصنوعی و مشاهده سه بعدی</p>
+                  </Card>
+                  <Card className="text-center hover:-translate-y-1 transition-transform duration-300" iconName="Phone" iconColor="green" title="پشتیبانی ۲۴ ساعته">
+                    <p className="text-gray-500 text-sm">پاسخگویی سریع از طریق چت، واتس‌اپ و تماس تلفنی</p>
+                  </Card>
+                  <Card className="text-center hover:-translate-y-1 transition-transform duration-300" iconName="CheckCircle" iconColor="purple" title="تضمین کیفیت">
+                    <p className="text-gray-500 text-sm">کنترل کیفیت چند مرحله‌ای و گارانتی چاپ</p>
+                  </Card>
+                </div>
+                
+                <LatestBlogSection onViewAll={() => toggleView(AppView.BLOG)} />
+              </div>
+            </>
+          } />
+          <Route path="/inquiry" element={<Inquiry />} />
+          <Route path="/catalog" element={<CatalogSection />} />
+          <Route path="/portfolio" element={<SmartPortfolio />} />
+          <Route path="/portfolio/:slug" element={<SmartPortfolio />} />
+          <Route path="/services" element={<ServicesHub />} />
+          <Route path="/services/:slug" element={<ServicesHub />} />
+          <Route path="/products" element={<ProductsHub />} />
+          <Route path="/products/:slug" element={<ProductsHub />} />
+          <Route path="/tools/dieline" element={<DielineGenerator onSaveProject={handleSaveProject} />} />
+          <Route path="/dieline" element={<Navigate to="/tools/dieline" replace />} />
+          <Route path="/tools/design-studio" element={<DesignStudio isDarkMode={isDarkMode} />} />
+          <Route path="/design-studio" element={<Navigate to="/tools/design-studio" replace />} />
+          <Route path="/tools/autocad" element={<AutoCADStudio onExit={() => navigate('/')} />} />
+          <Route path="/autocad" element={<Navigate to="/tools/autocad" replace />} />
+          <Route path="/software" element={
+            <SoftwareMarketplace 
+              onBackToHome={() => navigate('/')} 
+              onNavigateToDieline={() => navigate('/tools/dieline')} 
+            />
+          } />
+          <Route path="/blog" element={<Blog />} />
+          <Route path="/blog/:slug" element={<Blog />} />
+          <Route path="/about" element={<AboutUs />} />
+          <Route path="/library" element={<Library />} />
+          <Route path="/dashboard" element={
+            isAuthenticated ? (
+              <Dashboard user={user!} activeRole={user!.role} projects={projects} />
+            ) : (
+              <div className="py-24 text-center">
+                <div className="max-w-md mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-xl">
+                  <h3 className="text-lg font-black text-gray-900 dark:text-white mb-2">داشبورد کاربری</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">جهت مشاهده سفارشات، پروژه‌ها و کارتابل خود وارد سیستم شوید.</p>
+                  <button onClick={openLoginModal} className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer">
+                    ورود به حساب کاربری
+                  </button>
+                </div>
+              </div>
+            )
+          } />
+          <Route path="/admin" element={
+            isAuthenticated && user?.role === UserRole.ADMIN ? (
+              <AdminPanel isDarkMode={isDarkMode} onBackToHome={() => navigate('/')} />
+            ) : (
+              <div className="py-24 text-center">
+                <div className="max-w-md mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-xl">
+                  <h3 className="text-lg font-black text-red-600 dark:text-red-400 mb-2">ورود مدیران</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">این بخش دارای دسترسی امنیتی اختصاصی مدیران ارشد سیستم است.</p>
+                  <button onClick={() => { setLoginTargetRole(UserRole.ADMIN); setIsLoginOpen(true); }} className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer">
+                    ورود با دسترسی ادمین
+                  </button>
+                </div>
+              </div>
+            )
+          } />
+          <Route path="/admin-panel" element={<Navigate to="/admin" replace />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </main>
       {!isImmersiveView && (
         <>
@@ -1616,10 +1777,12 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ContentProvider>
-        <AppContent />
-      </ContentProvider>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <ContentProvider>
+          <AppContent />
+        </ContentProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

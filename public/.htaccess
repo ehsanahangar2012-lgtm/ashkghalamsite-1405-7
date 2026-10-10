@@ -1,4 +1,4 @@
-# Apache / cPanel / LiteSpeed Rewrite Rules for Ashk Ghalam ERP v3.5.1
+# Apache / cPanel / LiteSpeed Rewrite Rules for Ashk Ghalam ERP v3.6.0
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
