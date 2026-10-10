@@ -5,6 +5,7 @@ import {
   HelpCircle, ShieldCheck, Image as ImageIcon, X 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { NotFound } from './NotFound';
 
 const PRODUCTS_CATEGORIES = [
   {
@@ -75,6 +76,11 @@ export const ProductsHub: React.FC = () => {
   const [showHelp, setShowHelp] = useState(false);
 
   const activeProduct = slug ? PRODUCTS_CATEGORIES.find(p => p.slug === slug) : null;
+
+  // If an unknown slug is entered, render 404 instead of falling back to the whole list
+  if (slug && !activeProduct) {
+    return <NotFound />;
+  }
 
   return (
     <div className="py-10 max-w-7xl mx-auto px-4 md:px-8 font-sans dir-rtl text-right">

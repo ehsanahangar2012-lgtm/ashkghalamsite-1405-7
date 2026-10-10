@@ -7,8 +7,10 @@ import {
   Navigate, 
   useLocation, 
   useNavigate,
+  useParams,
   Link
 } from 'react-router-dom';
+import { findBySlugOrId, toSlug } from './utils/slugUtils';
 import { AppView, User, UserRole, Project, SitePortalId } from './types';
 import { Dashboard } from './components/Dashboard';
 import { Inquiry } from './components/Inquiry';
@@ -47,15 +49,167 @@ import { motion, AnimatePresence } from 'framer-motion';
 // --- Smart Portfolio Component ---
 const SmartPortfolio = () => {
   const { portfolioItems } = useContent();
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const { slug } = useParams<{ slug?: string }>();
+  const navigate = useNavigate();
+
   const [aiAnalysis, setAiAnalysis] = useState<{tags: string[], suggestion: string} | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [themes, setThemes] = useState<Record<number, string>>({});
+  const [themes, setThemes] = useState<Record<string | number, string>>({});
   
   // Filtering & Sorting State
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'alphabetical'>('newest');
 
+  // Match item if slug is provided in URL
+  const activeItem = slug ? findBySlugOrId(portfolioItems, slug) : null;
+
+  // Run AI analysis on the activeItem whenever activeItem changes
+  useEffect(() => {
+    if (activeItem) {
+      let isSubscribed = true;
+      setIsAnalyzing(true);
+      setAiAnalysis(null);
+
+      analyzeDesignStyle(activeItem.title)
+        .then((res) => {
+          if (isSubscribed) {
+            setAiAnalysis(res);
+            setIsAnalyzing(false);
+          }
+        })
+        .catch(() => {
+          if (isSubscribed) {
+            setIsAnalyzing(false);
+          }
+        });
+
+      return () => {
+        isSubscribed = false;
+      };
+    }
+  }, [activeItem?.id, activeItem?.title]);
+
+  // If a slug was passed but no item found, show NotFound
+  if (slug && !activeItem) {
+    return <NotFound />;
+  }
+
+  // If viewing a single portfolio item via URL (/portfolio/:slug)
+  if (activeItem) {
+    const itemSlug = activeItem.id ? String(activeItem.id) : toSlug(activeItem.title);
+    return (
+      <div className="max-w-5xl mx-auto p-4 md:p-8 font-sans dir-rtl text-right">
+        <SeoHead 
+          view={AppView.PORTFOLIO}
+          canonicalPath={`/portfolio/${itemSlug}`}
+          customTitle={`${activeItem.title} | نمونه‌کار صنایع چاپ اشک قلم`}
+          customDescription={activeItem.description || `بررسی و مشخصات نمونه‌کار ${activeItem.title} در صنایع چاپ و بسته‌بندی اشک قلم.`}
+          noIndex={false}
+        />
+
+        {/* Breadcrumb / Back button */}
+        <div className="flex items-center justify-between mb-6">
+          <button 
+            onClick={() => navigate('/portfolio')}
+            className="flex items-center gap-2 text-gray-500 hover:text-primary-600 transition-colors text-sm font-bold cursor-pointer"
+          >
+            <ChevronRight className="w-4 h-4 rotate-180" />
+            <span>بازگشت به فهرست نمونه‌کارها</span>
+          </button>
+          
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Link to="/" className="hover:text-primary-600">خانه</Link>
+            <span>/</span>
+            <Link to="/portfolio" className="hover:text-primary-600">نمونه‌کارها</Link>
+            <span>/</span>
+            <span className="text-gray-700 dark:text-gray-300 font-bold truncate max-w-[200px]">{activeItem.title}</span>
+          </div>
+        </div>
+
+        {/* Dedicated Detail View Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden shadow-2xl border border-gray-150 dark:border-gray-700 flex flex-col md:flex-row">
+          <div className="md:w-1/2 h-72 md:h-auto min-h-[360px] bg-gray-100 dark:bg-gray-900">
+            <img 
+              src={activeItem.img} 
+              alt={activeItem.title} 
+              className="w-full h-full object-cover" 
+            />
+          </div>
+          
+          <div className="md:w-1/2 p-6 md:p-10 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3 py-1 rounded-full border border-amber-200/50 dark:border-amber-900/50">
+                  {activeItem.category || 'صنایع چاپ و بسته‌بندی'}
+                </span>
+                {activeItem.date && (
+                  <span className="text-xs text-gray-400">{activeItem.date}</span>
+                )}
+              </div>
+
+              <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white mb-4">
+                {activeItem.title}
+              </h1>
+
+              {activeItem.description && (
+                <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+                  {activeItem.description}
+                </p>
+              )}
+
+              {/* AI Analysis Section */}
+              <div className="p-4 rounded-2xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40 mb-6">
+                <div className="flex items-center gap-2 mb-3 text-purple-700 dark:text-purple-300 font-bold text-xs">
+                  <Sparkles className="h-4 w-4" />
+                  <span>تحلیل هوش مصنوعی سبک و متریال:</span>
+                </div>
+                
+                {isAnalyzing ? (
+                  <div className="space-y-2 animate-pulse">
+                    <div className="h-3 bg-purple-200/50 dark:bg-purple-800/40 rounded w-3/4"></div>
+                    <div className="h-3 bg-purple-200/50 dark:bg-purple-800/40 rounded w-1/2"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                      {aiAnalysis?.suggestion || 'ساختار مقاوم و طراحی استاندارد متناسب با خطوط چاپ افست و بسته‌بندی صادراتی.'}
+                    </p>
+                    {aiAnalysis?.tags && aiAnalysis.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-2">
+                        {aiAnalysis.tags.map(tag => (
+                          <span key={tag} className="px-2.5 py-0.5 bg-white dark:bg-gray-800 text-purple-700 dark:text-purple-300 rounded-lg text-[10px] font-bold border border-purple-200/60 dark:border-purple-800/60">
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
+              <Button 
+                className="flex-1 min-w-[150px] bg-primary-600 hover:bg-primary-700 text-white font-bold text-xs" 
+                onClick={() => navigate('/inquiry')}
+              >
+                ثبت استعلام قیمت این مدل
+              </Button>
+              <Button 
+                variant="outline" 
+                className="text-xs" 
+                onClick={() => navigate('/portfolio')}
+              >
+                سایر نمونه‌کارها
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Portfolio archive list view (when route is /portfolio)
   const categories = ['All', ...Array.from(new Set(portfolioItems.map(item => item.category).filter(Boolean)))];
 
   const filteredAndSortedItems = portfolioItems
@@ -71,21 +225,8 @@ const SmartPortfolio = () => {
       return 0;
     });
 
-  const handleItemClick = async (item: any) => {
-    setSelectedItem(item);
-    setAiAnalysis(null);
-    setIsAnalyzing(true);
-    
-    // Simulate API call delay for effect
-    await new Promise(r => setTimeout(r, 1000));
-    
-    const analysis = await analyzeDesignStyle(item.title);
-    setAiAnalysis(analysis);
-    setIsAnalyzing(false);
-  };
-
-  const toggleTheme = (id: number, color: string) => {
-      setThemes(prev => ({...prev, [id]: color}));
+  const toggleTheme = (id: number | string, color: string) => {
+    setThemes(prev => ({...prev, [id]: color}));
   };
 
   const containerVariants = {
@@ -93,18 +234,26 @@ const SmartPortfolio = () => {
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.1,
+        staggerChildren: 0.08,
       },
     },
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as any } },
+    hidden: { opacity: 0, y: 25 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as any } },
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-8">
+    <div className="max-w-7xl mx-auto p-4 md:p-8 font-sans dir-rtl text-right">
+      <SeoHead 
+        view={AppView.PORTFOLIO}
+        canonicalPath="/portfolio"
+        customTitle="گالری هوشمند نمونه‌کارها | اشک قلم"
+        customDescription="آرشیو پروژه‌های چاپ، کارتن‌سازی لمینتی، جعبه‌های دارویی، بهداشتی و بسته‌بندی صادراتی به همراه تحلیل هوشمند سبک طراحی."
+        noIndex={false}
+      />
+
       <motion.div 
         className="text-center mb-12"
         variants={containerVariants}
@@ -112,22 +261,24 @@ const SmartPortfolio = () => {
         whileInView="visible"
         viewport={{ once: true }}
       >
-        <motion.h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4" variants={itemVariants}>گالری هوشمند نمونه‌کارها</motion.h2>
-        <motion.p className="text-gray-500 max-w-2xl mx-auto" variants={itemVariants}>
-          روی هر پروژه کلیک کنید تا هوش مصنوعی سبک آن را تحلیل کرده و پیشنهادهای مشابه ارائه دهد.
+        <motion.h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-4" variants={itemVariants}>
+          گالری هوشمند نمونه‌کارها
+        </motion.h1>
+        <motion.p className="text-gray-500 max-w-2xl mx-auto text-xs sm:text-sm leading-relaxed" variants={itemVariants}>
+          روی هر پروژه کلیک کنید تا مشخصات دقیق، متریال ساختار و تحلیل هوش مصنوعی سبک آن را مشاهده فرمایید.
         </motion.p>
       </motion.div>
 
       {/* Filters & Sorting */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white dark:bg-gray-800 p-4 rounded-3xl shadow-sm border border-gray-150 dark:border-gray-700">
         <div className="flex flex-wrap gap-2 justify-center md:justify-start">
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setFilterCategory(cat || 'All')}
-              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 filterCategory === cat
-                  ? 'bg-primary-600 text-white shadow-lg shadow-primary-500/30'
+                  ? 'bg-primary-600 text-white shadow-md shadow-primary-500/20'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
@@ -137,11 +288,11 @@ const SmartPortfolio = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">مرتب‌سازی:</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">مرتب‌سازی:</span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500 border-none cursor-pointer"
+            className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500 border-none cursor-pointer"
           >
             <option value="newest">جدیدترین</option>
             <option value="oldest">قدیمی‌ترین</option>
@@ -151,9 +302,9 @@ const SmartPortfolio = () => {
       </div>
 
       {filteredAndSortedItems.length === 0 ? (
-        <div className="text-center py-16 bg-white dark:bg-gray-800/60 rounded-2xl border border-gray-100 dark:border-gray-750">
+        <div className="text-center py-16 bg-white dark:bg-gray-800/60 rounded-3xl border border-gray-100 dark:border-gray-750">
           <Sparkles className="w-10 h-10 text-gray-400 mx-auto mb-3 opacity-60" />
-          <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">
+          <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-medium">
             هیچ نمونه‌کاری ثبت نشده است. می‌توانید نمونه‌کارهای جدید را از پنل مدیریت اضافه نمایید.
           </p>
         </div>
@@ -165,108 +316,47 @@ const SmartPortfolio = () => {
           whileInView="visible"
           viewport={{ once: true }}
         >
-          {filteredAndSortedItems.map((item) => (
-            <motion.div 
-              key={item.id} 
-              variants={itemVariants}
-              className="group relative overflow-hidden rounded-xl cursor-pointer shadow-lg hover:shadow-2xl transition-all duration-300"
-              onClick={() => handleItemClick(item)}
-              style={{ backgroundColor: themes[item.id] || 'transparent' }}
-            >
-              <img src={item.img} alt={item.title} className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-500" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
-                <span className="text-secondary-500 text-sm font-bold mb-1">{item.category}</span>
-                <h3 className="text-white text-xl font-bold">{item.title}</h3>
-                <div className="mt-2 flex items-center text-white/80 text-sm gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  <span>تحلیل هوشمند</span>
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); toggleTheme(Number(item.id), '#1e3a8a'); }}
-                  className="mt-4 px-3 py-1 bg-white/20 rounded-full text-xs text-white hover:bg-white/40 transition-colors"
-                >
-                  تغییر تم هوشمند
-                </button>
-              </div>
-            </motion.div>
-          ))}
+          {filteredAndSortedItems.map((item) => {
+            const itemSlug = item.id ? String(item.id) : toSlug(item.title);
+            return (
+              <motion.div 
+                key={item.id} 
+                variants={itemVariants}
+                className="group relative overflow-hidden rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-150 dark:border-gray-700 bg-white dark:bg-gray-800"
+                style={{ backgroundColor: themes[item.id] || undefined }}
+              >
+                <Link to={`/portfolio/${itemSlug}`} className="block relative h-64 overflow-hidden">
+                  <img 
+                    src={item.img} 
+                    alt={item.title} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent opacity-90 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
+                    <span className="text-secondary-400 text-xs font-black mb-1">{item.category}</span>
+                    <h3 className="text-white text-lg font-black mb-2">{item.title}</h3>
+                    <div className="flex items-center justify-between text-white/80 text-xs">
+                      <span className="flex items-center gap-1.5 text-primary-300 font-bold">
+                        <span>مشاهده جزییات</span>
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                      </span>
+                      <button 
+                        onClick={(e) => { 
+                          e.preventDefault(); 
+                          e.stopPropagation(); 
+                          toggleTheme(item.id, '#1e3a8a'); 
+                        }}
+                        className="px-2.5 py-1 bg-white/20 hover:bg-white/30 backdrop-blur rounded-lg text-[10px] text-white transition-colors"
+                      >
+                        تم رنگی
+                      </button>
+                    </div>
+                  </div>
+                </Link>
+              </motion.div>
+            );
+          })}
         </motion.div>
       )}
-
-      {/* Detail Modal */}
-      <AnimatePresence>
-        {selectedItem && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            onClick={() => setSelectedItem(null)}
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }} 
-              animate={{ scale: 1, y: 0 }} 
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl flex flex-col md:flex-row"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="md:w-1/2 h-64 md:h-auto">
-                <img src={selectedItem.img} alt={selectedItem.title} className="w-full h-full object-cover" />
-              </div>
-              
-              <div className="md:w-1/2 p-8 relative flex flex-col">
-                <button 
-                  onClick={() => setSelectedItem(null)}
-                  className="absolute top-4 left-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                >
-                  <CloseIcon className="h-6 w-6 text-gray-500" />
-                </button>
-
-                <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{selectedItem.title}</h3>
-                <Badge color="gold">{selectedItem.category}</Badge>
-                
-                <div className="mt-8 flex-1">
-                  <div className="flex items-center gap-2 mb-4 text-purple-600 dark:text-purple-400 font-bold">
-                    <Sparkles className="h-5 w-5" />
-                    <span>تحلیل هوش مصنوعی</span>
-                  </div>
-                  
-                  {isAnalyzing ? (
-                    <div className="space-y-3 animate-pulse">
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
-                      <div className="flex gap-2 mt-4">
-                        <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
-                        <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      <div className="flex flex-wrap gap-2">
-                        {aiAnalysis?.tags.map(tag => (
-                          <span key={tag} className="px-3 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-sm">
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                      
-                      <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg border-r-4 border-purple-500">
-                        <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
-                          {aiAnalysis?.suggestion}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-8 flex gap-3">
-                  <Button className="flex-1" onClick={() => setSelectedItem(null)}>ثبت سفارش این طرح</Button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -293,45 +383,48 @@ const LatestBlogSection = ({ onViewAll }: { onViewAll: () => void }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {latestPosts.map((post) => (
-            <div 
-              key={post.id} 
-              className="group bg-gray-50 dark:bg-gray-900 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all duration-300 cursor-pointer"
-              onClick={onViewAll}
-            >
-              <div className="relative h-48 overflow-hidden">
-                <img 
-                  src={post.imageUrl} 
-                  alt={post.title} 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-                />
-                <div className="absolute top-4 right-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur px-2 py-1 rounded text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                   <Clock className="w-3 h-3" /> {post.readTime}m
+          {latestPosts.map((post) => {
+            const postSlug = post.id || toSlug(post.title);
+            return (
+              <Link 
+                key={post.id} 
+                to={`/blog/${postSlug}`}
+                className="group bg-gray-50 dark:bg-gray-900 rounded-3xl overflow-hidden border border-gray-150 dark:border-gray-750 hover:shadow-xl transition-all duration-300 block text-right dir-rtl"
+              >
+                <div className="relative h-48 overflow-hidden">
+                  <img 
+                    src={post.imageUrl} 
+                    alt={post.title} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                  />
+                  <div className="absolute top-4 right-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur px-2.5 py-1 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1 shadow-sm">
+                     <Clock className="w-3 h-3" /> {post.readTime}m
+                  </div>
                 </div>
-              </div>
-              <div className="p-5">
-                <div className="flex gap-2 mb-3">
-                  {post.tags.slice(0, 2).map(tag => (
-                    <span key={tag} className="text-[10px] font-bold text-primary-600 bg-primary-50 dark:bg-primary-900/20 px-2 py-1 rounded-md">
-                      {tag}
-                    </span>
-                  ))}
+                <div className="p-5">
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {post.tags.slice(0, 2).map(tag => (
+                      <span key={tag} className="text-[10px] font-bold text-primary-600 bg-primary-50 dark:bg-primary-900/20 px-2 py-0.5 rounded-md">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                  <h3 className="font-bold text-base sm:text-lg text-gray-900 dark:text-white mb-2 line-clamp-2 group-hover:text-primary-600 transition-colors">
+                    {post.title}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4 leading-relaxed">
+                    {post.excerpt}
+                  </p>
+                  <div className="flex justify-between items-center border-t border-gray-150 dark:border-gray-800 pt-3">
+                     <span className="text-xs text-gray-400">{post.date}</span>
+                     <span className="text-xs font-bold text-primary-600 flex items-center gap-1">
+                       مطالعه مقاله <ArrowLeft className="w-3 h-3" />
+                     </span>
+                  </div>
                 </div>
-                <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2 line-clamp-2 group-hover:text-primary-600 transition-colors">
-                  {post.title}
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4">
-                  {post.excerpt}
-                </p>
-                <div className="flex justify-between items-center border-t border-gray-200 dark:border-gray-700 pt-3">
-                   <span className="text-xs text-gray-400">{post.date}</span>
-                   <span className="text-xs font-medium text-primary-600 flex items-center gap-1">
-                     مطالعه <ArrowLeft className="w-3 h-3" />
-                   </span>
-                </div>
-              </div>
-            </div>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       </div>
     </div>

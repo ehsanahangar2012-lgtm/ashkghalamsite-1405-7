@@ -5,6 +5,7 @@ import {
   HelpCircle, ShieldCheck, PenTool, Calculator, Cpu, X 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { NotFound } from './NotFound';
 
 const SERVICES_DATA = [
   {
@@ -76,6 +77,11 @@ export const ServicesHub: React.FC = () => {
 
   // If a slug is provided, find specific service
   const activeService = slug ? SERVICES_DATA.find(s => s.slug === slug) : null;
+
+  // If an unknown slug is entered, render 404 instead of falling back to the whole list
+  if (slug && !activeService) {
+    return <NotFound />;
+  }
 
   return (
     <div className="py-10 max-w-7xl mx-auto px-4 md:px-8 font-sans dir-rtl text-right">

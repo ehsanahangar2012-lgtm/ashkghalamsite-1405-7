@@ -66,10 +66,14 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
     // Dynamic Robots directive: Protected/Draft pages must be noindex
     const shouldNoIndex = noIndex || 
       view === AppView.ADMIN_PANEL || 
+      view === AppView.ENTERPRISE_CMS ||
+      view === AppView.SEO_ENGINE ||
+      view === AppView.AI_CONTENT_FACTORY ||
+      view === AppView.PROGRAMMATIC_SEO ||
+      view === AppView.ENTERPRISE_DAM ||
+      view === AppView.ENTERPRISE_DXP ||
       view === AppView.DASHBOARD || 
-      view === AppView.NOT_FOUND ||
-      view === AppView.SERVICES ||
-      view === AppView.PRODUCTS;
+      view === AppView.NOT_FOUND;
 
     if (shouldNoIndex) {
       setMetaTag('name', 'robots', 'noindex, nofollow');
