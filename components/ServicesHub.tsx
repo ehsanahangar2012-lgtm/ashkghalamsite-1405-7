@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NotFound } from './NotFound';
+import { SeoHead } from './SeoHead';
+import { AppView } from '../types';
 
 const SERVICES_DATA = [
   {
@@ -85,6 +87,23 @@ export const ServicesHub: React.FC = () => {
 
   return (
     <div className="py-10 max-w-7xl mx-auto px-4 md:px-8 font-sans dir-rtl text-right">
+      {activeService ? (
+        <SeoHead 
+          view={AppView.SERVICES}
+          canonicalPath={`/services/${activeService.slug}`}
+          customTitle={`${activeService.title} | خدمات صنعتی اشک قلم`}
+          customDescription={activeService.description}
+          noIndex={false}
+        />
+      ) : (
+        <SeoHead 
+          view={AppView.SERVICES}
+          canonicalPath="/services"
+          customTitle="خدمات صنعتی و مهندسی چاپ و بسته‌بندی | اشک قلم"
+          customDescription="ارائه زنجیره کامل فرآیندهای تولید از مشاوره سازه کارتن و مدل‌سازی سه‌بعدی تا چاپ افست ۵ رنگ، لمینت، ساخت تیغ لیزری و پوشش‌های UV."
+          noIndex={false}
+        />
+      )}
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-6">
         <span className="hover:text-primary-600 cursor-pointer" onClick={() => navigate('/')}>خانه</span>

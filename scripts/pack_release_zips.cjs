@@ -22,8 +22,8 @@ const currentVersion = pkg.version;
 
 console.log(`[Packager] Starting generation of v${currentVersion} release ZIP archives...`);
 
-// Clean/Rename zip files based on version
-const processExistingZips = () => {
+// Rule: Clean all previous/existing zip files prior to creating the new release bundle
+const cleanExistingZips = () => {
   const targets = [publicDownloadsDir, distDownloadsDir, rootDir];
   
   targets.forEach(dir => {
@@ -31,59 +31,20 @@ const processExistingZips = () => {
     
     const files = fs.readdirSync(dir);
     for (const f of files) {
-      if (f.startsWith('ashk_ghalam_v') && f.endsWith('.zip')) {
+      if (f.startsWith('ashk_ghalam_') && f.endsWith('.zip')) {
         const filePath = path.join(dir, f);
-        
-        // Extract version using regex
-        const match = f.match(/^ashk_ghalam_v([0-9.]+)(_.*)?\.zip$/);
-        if (match) {
-          const fileVersion = match[1];
-          const isSameVersion = fileVersion === currentVersion;
-          
-          if (!isSameVersion) {
-            // Delete previous versions
-            try {
-              fs.unlinkSync(filePath);
-              console.log(`[Packager] Deleted previous version file: ${f}`);
-            } catch (e) {
-              console.error(`[Packager] Failed to delete previous version ${f}: ${e.message}`);
-            }
-          } else {
-            // If same version, rename with suffix to preserve it
-            if (f.includes('_old')) {
-              continue; // Skip already backed up files
-            }
-            
-            const ext = '.zip';
-            const base = f.slice(0, -ext.length);
-            
-            let suffix = '_old';
-            let counter = 1;
-            let targetName = `${base}${suffix}${ext}`;
-            let targetPath = path.join(dir, targetName);
-            
-            while (fs.existsSync(targetPath)) {
-              suffix = `_old${counter}`;
-              targetName = `${base}${suffix}${ext}`;
-              targetPath = path.join(dir, targetName);
-              counter++;
-            }
-            
-            try {
-              fs.renameSync(filePath, targetPath);
-              console.log(`[Packager] Renamed existing same-version file ${f} to: ${targetName}`);
-            } catch (e) {
-              console.error(`[Packager] Failed to rename same-version file ${f}: ${e.message}`);
-            }
-          }
+        try {
+          fs.unlinkSync(filePath);
+          console.log(`[Packager] Cleaned previous archive: ${f} from ${path.relative(rootDir, dir) || 'root'}`);
+        } catch (e) {
+          console.error(`[Packager] Failed to remove ${f}: ${e.message}`);
         }
       }
     }
   });
 };
 
-// Process existing zips before creating new ones
-processExistingZips();
+cleanExistingZips();
 
 // Helper to recursively add files to zip
 function addDirToZip(zip, currentDir, baseDir, ignoreSubDirs = []) {
@@ -106,15 +67,18 @@ function addDirToZip(zip, currentDir, baseDir, ignoreSubDirs = []) {
   }
 }
 
-// Ensure .htaccess exists in dist
-const htaccessPath = fs.existsSync(path.join(rootDir, '.htaccess'))
-  ? path.join(rootDir, '.htaccess')
-  : path.join(publicDir, '.htaccess');
-if (fs.existsSync(htaccessPath)) {
-  fs.copyFileSync(htaccessPath, path.join(distDir, '.htaccess'));
-}
+// Guarantee essential production static files in dist
+const ensureDistFile = (filename, sourcePath) => {
+  if (fs.existsSync(sourcePath)) {
+    fs.copyFileSync(sourcePath, path.join(distDir, filename));
+  }
+};
 
-// 1. Build Host-Ready ZIP (dist folder contents except downloads itself)
+ensureDistFile('.htaccess', fs.existsSync(path.join(rootDir, '.htaccess')) ? path.join(rootDir, '.htaccess') : path.join(publicDir, '.htaccess'));
+ensureDistFile('robots.txt', path.join(publicDir, 'robots.txt'));
+ensureDistFile('sitemap.xml', path.join(publicDir, 'sitemap.xml'));
+
+// 1. Build Host-Ready ZIP (cPanel deployment - dist folder contents excluding downloads)
 const hostZip = new AdmZip();
 addDirToZip(hostZip, distDir, distDir, ['downloads', '.git']);
 
@@ -124,10 +88,23 @@ fs.copyFileSync(hostZipPathCpanel, path.join(distDownloadsDir, `ashk_ghalam_v${c
 fs.copyFileSync(hostZipPathCpanel, path.join(rootDir, `ashk_ghalam_v${currentVersion}_cpanel.zip`));
 console.log(`[Packager] cPanel Deployment ZIP v${currentVersion} created: ${(fs.statSync(hostZipPathCpanel).size / 1024 / 1024).toFixed(2)} MB`);
 
-// 2. Build Full Source Project Bundle ZIP
+// 2. Build Full Source Project Bundle ZIP (Self-contained, reproducible build bundle)
 const projectZip = new AdmZip();
 
-const sourceFolders = ['src', 'components', 'contexts', 'services', 'utils', 'styles', 'public'];
+const sourceFolders = [
+  'src', 
+  'components', 
+  'contexts', 
+  'services', 
+  'utils', 
+  'hooks', 
+  'store', 
+  'db', 
+  'dxp', 
+  'scripts', 
+  'public'
+];
+
 for (const folder of sourceFolders) {
   const fPath = path.join(rootDir, folder);
   if (fs.existsSync(fPath)) {
@@ -135,12 +112,14 @@ for (const folder of sourceFolders) {
   }
 }
 
-if (fs.existsSync(distDir)) {
-  addDirToZip(projectZip, distDir, rootDir, ['downloads']);
-}
-
 const rootFiles = [
+  'App.tsx',
+  'index.tsx',
+  'index.css',
+  'types.ts',
   'package.json',
+  'package-lock.json',
+  'bun.lock',
   'tsconfig.json',
   'tsconfig.node.json',
   'vite.config.ts',
@@ -149,6 +128,8 @@ const rootFiles = [
   'index.html',
   '.htaccess',
   '.env.example',
+  'vite-env.d.ts',
+  'drizzle.config.ts',
   'firebase-applet-config.json',
   'firestore.rules'
 ];
@@ -160,8 +141,8 @@ for (const f of rootFiles) {
   }
 }
 
-const projZipPathV35 = path.join(publicDownloadsDir, `ashk_ghalam_v${currentVersion}_source_bundle.zip`);
-projectZip.writeZip(projZipPathV35);
-fs.copyFileSync(projZipPathV35, path.join(distDownloadsDir, `ashk_ghalam_v${currentVersion}_source_bundle.zip`));
-fs.copyFileSync(projZipPathV35, path.join(rootDir, `ashk_ghalam_v${currentVersion}_source_bundle.zip`));
-console.log(`[Packager] Full Source Bundle ZIP v${currentVersion} created: ${(fs.statSync(projZipPathV35).size / 1024 / 1024).toFixed(2)} MB`);
+const projZipPath = path.join(publicDownloadsDir, `ashk_ghalam_v${currentVersion}_source_bundle.zip`);
+projectZip.writeZip(projZipPath);
+fs.copyFileSync(projZipPath, path.join(distDownloadsDir, `ashk_ghalam_v${currentVersion}_source_bundle.zip`));
+fs.copyFileSync(projZipPath, path.join(rootDir, `ashk_ghalam_v${currentVersion}_source_bundle.zip`));
+console.log(`[Packager] Full Source Bundle ZIP v${currentVersion} created: ${(fs.statSync(projZipPath).size / 1024 / 1024).toFixed(2)} MB`);

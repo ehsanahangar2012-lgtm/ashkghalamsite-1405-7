@@ -19,7 +19,7 @@ const _dirname = process.cwd();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   app.use(cors());
   app.use(express.json({ limit: '50mb' }));
@@ -3307,6 +3307,15 @@ async function startServer() {
       }
     }));
     app.get("/{*splat}", (req, res) => {
+      const ext = path.extname(req.path).toLowerCase();
+      const assetExtensions = [
+        '.js', '.mjs', '.cjs', '.css', '.map', 
+        '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico', 
+        '.woff', '.woff2', '.ttf', '.eot', '.json', '.pdf', '.zip'
+      ];
+      if (assetExtensions.includes(ext) || req.path.startsWith('/assets/')) {
+        return res.status(404).type('text/plain').send('Asset not found');
+      }
       res.sendFile(path.join(_dirname, "dist", "index.html"));
     });
   }

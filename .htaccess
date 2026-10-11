@@ -1,9 +1,9 @@
-# Apache / cPanel / LiteSpeed Rewrite Rules for Ashk Ghalam ERP v3.6.0
+# Apache / cPanel / LiteSpeed Rewrite Rules for Ashk Ghalam ERP v3.8.3
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Allow direct access to uploaded files and media
+  # Allow direct access to uploaded files and media that physically exist
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
@@ -14,6 +14,10 @@
   RewriteRule ^api/files/cleanup$ cleanup.php [L,QSA]
   RewriteRule ^api/files/([^/]+)$ delete_file.php?file=$1 [L,QSA]
   RewriteRule ^api/files$ get_files.php [L,QSA]
+
+  # Guard: Do not rewrite missing static assets (JS, CSS, images, etc.) to index.html with 200 OK
+  RewriteCond %{REQUEST_URI} \.(?:css|js|mjs|cjs|jpe?g|gif|png|webp|svg|woff2?|ttf|eot|ico|json|pdf|map)$ [NC]
+  RewriteRule ^ - [R=404,L]
 
   # Route all single page application (SPA) routes to index.html
   RewriteRule ^ index.html [L]

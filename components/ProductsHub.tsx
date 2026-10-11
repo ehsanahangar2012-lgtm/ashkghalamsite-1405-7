@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { NotFound } from './NotFound';
+import { SeoHead } from './SeoHead';
+import { AppView } from '../types';
 
 const PRODUCTS_CATEGORIES = [
   {
@@ -84,6 +86,23 @@ export const ProductsHub: React.FC = () => {
 
   return (
     <div className="py-10 max-w-7xl mx-auto px-4 md:px-8 font-sans dir-rtl text-right">
+      {activeProduct ? (
+        <SeoHead 
+          view={AppView.PRODUCTS}
+          canonicalPath={`/products/${activeProduct.slug}`}
+          customTitle={`${activeProduct.title} | محصولات بسته‌بندی اشک قلم`}
+          customDescription={activeProduct.description}
+          noIndex={false}
+        />
+      ) : (
+        <SeoHead 
+          view={AppView.PRODUCTS}
+          canonicalPath="/products"
+          customTitle="محصولات و رده‌های بسته‌بندی صنعتی | اشک قلم"
+          customDescription="انواع کارتن‌های لمینتی صادراتی، جعبه‌های دارویی بهداشتی، هاردباکس‌های لوکس و بسته‌بندی‌های پستی و آنلاین‌شاپ‌ها."
+          noIndex={false}
+        />
+      )}
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-6">
         <span className="hover:text-primary-600 cursor-pointer" onClick={() => navigate('/')}>خانه</span>

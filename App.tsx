@@ -1104,9 +1104,6 @@ const AppContent = () => {
         <EmergencyNotificationBar currentView={currentView} onNavigate={toggleView} />
       )}
 
-      {/* Dynamic Head SEO */}
-      <SeoHead view={currentView} canonicalPath={location.pathname} />
-
       {/* Sleek Top Navigation Bar */}
       {!isImmersiveView && (
         <div className="sticky top-0 z-40 w-full pointer-events-none flex justify-center">
@@ -1509,6 +1506,7 @@ const AppContent = () => {
         <Routes>
           <Route path="/" element={
             <>
+              <SeoHead view={AppView.HOME} canonicalPath="/" />
               <ThreeDProductSlider onNavigate={toggleView} />
               
               <div id="catalog-section" className="w-full">
@@ -1533,35 +1531,42 @@ const AppContent = () => {
               </div>
             </>
           } />
-          <Route path="/inquiry" element={<Inquiry />} />
-          <Route path="/catalog" element={<CatalogSection />} />
+          <Route path="/inquiry" element={<><SeoHead view={AppView.INQUIRY} canonicalPath="/inquiry" /><Inquiry /></>} />
+          <Route path="/catalog" element={<><SeoHead view={AppView.CATALOG} canonicalPath="/catalog" /><CatalogSection /></>} />
           <Route path="/portfolio" element={<SmartPortfolio />} />
           <Route path="/portfolio/:slug" element={<SmartPortfolio />} />
           <Route path="/services" element={<ServicesHub />} />
           <Route path="/services/:slug" element={<ServicesHub />} />
           <Route path="/products" element={<ProductsHub />} />
           <Route path="/products/:slug" element={<ProductsHub />} />
-          <Route path="/tools/dieline" element={<DielineGenerator onSaveProject={handleSaveProject} />} />
+          <Route path="/tools/dieline" element={<><SeoHead view={AppView.DIELINE_GENERATOR} canonicalPath="/tools/dieline" /><DielineGenerator onSaveProject={handleSaveProject} /></>} />
           <Route path="/dieline" element={<Navigate to="/tools/dieline" replace />} />
-          <Route path="/tools/design-studio" element={<DesignStudio isDarkMode={isDarkMode} />} />
+          <Route path="/tools/design-studio" element={<><SeoHead view={AppView.DESIGN_STUDIO} canonicalPath="/tools/design-studio" /><DesignStudio isDarkMode={isDarkMode} /></>} />
           <Route path="/design-studio" element={<Navigate to="/tools/design-studio" replace />} />
-          <Route path="/tools/autocad" element={<AutoCADStudio onExit={() => navigate('/')} />} />
+          <Route path="/tools/autocad" element={<><SeoHead view={AppView.AUTOCAD_STUDIO} canonicalPath="/tools/autocad" /><AutoCADStudio onExit={() => navigate('/')} /></>} />
           <Route path="/autocad" element={<Navigate to="/tools/autocad" replace />} />
           <Route path="/software" element={
-            <SoftwareMarketplace 
-              onBackToHome={() => navigate('/')} 
-              onNavigateToDieline={() => navigate('/tools/dieline')} 
-            />
+            <>
+              <SeoHead view={AppView.SOFTWARE_STORE} canonicalPath="/software" />
+              <SoftwareMarketplace 
+                onBackToHome={() => navigate('/')} 
+                onNavigateToDieline={() => navigate('/tools/dieline')} 
+              />
+            </>
           } />
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<Blog />} />
-          <Route path="/about" element={<AboutUs />} />
-          <Route path="/library" element={<Library />} />
+          <Route path="/about" element={<><SeoHead view={AppView.ABOUT} canonicalPath="/about" /><AboutUs /></>} />
+          <Route path="/library" element={<><SeoHead view={AppView.LIBRARY} canonicalPath="/library" /><Library /></>} />
           <Route path="/dashboard" element={
             isAuthenticated ? (
-              <Dashboard user={user!} activeRole={user!.role} projects={projects} />
+              <>
+                <SeoHead view={AppView.DASHBOARD} canonicalPath="/dashboard" noIndex={true} />
+                <Dashboard user={user!} activeRole={user!.role} projects={projects} />
+              </>
             ) : (
               <div className="py-24 text-center">
+                <SeoHead view={AppView.DASHBOARD} canonicalPath="/dashboard" noIndex={true} />
                 <div className="max-w-md mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-xl">
                   <h3 className="text-lg font-black text-gray-900 dark:text-white mb-2">داشبورد کاربری</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">جهت مشاهده سفارشات، پروژه‌ها و کارتابل خود وارد سیستم شوید.</p>
@@ -1577,6 +1582,7 @@ const AppContent = () => {
               <AdminPanel isDarkMode={isDarkMode} onBackToHome={() => navigate('/')} />
             ) : (
               <div className="py-24 text-center">
+                <SeoHead view={AppView.ADMIN_PANEL} canonicalPath="/admin" noIndex={true} />
                 <div className="max-w-md mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-xl">
                   <h3 className="text-lg font-black text-red-600 dark:text-red-400 mb-2">ورود مدیران</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">این بخش دارای دسترسی امنیتی اختصاصی مدیران ارشد سیستم است.</p>
