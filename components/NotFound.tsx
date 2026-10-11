@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Home, ArrowLeft, Box, Search, HelpCircle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SeoHead } from './SeoHead';
+import { AppView } from '../types';
 
 export const NotFound: React.FC = () => {
   const navigate = useNavigate();
@@ -9,6 +11,12 @@ export const NotFound: React.FC = () => {
 
   return (
     <div className="min-h-[70vh] flex flex-col items-center justify-center text-center p-6 font-sans dir-rtl">
+      <SeoHead 
+        view={AppView.NOT_FOUND} 
+        customTitle="صفحه مورد نظر یافت نشد (۴۰۴) | صنایع چاپ اشک قلم" 
+        customDescription="متأسفانه صفحه درخواستی شما در سامانه اشک قلم یافت نشد. برای بازگشت به صفحه اصلی یا دسترسی به ابزارهای چاپ و جعبه‌سازی از دکمه‌های زیر استفاده کنید."
+        noIndex={true} 
+      />
       <div className="w-20 h-20 rounded-3xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-black text-4xl mb-6 shadow-inner">
         ۴۰۴
       </div>

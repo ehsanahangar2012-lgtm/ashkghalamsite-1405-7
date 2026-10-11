@@ -1,6 +1,6 @@
 {
-  "name": "اشک قلم (Ashk Ghalam) - CAD Studio v3.7.1",
-  "description": "سامانه جامع مهندسی کارتن، بسته‌بندی و کاتالوگ هوشمند اشک قلم v3.7.1، تثبیت Routing واقعی React Router، مدیریت slug مقالات و نمونه‌کارها، بهینه‌سازی SEO و ربات‌ها، خروجی DXF/PDF و شبیه‌ساز سه‌بعدی آفلاین.",
+  "name": "اشک قلم (Ashk Ghalam) - CAD Studio v3.8.2",
+  "description": "سامانه جامع مهندسی کارتن، بسته‌بندی و کاتالوگ هوشمند اشک قلم v3.8.2، رفع خطای اتصال HMR و ریستارت سرور توسعه.",
   "requestFramePermissions": [
     "microphone",
     "camera"

@@ -47,7 +47,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- Smart Portfolio Component ---
-const SmartPortfolio = () => {
+const SmartPortfolio = ({ isEmbedded = false }: { isEmbedded?: boolean }) => {
   const { portfolioItems } = useContent();
   const { slug } = useParams<{ slug?: string }>();
   const navigate = useNavigate();
@@ -246,13 +246,15 @@ const SmartPortfolio = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8 font-sans dir-rtl text-right">
-      <SeoHead 
-        view={AppView.PORTFOLIO}
-        canonicalPath="/portfolio"
-        customTitle="گالری هوشمند نمونه‌کارها | اشک قلم"
-        customDescription="آرشیو پروژه‌های چاپ، کارتن‌سازی لمینتی، جعبه‌های دارویی، بهداشتی و بسته‌بندی صادراتی به همراه تحلیل هوشمند سبک طراحی."
-        noIndex={false}
-      />
+      {!isEmbedded && (
+        <SeoHead 
+          view={AppView.PORTFOLIO}
+          canonicalPath="/portfolio"
+          customTitle="گالری هوشمند نمونه‌کارها | اشک قلم"
+          customDescription="آرشیو پروژه‌های چاپ، کارتن‌سازی لمینتی، جعبه‌های دارویی، بهداشتی و بسته‌بندی صادراتی به همراه تحلیل هوشمند سبک طراحی."
+          noIndex={false}
+        />
+      )}
 
       <motion.div 
         className="text-center mb-12"
@@ -1514,7 +1516,7 @@ const AppContent = () => {
               </div>
 
               <div className="max-w-7xl mx-auto px-4 md:px-8 mt-12">
-                <SmartPortfolio />
+                <SmartPortfolio isEmbedded={true} />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-8">
                   <Card className="text-center hover:-translate-y-1 transition-transform duration-300" iconName="Grid" iconColor="blue" title="کاتالوگ هوشمند">
                     <p className="text-gray-500 text-sm">انتخاب محصول با کمک هوش مصنوعی و مشاهده سه بعدی</p>
