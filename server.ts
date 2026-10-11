@@ -3306,7 +3306,7 @@ async function startServer() {
         }
       }
     }));
-    app.get("*", (req, res) => {
+    app.get("/{*splat}", (req, res) => {
       res.sendFile(path.join(_dirname, "dist", "index.html"));
     });
   }

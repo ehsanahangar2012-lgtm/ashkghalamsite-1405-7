@@ -29,7 +29,8 @@ async function runWorkerTests() {
     priceType: 'fixed',
     city: 'تهران',
     contactPhone: '09120000000',
-    images: []
+    images: [],
+    attributes: {}
   };
 
   const state = engine.initializeWorkflow(campaign, 'B2B', 'extension_worker');
@@ -161,6 +162,8 @@ async function runWorkerTests() {
       titleMatch: true,
       adIdMatch: true,
       verificationScore: 100,
+      evidenceReasons: ['Title matched', 'Ad ID verified'],
+      verifiedAt: new Date().toISOString(),
       verifiedAtShamsi: verificationService.getShamsiTimestamp()
     };
 
