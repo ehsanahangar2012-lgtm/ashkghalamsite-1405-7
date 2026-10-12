@@ -1,9 +1,28 @@
-
 <!DOCTYPE html>
 <html lang="fa" dir="rtl" class="scroll-smooth">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Suppress non-breaking WebSocket / HMR transport errors in AI Studio iframe environment
+      window.addEventListener('error', function(e) {
+        if (e && (
+          (e.message && (e.message.includes('WebSocket') || e.message.includes('createWebSocketModuleRunnerTransport'))) ||
+          (e.filename && e.filename.includes('@vite/client'))
+        )) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return true;
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function(e) {
+        var reason = e ? (e.reason ? String(e.reason) : '') : '';
+        if (reason.includes('WebSocket') || reason.includes('@vite/client') || reason.includes('createWebSocketModuleRunnerTransport')) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      }, true);
+    </script>
     <title>اشک قلم | چاپ، جعبه‌سازی، کارتن‌سازی و بسته‌بندی</title>
     <meta name="description" content="اشک قلم؛ معرفی خدمات چاپ و بسته‌بندی، جعبه‌سازی و کارتن‌سازی. محصولات، کاتالوگ‌ها و نمونه‌کارها را مشاهده کنید و برای سفارش و استعلام قیمت اقدام کنید." />
     <link rel="canonical" href="https://ashkghalam.ir/" />
@@ -16,6 +35,6 @@
   </head>
   <body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 font-sans transition-colors duration-300 overflow-x-hidden">
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>
