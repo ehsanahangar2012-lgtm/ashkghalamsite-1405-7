@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, Button, Badge } from './UIComponents';
 import { 
   Upload, Check, Printer, Box, Mic, Sparkles, Sliders, Play, Calculator, Clock,
@@ -75,8 +76,23 @@ export const Inquiry: React.FC = () => {
     deliverySpeed: 'normal',
   });
 
+  const [searchParams] = useSearchParams();
+
   // Price State
   const [price, setPrice] = useState<PriceResult | null>(null);
+
+  // Sync category from service/category query params
+  useEffect(() => {
+    const service = searchParams.get('service');
+    const category = searchParams.get('category');
+    if (category === 'box' || service === 'packaging' || service === 'box-making' || service === 'carton-making' || service === 'laminated-carton') {
+      setParams(p => ({ ...p, category: 'box', paperType: 'cardboard-ip' }));
+    } else if (category === 'business-card' || service === 'printing' || service === 'offset-printing') {
+      setParams(p => ({ ...p, category: 'business-card', paperType: 'glossy-300' }));
+    } else if (category === 'label' || service === 'surface-finishing') {
+      setParams(p => ({ ...p, category: 'label' }));
+    }
+  }, [searchParams]);
 
   // Recalculate price
   useEffect(() => {

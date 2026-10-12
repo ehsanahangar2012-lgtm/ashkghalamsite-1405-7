@@ -8,6 +8,7 @@ export interface SeoHeadProps {
   customTitle?: string;
   customDescription?: string;
   noIndex?: boolean;
+  structuredData?: object;
 }
 
 /**
@@ -20,7 +21,8 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
   canonicalPath, 
   customTitle, 
   customDescription, 
-  noIndex = false 
+  noIndex = false,
+  structuredData
 }) => {
   const { getSeoForView } = useContent();
   const config = getSeoForView(view);
@@ -224,10 +226,10 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
           }
         ]
       };
-      setJsonLd(config.structuredData || orgSchema);
+      setJsonLd(structuredData || config.structuredData || orgSchema);
     }
 
-  }, [config, view, canonicalPath, customTitle, customDescription, noIndex]);
+  }, [config, view, canonicalPath, customTitle, customDescription, noIndex, structuredData]);
 
   return null;
 };

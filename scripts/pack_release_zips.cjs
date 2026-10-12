@@ -78,6 +78,107 @@ ensureDistFile('.htaccess', fs.existsSync(path.join(rootDir, '.htaccess')) ? pat
 ensureDistFile('robots.txt', path.join(publicDir, 'robots.txt'));
 ensureDistFile('sitemap.xml', path.join(publicDir, 'sitemap.xml'));
 
+// Pre-render static HTML for public services routes to ensure immediate SEO crawler discovery
+const preRenderRoutes = [
+  {
+    path: 'services',
+    title: 'خدمات صنعتی و مهندسی چاپ و بسته‌بندی | اشک قلم',
+    h1: 'خدمات صنعتی و مهندسی چاپ و بسته‌بندی اشک قلم',
+    desc: 'ارائه زنجیره کامل فرآیندهای تولید از مشاوره سازه کارتن و مدل‌سازی سه‌بعدی تا چاپ افست ۵ رنگ، لمینت، ساخت تیغ لیزری و پوشش‌های UV.',
+    intro: 'مرکز تخصصی و خطوط مهندسی چاپ و بسته‌بندی اشک قلم ارائه دهنده راهکارهای جامع تولید جعبه و کارتن.'
+  },
+  {
+    path: 'services/printing',
+    title: 'خدمات چاپ صنعتی و چاپ افست | صنایع چاپ اشک قلم',
+    h1: 'خدمات تخصصی چاپ صنعتی و افست',
+    desc: 'خدمات چاپ افست صنعتی، چاپ روی انواع مقوای ایندربرد و گلاسه، فرم‌بندی اختصاصی و کنترل کیفیت رنگ در مجتمع چاپ اشک قلم.',
+    intro: 'فرآیند چاپ صنعتی در اشک قلم بر پایه اجرای دقیق فرم‌های چاپی، تفکیک استانداردهای رنگی CMYK و اسپات و پوشش‌های محافظتی پیاده‌سازی می‌شود.'
+  },
+  {
+    path: 'services/packaging',
+    title: 'خدمات طراحی و تولید بسته‌بندی | صنایع چاپ اشک قلم',
+    h1: 'خدمات طراحی و مهندسی بسته‌بندی',
+    desc: 'طراحی سازه، مدل‌سازی سه‌بعدی و تولید انواع بسته‌بندی مقوایی، کارتنی و صادراتی با رعایت استانداردهای محافظت و انبارداری در اشک قلم.',
+    intro: 'بسته‌بندی مهندسی‌شده تلفیقی از استحکام ساختاری جهت محافظت از کالا و طراحی کاربردی برای سهولت مصرف‌کننده و تمایز در قفسه بازار است.'
+  },
+  {
+    path: 'services/box-making',
+    title: 'خدمات جعبه‌سازی صنعتی و تولید هاردباکس | صنایع چاپ اشک قلم',
+    h1: 'خدمات جعبه‌سازی، هاردباکس و جعبه مقوایی',
+    desc: 'طراحی و ساخت انواع جعبه‌های مقوایی بهداشتی، جعبه سخت (هاردباکس)، جعبه‌های دارویی، فست‌فودی و کادویی با قالب‌سازی دقیق در اشک قلم.',
+    intro: 'جعبه‌سازی صنعتی تلفیق هنر و هندسه سازه است؛ جایی که انتخاب نوع قفل، ضخامت مقوا و دقت خطوط تا، ایستایی و کارایی نهایی محصول را شکل می‌دهد.'
+  },
+  {
+    path: 'services/carton-making',
+    title: 'خدمات کارتن‌سازی و تولید کارتن لمینتی | صنایع چاپ اشک قلم',
+    h1: 'خدمات کارتن‌سازی، تولید کارتن لمینتی و کنگره‌ای',
+    desc: 'تولید کارتن‌های لمینتی، دایکاتی و آمریکایی ۳ لایه و ۵ لایه با فلوت‌های E، B، C و مقاومت فشاری بالا جهت مصارف صنعتی و صادراتی در اشک قلم.',
+    intro: 'کارتن‌سازی ستون فقرات بسته‌بندی، انبارداری و صادرات محصولات است. انتخاب ترکیب مناسب فلوتینگ و لاینر تضمین‌کننده مقاومت کارتن در برابر بارهای دینامیکی و استاتیکی حمل‌ونقل است.'
+  },
+  {
+    path: 'services/offset-printing',
+    title: 'چاپ افست صنعتی ۵ رنگ همزمان | صنایع چاپ اشک قلم',
+    h1: 'چاپ افست صنعتی ۵ رنگ همزمان',
+    desc: 'خطوط چاپ افست چندرنگ همزمان با پوشش ورنی آنلاین، مناسب برای تولید انبوه جعبه‌های مقوایی، کاتالوگ و بسته‌بندی در اشک قلم.',
+    intro: 'چاپ افست استاندارد اصلی صنعت برای تولید انبوه بسته‌بندی‌های باکیفیت و تصاویر با تفکیک رنگی بالا به شمار می‌رود.'
+  },
+  {
+    path: 'services/laminated-carton',
+    title: 'تولید کارتن‌های لمینتی و کنگره‌ای | صنایع چاپ اشک قلم',
+    h1: 'تولید کارتن‌های لمینتی و کنگره‌ای',
+    desc: 'تولید کارتن‌های لمینتی فلوت‌های E ،B ،C سه‌لایه و پنج‌لایه با پوستر چاپ‌شده افست و استحکام فشاری استاندارد در اشک قلم.',
+    intro: 'کارتن لمینتی محصول اتصال یک پوستر مقوایی با چاپ باکیفیت افست بر روی ورق کارتن کنگره‌ای با چسب‌های بهداشتی است.'
+  },
+  {
+    path: 'services/diecut-tooling',
+    title: 'قالب‌سازی لیزری و تیغ دایکات | صنایع چاپ اشک قلم',
+    h1: 'قالب‌سازی لیزری و تیغ دایکات',
+    desc: 'ترسیم وکتور استاندارد دایلاین، برش لیزری تخته قالب و کشیدن تیغ‌های استاندارد خط تا و پرفراژ برای دایکات در اشک قلم.',
+    intro: 'دقت در برش و ساخت قالب دایکات، زیربنای تولید جعبه‌هایی با خطوط تای تمیز، بدون ترکیدگی و با قفل‌بندی سریع است.'
+  },
+  {
+    path: 'services/surface-finishing',
+    title: 'پوشش‌های محافظتی و تکمیلی چاپ | صنایع چاپ اشک قلم',
+    h1: 'پوشش‌های محافظتی و تکمیلی چاپ (UV و سلفون)',
+    desc: 'سلفون‌کشی مات و براق، یووی موضعی، طلاکوب گرم و بافت امباس برای محافظت و افزایش ماندگاری جعبه و بسته‌بندی در اشک قلم.',
+    intro: 'پوشش‌های تکمیلی علاوه بر محافظت از مرکب چاپ در برابر سایش، رطوبت و نور، ارزش حسی و بصری بسته‌بندی را دوچندان می‌کنند.'
+  }
+];
+
+const distIndexHtmlPath = path.join(distDir, 'index.html');
+if (fs.existsSync(distIndexHtmlPath)) {
+  const baseHtml = fs.readFileSync(distIndexHtmlPath, 'utf8');
+
+  for (const r of preRenderRoutes) {
+    const routeDir = path.join(distDir, r.path);
+    if (!fs.existsSync(routeDir)) {
+      fs.mkdirSync(routeDir, { recursive: true });
+    }
+    
+    const canonicalUrl = `https://ashkghalam.ir/${r.path}`;
+    let customizedHtml = baseHtml
+      .replace(/<title>.*?<\/title>/, `<title>${r.title}</title>`)
+      .replace(/<meta name="description" content=".*?" \/>/, `<meta name="description" content="${r.desc}" />`)
+      .replace(/<link rel="canonical" href=".*?" \/>/, `<link rel="canonical" href="${canonicalUrl}" />`)
+      .replace(/<meta property="og:title" content=".*?" \/>/, `<meta property="og:title" content="${r.title}" />`)
+      .replace(/<meta property="og:description" content=".*?" \/>/, `<meta property="og:description" content="${r.desc}" />`)
+      .replace(/<meta property="og:url" content=".*?" \/>/, `<meta property="og:url" content="${canonicalUrl}" />`);
+
+    if (customizedHtml.includes('og:title') && !customizedHtml.includes(r.title)) {
+      customizedHtml = customizedHtml.replace(/(property="og:title" content=")[^"]*(")/, `$1${r.title}$2`);
+      customizedHtml = customizedHtml.replace(/(property="og:description" content=")[^"]*(")/, `$1${r.desc}$2`);
+      customizedHtml = customizedHtml.replace(/(property="og:url" content=")[^"]*(")/, `$1${canonicalUrl}$2`);
+    }
+
+    const serviceQuery = r.path.split('/')[1] || 'printing';
+    const initialBody = `<div id="root"><main class="max-w-7xl mx-auto p-4 md:p-8 dir-rtl text-right font-sans"><nav aria-label="Breadcrumb" class="text-xs text-gray-500 mb-4"><span>خانه</span> / <span>خدمات صنعتی اشک قلم</span> / <span class="font-bold text-gray-900">${r.title}</span></nav><h1 class="text-2xl md:text-3xl font-black text-gray-900 mb-4">${r.h1}</h1><p class="text-sm text-gray-700 leading-relaxed mb-6 font-medium">${r.intro}</p><p class="text-sm text-gray-600 leading-relaxed mb-6">${r.desc}</p><a href="/inquiry?service=${serviceQuery}" class="inline-block px-5 py-2.5 bg-sky-600 text-white rounded-xl text-xs font-bold">استعلام آنلاین قیمت</a></main></div>`;
+    customizedHtml = customizedHtml.replace('<div id="root"></div>', initialBody);
+
+    fs.writeFileSync(path.join(routeDir, 'index.html'), customizedHtml, 'utf8');
+  }
+  console.log(`[Packager] Pre-rendered ${preRenderRoutes.length} services routes with static SEO HTML.`);
+}
+
 // 1. Build Host-Ready ZIP (cPanel deployment - dist folder contents excluding downloads)
 const hostZip = new AdmZip();
 addDirToZip(hostZip, distDir, distDir, ['downloads', '.git']);

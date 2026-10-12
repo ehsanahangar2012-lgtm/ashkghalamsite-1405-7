@@ -67,7 +67,29 @@
     <priority>0.6</priority>
   </url>
 
-  <!-- Published Industrial Services -->
+  <!-- Four Main Industrial Services -->
+  <url>
+    <loc>https://ashkghalam.ir/services/printing</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ashkghalam.ir/services/packaging</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ashkghalam.ir/services/box-making</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ashkghalam.ir/services/carton-making</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Specialized Workshop Sub-Services -->
   <url>
     <loc>https://ashkghalam.ir/services/offset-printing</loc>
     <changefreq>monthly</changefreq>

@@ -3295,6 +3295,7 @@ async function startServer() {
   } else {
     // Serve static files in production with smart aggressive caching
     app.use(express.static(path.join(_dirname, "dist"), {
+      redirect: false,
       maxAge: "30d",
       setHeaders: (res, filePath) => {
         if (filePath.endsWith("index.html") || filePath.endsWith(".html")) {
@@ -3316,6 +3317,16 @@ async function startServer() {
       if (assetExtensions.includes(ext) || req.path.startsWith('/assets/')) {
         return res.status(404).type('text/plain').send('Asset not found');
       }
+
+      // Check if a pre-rendered route HTML exists (e.g. dist/services/printing/index.html)
+      const cleanPath = req.path.replace(/^\/+/, '').replace(/\/+$/, '');
+      if (cleanPath) {
+        const routeHtml = path.join(_dirname, "dist", cleanPath, "index.html");
+        if (fs.existsSync(routeHtml)) {
+          return res.sendFile(routeHtml);
+        }
+      }
+
       res.sendFile(path.join(_dirname, "dist", "index.html"));
     });
   }
