@@ -4,8 +4,9 @@ import { useSearchParams } from 'react-router-dom';
 import { Card, Button, Badge } from './UIComponents';
 import { 
   Upload, Check, Printer, Box, Mic, Sparkles, Sliders, Play, Calculator, Clock,
-  CreditCard, ChevronLeft, ChevronRight, Info, FileText, Layers, Scissors, Zap, ShieldCheck, User, Phone
+  CreditCard, ChevronLeft, ChevronRight, Info, FileText, Layers, Scissors, Zap, ShieldCheck, User, Phone, BookOpen, X
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { calculatePrice, PricingParams, PriceResult } from '../services/pricingService';
 import { ThreeDPreview } from './ThreeDPreview';
 import { extractOrderDetails } from '../services/geminiService';
@@ -13,6 +14,7 @@ import { useContent } from '../contexts/ContentContext';
 import { useAuth } from '../contexts/AuthContext';
 import { loginGuest } from '../services/authService';
 import { FileAnalyzer } from './FileAnalyzer';
+import { catalogService } from '../src/services/catalogService';
 
 // --- Constants & Data ---
 
@@ -65,6 +67,13 @@ export const Inquiry: React.FC = () => {
   // Selected Product from URL param
   const [selectedProductTitle, setSelectedProductTitle] = useState<string | null>(null);
 
+  // Selected Catalog from URL param
+  const [selectedCatalogTitle, setSelectedCatalogTitle] = useState<string | null>(null);
+  const [selectedCatalogId, setSelectedCatalogId] = useState<string | null>(null);
+
+  // Smart Guide Modal State
+  const [showHelp, setShowHelp] = useState(false);
+
   // Smart Fill State
   const [smartInput, setSmartInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -91,17 +100,48 @@ export const Inquiry: React.FC = () => {
   // Price State
   const [price, setPrice] = useState<PriceResult | null>(null);
 
-  // Sync category & product from URL query params
+  // Sync category, product, and genuine published catalog from URL query params
   useEffect(() => {
+    let isMounted = true;
     const service = searchParams.get('service');
     const category = searchParams.get('category');
     const product = searchParams.get('product');
+    const catalogParam = searchParams.get('catalog');
 
+    // 1. Validate product
     if (product && VALID_PRODUCTS[product]) {
       setSelectedProductTitle(VALID_PRODUCTS[product]);
       setParams(p => ({ ...p, category: 'box' }));
     } else {
       setSelectedProductTitle(null);
+    }
+
+    // 2. Validate catalog against genuine published catalogs
+    if (catalogParam && catalogParam.trim()) {
+      catalogService.getCatalogBySlugOrId(catalogParam.trim(), true).then(found => {
+        if (!isMounted) return;
+        if (found && found.isPublished === true) {
+          setSelectedCatalogTitle(found.title);
+          setSelectedCatalogId(String(found.id || found.slug));
+          setParams(p => ({ ...p, category: 'box', paperType: 'cardboard-ip' }));
+        } else {
+          // Reject unverified or non-published catalog param
+          setSelectedCatalogTitle(null);
+          setSelectedCatalogId(null);
+        }
+      }).catch(() => {
+        if (isMounted) {
+          setSelectedCatalogTitle(null);
+          setSelectedCatalogId(null);
+        }
+      });
+    } else {
+      setSelectedCatalogTitle(null);
+      setSelectedCatalogId(null);
+    }
+
+    // 3. Fallback category/service matching
+    if (!product && (!catalogParam || !catalogParam.trim())) {
       if (category === 'box' || service === 'packaging' || service === 'box-making' || service === 'carton-making' || service === 'laminated-carton') {
         setParams(p => ({ ...p, category: 'box', paperType: 'cardboard-ip' }));
       } else if (category === 'business-card' || service === 'printing' || service === 'offset-printing') {
@@ -110,6 +150,8 @@ export const Inquiry: React.FC = () => {
         setParams(p => ({ ...p, category: 'label' }));
       }
     }
+
+    return () => { isMounted = false; };
   }, [searchParams]);
 
   // Recalculate price
@@ -240,6 +282,15 @@ export const Inquiry: React.FC = () => {
             <span>استعلام اختصاصی برای محصول: <strong className="font-black text-gray-900 dark:text-white">{selectedProductTitle}</strong></span>
           </div>
           <span className="text-[11px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-lg font-bold">بسته‌بندی صنعتی</span>
+        </div>
+      )}
+      {selectedCatalogTitle && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 to-amber-600/10 border border-amber-500/40 text-amber-900 dark:text-amber-200 flex items-center justify-between text-xs sm:text-sm shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <BookOpen className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>استعلام اختصاصی بر پایه ژورنال و کاتالوگ: <strong className="font-black text-gray-950 dark:text-white">{selectedCatalogTitle}</strong></span>
+          </div>
+          <span className="text-[11px] bg-amber-500/25 text-amber-800 dark:text-amber-200 px-2.5 py-1 rounded-lg font-bold">کاتالوگ رسمی</span>
         </div>
       )}
       {renderSmartFill()}
@@ -541,6 +592,62 @@ export const Inquiry: React.FC = () => {
            </Card>
         </div>
       </div>
+
+      {/* Floating Smart Guide Button '؟' */}
+      <div className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-40">
+        <div className="relative">
+          <div className="absolute inset-0 bg-amber-500/30 rounded-full animate-ping pointer-events-none"></div>
+          <button 
+            onClick={() => setShowHelp(true)}
+            className="relative w-12 h-12 bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 font-black text-xl rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+            title="راهنمای استعلام قیمت"
+          >
+            ؟
+          </button>
+        </div>
+      </div>
+
+      {/* Smart Help Modal */}
+      <AnimatePresence>
+        {showHelp && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} 
+              animate={{ scale: 1, y: 0 }} 
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl relative border border-slate-100 dark:border-slate-800 text-right dir-rtl"
+            >
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg flex items-center justify-center font-black text-lg">؟</div>
+                  <h3 className="font-extrabold text-slate-900 dark:text-white text-base">راهنمای استعلام قیمت اشک قلم</h3>
+                </div>
+                <button onClick={() => setShowHelp(false)} className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4">
+                در این بخش می‌توانید مشخصات ابعادی، نوع مقوا، روکش و تیراژ مد نظر را انتخاب فرمایید. فاکتور برآورد قیمت به صورت بلادرنگ محاسبه و نمایش داده می‌شود.
+              </p>
+              <div className="bg-amber-50/50 dark:bg-slate-850 p-3.5 rounded-2xl border border-amber-100/30 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-400 space-y-1.5 mb-4">
+                <div>• در صورت ورود از صفحه محصول یا کاتالوگ، مشخصات پایه به صورت خودکار تنظیم می‌گردد.</div>
+                <div>• امکان آپلود فایل طراحی و بررسی سلامت رنگ و وضوح در مرحله ۳ فراهم است.</div>
+              </div>
+              <button 
+                onClick={() => setShowHelp(false)}
+                className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+              >
+                متوجه شدم
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -231,7 +231,7 @@ class CatalogService {
 
     // Apply filtering
     if (options.isPublishedOnly) {
-      list = list.filter(item => item.isPublished !== false);
+      list = list.filter(item => item && item.isPublished === true);
     }
 
     if (options.featuredOnly) {
@@ -267,12 +267,18 @@ class CatalogService {
     return list;
   }
 
-  public async getCatalogBySlugOrId(identifier: string): Promise<CatalogItem | null> {
-    const list = await this.fetchCatalogs();
+  public async fetchPublicCatalogs(): Promise<CatalogItem[]> {
+    return this.fetchCatalogs({ isPublishedOnly: true });
+  }
+
+  public async getCatalogBySlugOrId(identifier: string, isPublicRoute = false): Promise<CatalogItem | null> {
+    const list = await this.fetchCatalogs(isPublicRoute ? { isPublishedOnly: true } : {});
     const found = list.find(
       item => String(item.id) === String(identifier) || item.slug === identifier || item.uuid === identifier
     );
-    return found || null;
+    if (!found) return null;
+    if (isPublicRoute && found.isPublished !== true) return null;
+    return found;
   }
 
   public async saveCatalog(catalog: CatalogItem): Promise<CatalogItem> {

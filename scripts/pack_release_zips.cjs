@@ -78,8 +78,11 @@ ensureDistFile('.htaccess', fs.existsSync(path.join(rootDir, '.htaccess')) ? pat
 ensureDistFile('robots.txt', path.join(publicDir, 'robots.txt'));
 ensureDistFile('sitemap.xml', path.join(publicDir, 'sitemap.xml'));
 
-// Pre-render static HTML for public services routes to ensure immediate SEO crawler discovery
-const preRenderRoutes = [
+// Single Source of Truth: Import genuine products data
+const { PRODUCTS_CATEGORIES } = require('../src/data/productsData.ts');
+
+// Pre-render static HTML for public services and overview routes
+const serviceRoutes = [
   {
     path: 'services',
     title: 'خدمات صنعتی و مهندسی چاپ و بسته‌بندی | اشک قلم',
@@ -145,8 +148,6 @@ const preRenderRoutes = [
     breadcrumbParent: 'خدمات صنعتی اشک قلم',
     ctaUrl: '/inquiry?service=surface-finishing'
   },
-
-  // Products Routes (Stage 5)
   {
     path: 'products',
     title: 'محصولات و رده‌های بسته‌بندی صنعتی | اشک قلم',
@@ -155,42 +156,6 @@ const preRenderRoutes = [
     intro: 'سبد محصولات کارتن، جعبه و هاردباکس اشک قلم شامل انواع ساختارهای استاندارد صادراتی و بهداشتی است.',
     breadcrumbParent: 'محصولات و رده‌های بسته‌بندی',
     ctaUrl: '/inquiry?category=box'
-  },
-  {
-    path: 'products/laminated-boxes',
-    title: 'کارتن‌های لمینتی صنایع غذایی و کشاورزی | محصولات بسته‌بندی اشک قلم',
-    h1: 'کارتن‌های لمینتی صنایع غذایی و کشاورزی',
-    desc: 'تولید کارتن‌های لمینتی صادراتی ۳ لایه و ۵ لایه با چاپ باکیفیت افست، فلوت‌های مستحکم B ،C و E و مقاومت فشاری بالا در اشک قلم.',
-    intro: 'کارتن‌های لمینتی تلفیقی از مقاومت مکانیکی ورق‌های کنگره‌ای و وضوح گرافیکی چاپ افست ۵ رنگ هستند که برای بسته‌بندی‌های صادراتی طراحی می‌شوند.',
-    breadcrumbParent: 'محصولات و رده‌های بسته‌بندی',
-    ctaUrl: '/inquiry?product=laminated-boxes'
-  },
-  {
-    path: 'products/pharma-cosmetics',
-    title: 'جعبه‌های دارویی، آرایشی و بهداشتی | محصولات بسته‌بندی اشک قلم',
-    h1: 'جعبه‌های مقوایی دارویی، آرایشی و بهداشتی',
-    desc: 'تولید انواع جعبه‌های مقوایی بهداشتی، ایندربرد و پشت سفید مناسب برای داروها، لوازم آرایشی و محصولات مراقبت فردی با چاپ دقیق در اشک قلم.',
-    intro: 'بسته‌بندی‌های دارویی و آرایشی نیازمند بالاترین دقت ابعادی برای مونتاژ در خطوط پرکن اتوماتیک و رعایت الزامات سلامت متریال هستند.',
-    breadcrumbParent: 'محصولات و رده‌های بسته‌بندی',
-    ctaUrl: '/inquiry?product=pharma-cosmetics'
-  },
-  {
-    path: 'products/rigid-hardbox',
-    title: 'جعبه‌های سخت (هاردباکس) لوکس و کادویی | محصولات بسته‌بندی اشک قلم',
-    h1: 'جعبه‌های سخت (هاردباکس) لوکس و کادویی',
-    desc: 'طراحی و ساخت انواع هاردباکس و جعبه‌های صلب مگنتی، کشویی، تلسکوپی و چندضلعی با مغزی مقوای فشرده و روکش‌های فانتزی در اشک قلم.',
-    intro: 'هاردباکس بالاترین سطح بسته‌بندی لوکس و یادگاری است؛ جعبه‌ای مستحکم و باوقار که ارزش ادراک‌شده محصول درون خود را به شکلی چشمگیر ارتقا می‌دهد.',
-    breadcrumbParent: 'محصولات و رده‌های بسته‌بندی',
-    ctaUrl: '/inquiry?product=rigid-hardbox'
-  },
-  {
-    path: 'products/ecommerce-mailer',
-    title: 'کارتن‌های پستی و کیبوردی آنلاین‌شاپ‌ها | محصولات بسته‌بندی اشک قلم',
-    h1: 'کارتن‌های پستی و کیبوردی آنلاین‌شاپ‌ها',
-    desc: 'تولید انواع کارتن‌های کیبوردی، پستی و جعبه‌های ارسالی بازشونده سریع با قابلیت چاپ اختصاصی برند ویژه آنلاین‌شاپ‌ها و فروشگاه‌های اینترنتی در اشک قلم.',
-    intro: 'تجربه بسته‌بندی ارسالی (Unboxing) اولین نقطه تماس فیزیکی مشتری با برند آنلاین شماست. کارتن‌های کیبوردی علاوه بر محافظت مطمئن از مرسوله، سرعت بسته‌بندی را افزایش می‌دهند.',
-    breadcrumbParent: 'محصولات و رده‌های بسته‌بندی',
-    ctaUrl: '/inquiry?product=ecommerce-mailer'
   }
 ];
 
@@ -198,26 +163,43 @@ const distIndexHtmlPath = path.join(distDir, 'index.html');
 if (fs.existsSync(distIndexHtmlPath)) {
   const baseHtml = fs.readFileSync(distIndexHtmlPath, 'utf8');
 
-  for (const r of preRenderRoutes) {
+  // Helper to replace or inject meta tags cleanly
+  const applySeoTags = (html, meta) => {
+    let res = html
+      .replace(/<title>.*?<\/title>/, `<title>${meta.title}</title>`)
+      .replace(/<meta name="description" content=".*?" \/>/, `<meta name="description" content="${meta.desc}" />`)
+      .replace(/<link rel="canonical" href=".*?" \/>/, `<link rel="canonical" href="${meta.canonicalUrl}" />`)
+      .replace(/<meta property="og:title" content=".*?" \/>/, `<meta property="og:title" content="${meta.title}" />`)
+      .replace(/<meta property="og:description" content=".*?" \/>/, `<meta property="og:description" content="${meta.desc}" />`)
+      .replace(/<meta property="og:url" content=".*?" \/>/, `<meta property="og:url" content="${meta.canonicalUrl}" />`);
+
+    if (res.includes('og:title') && !res.includes(meta.title)) {
+      res = res.replace(/(property="og:title" content=")[^"]*(")/, `$1${meta.title}$2`);
+      res = res.replace(/(property="og:description" content=")[^"]*(")/, `$1${meta.desc}$2`);
+      res = res.replace(/(property="og:url" content=")[^"]*(")/, `$1${meta.canonicalUrl}$2`);
+    }
+
+    if (meta.schemaJson) {
+      const schemaScript = `<script type="application/ld+json">${JSON.stringify(meta.schemaJson)}</script>`;
+      res = res.replace('</head>', `  ${schemaScript}\n</head>`);
+    }
+
+    return res;
+  };
+
+  // 1. Pre-render Service and Hub Routes
+  for (const r of serviceRoutes) {
     const routeDir = path.join(distDir, r.path);
     if (!fs.existsSync(routeDir)) {
       fs.mkdirSync(routeDir, { recursive: true });
     }
     
     const canonicalUrl = `https://ashkghalam.ir/${r.path}`;
-    let customizedHtml = baseHtml
-      .replace(/<title>.*?<\/title>/, `<title>${r.title}</title>`)
-      .replace(/<meta name="description" content=".*?" \/>/, `<meta name="description" content="${r.desc}" />`)
-      .replace(/<link rel="canonical" href=".*?" \/>/, `<link rel="canonical" href="${canonicalUrl}" />`)
-      .replace(/<meta property="og:title" content=".*?" \/>/, `<meta property="og:title" content="${r.title}" />`)
-      .replace(/<meta property="og:description" content=".*?" \/>/, `<meta property="og:description" content="${r.desc}" />`)
-      .replace(/<meta property="og:url" content=".*?" \/>/, `<meta property="og:url" content="${canonicalUrl}" />`);
-
-    if (customizedHtml.includes('og:title') && !customizedHtml.includes(r.title)) {
-      customizedHtml = customizedHtml.replace(/(property="og:title" content=")[^"]*(")/, `$1${r.title}$2`);
-      customizedHtml = customizedHtml.replace(/(property="og:description" content=")[^"]*(")/, `$1${r.desc}$2`);
-      customizedHtml = customizedHtml.replace(/(property="og:url" content=")[^"]*(")/, `$1${canonicalUrl}$2`);
-    }
+    let customizedHtml = applySeoTags(baseHtml, {
+      title: r.title,
+      desc: r.desc,
+      canonicalUrl
+    });
 
     const ctaLink = r.ctaUrl || (r.path.startsWith('products') ? '/inquiry?category=box' : `/inquiry?service=${r.path.split('/')[1] || 'printing'}`);
     const parentNav = r.breadcrumbParent || (r.path.startsWith('products') ? 'محصولات و رده‌های بسته‌بندی' : 'خدمات صنعتی اشک قلم');
@@ -226,7 +208,202 @@ if (fs.existsSync(distIndexHtmlPath)) {
 
     fs.writeFileSync(path.join(routeDir, 'index.html'), customizedHtml, 'utf8');
   }
-  console.log(`[Packager] Pre-rendered ${preRenderRoutes.length} services & products routes with static SEO HTML.`);
+
+  // 2. Pre-render 4 Dedicated Product Pages directly from PRODUCTS_CATEGORIES
+  for (const prod of PRODUCTS_CATEGORIES) {
+    const prodRouteDir = path.join(distDir, 'products', prod.slug);
+    if (!fs.existsSync(prodRouteDir)) {
+      fs.mkdirSync(prodRouteDir, { recursive: true });
+    }
+
+    const canonicalUrl = `https://ashkghalam.ir/products/${prod.slug}`;
+    const pageTitle = `${prod.title} | محصولات بسته‌بندی اشک قلم`;
+
+    // Verified Schema.org Product + FAQPage JSON-LD
+    const productSchema = {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Product",
+          "@id": `${canonicalUrl}#product`,
+          "name": prod.title,
+          "description": prod.metaDescription,
+          "category": prod.category,
+          "brand": {
+            "@type": "Brand",
+            "name": "صنایع چاپ و بسته‌بندی اشک قلم"
+          }
+        },
+        ...(prod.faq && prod.faq.length > 0 ? [{
+          "@type": "FAQPage",
+          "@id": `${canonicalUrl}#faq`,
+          "mainEntity": prod.faq.map(f => ({
+            "@type": "Question",
+            "name": f.question,
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": f.answer
+            }
+          }))
+        }] : [])
+      ]
+    };
+
+    let prodHtml = applySeoTags(baseHtml, {
+      title: pageTitle,
+      desc: prod.metaDescription,
+      canonicalUrl,
+      schemaJson: productSchema
+    });
+
+    // Rich genuine body content matching verified product specs & FAQ
+    const materialsHtml = prod.structureAndMaterials.map(m => `<li class="py-1">• ${m}</li>`).join('');
+    const specsHtml = prod.specifications.map(s => `<li class="py-1">✔ ${s}</li>`).join('');
+    const faqHtml = (prod.faq || []).map(f => `
+      <div class="mb-4 pb-3 border-b border-gray-100">
+        <h3 class="font-bold text-sm text-gray-900 mb-1">پرسش: ${f.question}</h3>
+        <p class="text-xs text-gray-700 leading-relaxed">${f.answer}</p>
+      </div>
+    `).join('');
+
+    const productInitialBody = `
+      <div id="root">
+        <main class="max-w-7xl mx-auto p-4 md:p-8 dir-rtl text-right font-sans">
+          <nav aria-label="Breadcrumb" class="text-xs text-gray-500 mb-4">
+            <a href="/" class="hover:underline">خانه</a> / 
+            <a href="/products" class="hover:underline">محصولات و رده‌های بسته‌بندی</a> / 
+            <span class="font-bold text-gray-900">${prod.title}</span>
+          </nav>
+          
+          <header class="bg-white rounded-3xl p-6 md:p-8 border border-gray-200 shadow-sm mb-6">
+            <span class="text-xs font-black text-amber-600 block mb-2">${prod.category}</span>
+            <h1 class="text-2xl md:text-3xl font-black text-gray-950 mb-4">${prod.h1}</h1>
+            <p class="text-sm text-gray-700 leading-relaxed font-medium bg-amber-50 p-4 rounded-xl border border-amber-200 mb-4">${prod.intro}</p>
+            <p class="text-sm text-gray-600 leading-relaxed mb-6">${prod.description}</p>
+            <a href="${prod.actionRoute}" class="inline-block px-6 py-3 bg-amber-500 text-slate-950 rounded-xl text-xs font-black shadow-md hover:bg-amber-600 transition-all">${prod.actionText}</a>
+          </header>
+
+          <section class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white rounded-2xl p-6 border border-gray-150">
+              <h2 class="text-base font-black text-gray-900 mb-3">ساختار و متریال مهندسی:</h2>
+              <ul class="text-xs text-gray-700 leading-relaxed space-y-1">${materialsHtml}</ul>
+            </div>
+            <div class="bg-white rounded-2xl p-6 border border-gray-150">
+              <h2 class="text-base font-black text-gray-900 mb-3">مشخصات فنی و استانداردها:</h2>
+              <ul class="text-xs text-gray-700 leading-relaxed space-y-1">${specsHtml}</ul>
+            </div>
+          </section>
+
+          ${faqHtml ? `
+            <section class="bg-white rounded-2xl p-6 border border-gray-150 mb-6">
+              <h2 class="text-base font-black text-gray-900 mb-4">پرسش‌های متداول فنی:</h2>
+              <div class="space-y-3">${faqHtml}</div>
+            </section>
+          ` : ''}
+
+          <div class="pt-4 text-center">
+            <a href="${prod.actionRoute}" class="inline-block px-8 py-3.5 bg-amber-500 text-slate-950 rounded-xl text-sm font-black shadow-lg hover:bg-amber-600 transition-all">ثبت آنلاین استعلام قیمت ${prod.title}</a>
+          </div>
+        </main>
+      </div>
+    `;
+
+    prodHtml = prodHtml.replace('<div id="root"></div>', productInitialBody);
+    fs.writeFileSync(path.join(prodRouteDir, 'index.html'), prodHtml, 'utf8');
+  }
+
+  // 3. Pre-render Published Catalogs (if genuine custom_catalogs.json exists in server uploads)
+  const serverCatalogsPath = path.join(publicDir, 'uploads', 'custom_catalogs.json');
+  let publishedCatalogsCount = 0;
+  if (fs.existsSync(serverCatalogsPath)) {
+    try {
+      const rawCats = JSON.parse(fs.readFileSync(serverCatalogsPath, 'utf8'));
+      if (Array.isArray(rawCats)) {
+        const publishedCats = rawCats.filter(c => c && c.id && c.isPublished === true);
+        for (const cat of publishedCats) {
+          const catSlug = cat.slug || cat.id;
+          const catDir = path.join(distDir, 'catalog', catSlug);
+          if (!fs.existsSync(catDir)) {
+            fs.mkdirSync(catDir, { recursive: true });
+          }
+
+          const catCanonical = `https://ashkghalam.ir/catalog/${catSlug}`;
+          const catTitle = `${cat.title} | کاتالوگ اشک قلم`;
+          const catDesc = cat.description || cat.seoDescription || `کاتالوگ رسمی ${cat.title} صنایع چاپ و بسته‌بندی اشک قلم`;
+          const catCoverUrl = cat.coverImage && typeof cat.coverImage === 'string' && !cat.coverImage.startsWith('data:')
+            ? (cat.coverImage.startsWith('http') ? cat.coverImage : `https://ashkghalam.ir${cat.coverImage.startsWith('/') ? '' : '/'}${cat.coverImage}`)
+            : undefined;
+
+          const catSchema = {
+            "@context": "https://schema.org",
+            "@type": "DigitalDocument",
+            "@id": `${catCanonical}#document`,
+            "name": cat.title,
+            "description": catDesc,
+            "publisher": {
+              "@type": "Organization",
+              "name": cat.publisher || "صنایع چاپ و بسته‌بندی اشک قلم",
+              "url": "https://ashkghalam.ir"
+            },
+            "inLanguage": "fa-IR",
+            ...(catCoverUrl ? { "image": catCoverUrl } : {})
+          };
+
+          let catHtml = applySeoTags(baseHtml, {
+            title: catTitle,
+            desc: catDesc,
+            canonicalUrl: catCanonical,
+            schemaJson: catSchema
+          });
+
+          const catBody = `
+            <div id="root">
+              <main class="max-w-7xl mx-auto p-4 md:p-8 dir-rtl text-right font-sans">
+                <nav aria-label="Breadcrumb" class="text-xs text-gray-500 mb-4">
+                  <a href="/">خانه</a> / 
+                  <a href="/catalog">ژورنال و کاتالوگ‌های تخصصی</a> / 
+                  <span class="font-bold text-gray-900">${cat.title}</span>
+                </nav>
+                <article class="bg-white rounded-3xl p-6 md:p-8 border border-gray-200 shadow-sm">
+                  <h1 class="text-2xl md:text-3xl font-black text-gray-900 mb-4">${cat.title}</h1>
+                  <p class="text-sm text-gray-700 leading-relaxed mb-6 font-medium">${catDesc}</p>
+                  <div class="flex flex-wrap gap-3">
+                    <a href="/inquiry?category=box&service=packaging&catalog=${catSlug}" class="px-5 py-2.5 bg-amber-500 text-slate-950 rounded-xl text-xs font-bold">استعلام قیمت بر اساس این کاتالوگ</a>
+                    ${cat.pdfUrl ? `<a href="${cat.pdfUrl}" class="px-5 py-2.5 bg-gray-100 text-gray-800 rounded-xl text-xs font-bold" target="_blank" rel="noopener">دانلود PDF</a>` : ''}
+                  </div>
+                </article>
+              </main>
+            </div>
+          `;
+          catHtml = catHtml.replace('<div id="root"></div>', catBody);
+          fs.writeFileSync(path.join(catDir, 'index.html'), catHtml, 'utf8');
+          publishedCatalogsCount++;
+        }
+        // 4. Update dist sitemap.xml if any genuine published catalogs exist
+        if (publishedCats.length > 0) {
+          const sitemapDistPath = path.join(distDir, 'sitemap.xml');
+          if (fs.existsSync(sitemapDistPath)) {
+            let sm = fs.readFileSync(sitemapDistPath, 'utf8');
+            for (const cat of publishedCats) {
+              const catSlug = cat.slug || cat.id;
+              const catUrl = `https://ashkghalam.ir/catalog/${catSlug}`;
+              if (!sm.includes(catUrl)) {
+                const lastmodTag = cat.updatedAt ? `\n    <lastmod>${cat.updatedAt.split('T')[0]}</lastmod>` : '';
+                const urlEntry = `  <url>\n    <loc>${catUrl}</loc>${lastmodTag}\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n</urlset>`;
+                sm = sm.replace('</urlset>', urlEntry);
+              }
+            }
+            fs.writeFileSync(sitemapDistPath, sm, 'utf8');
+            console.log(`[Packager] Appended ${publishedCats.length} genuine published catalogs to dist/sitemap.xml`);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Packager] Failed reading server catalogs for pre-render:', e.message);
+    }
+  }
+
+  console.log(`[Packager] Pre-rendered ${serviceRoutes.length} service/hub routes, ${PRODUCTS_CATEGORIES.length} verified product pages, and ${publishedCatalogsCount} published catalogs.`);
 }
 
 // 1. Build Host-Ready ZIP (cPanel deployment - dist folder contents excluding downloads)

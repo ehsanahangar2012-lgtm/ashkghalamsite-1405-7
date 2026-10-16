@@ -21,15 +21,22 @@ export const CatalogItemPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
 
+  const PAPER_FINISH_LABELS: Record<string, string> = {
+    glossy: 'گلاسه براق',
+    matte: 'سلفون مات',
+    silk: 'ابریشمی / مخملی',
+    embossed: 'امباس و بافت‌دار',
+    gold_foil: 'طلاکوب و ورنی'
+  };
+
   useEffect(() => {
     let isMounted = true;
     const fetchCatalog = async () => {
       setLoading(true);
       try {
-        const all = await catalogService.fetchCatalogs({ isPublishedOnly: true });
-        const found = all.find(c => c.slug === slug || String(c.id) === slug || String(c.uuid) === slug);
+        const found = await catalogService.getCatalogBySlugOrId(slug || '', true);
         if (isMounted) {
-          setCatalog(found || null);
+          setCatalog(found && found.isPublished === true ? found : null);
           setLoading(false);
         }
       } catch (err) {
@@ -54,9 +61,13 @@ export const CatalogItemPage: React.FC = () => {
     );
   }
 
-  if (!catalog) {
+  if (!catalog || catalog.isPublished !== true) {
     return <NotFound />;
   }
+
+  const catalogImage = catalog.coverImage && typeof catalog.coverImage === 'string' && !catalog.coverImage.startsWith('data:')
+    ? (catalog.coverImage.startsWith('http') ? catalog.coverImage : `https://ashkghalam.ir${catalog.coverImage.startsWith('/') ? '' : '/'}${catalog.coverImage}`)
+    : undefined;
 
   const catalogSchema = {
     "@context": "https://schema.org",
@@ -66,12 +77,14 @@ export const CatalogItemPage: React.FC = () => {
     "description": catalog.description || catalog.seoDescription || `کاتالوگ رسمی ${catalog.title} صنایع چاپ و بسته‌بندی اشک قلم`,
     "publisher": {
       "@type": "Organization",
-      "name": "صنایع چاپ و بسته‌بندی اشک قلم",
+      "name": catalog.publisher || "صنایع چاپ و بسته‌بندی اشک قلم",
       "url": "https://ashkghalam.ir"
     },
     "inLanguage": "fa-IR",
-    ...(catalog.coverImage ? { "image": catalog.coverImage } : {})
+    ...(catalogImage ? { "image": catalogImage } : {})
   };
+
+  const finishLabel = catalog.paperFinish ? PAPER_FINISH_LABELS[catalog.paperFinish] : null;
 
   return (
     <div className="py-10 max-w-7xl mx-auto px-4 md:px-8 font-sans dir-rtl text-right">
@@ -106,10 +119,12 @@ export const CatalogItemPage: React.FC = () => {
                 className="w-full h-auto max-h-96 object-contain rounded-xl"
                 loading="eager"
               />
-              <div className="absolute top-5 right-5 px-3 py-1 bg-slate-950/80 backdrop-blur-md rounded-full text-[11px] font-bold text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5" />
-                <span>{catalog.pageCount} صفحه</span>
-              </div>
+              {catalog.pageCount && catalog.pageCount > 0 ? (
+                <div className="absolute top-5 right-5 px-3 py-1 bg-slate-950/80 backdrop-blur-md rounded-full text-[11px] font-bold text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>{catalog.pageCount} صفحه</span>
+                </div>
+              ) : null}
             </div>
 
             {/* Quick Action Button below Cover */}
@@ -125,38 +140,46 @@ export const CatalogItemPage: React.FC = () => {
           {/* Details & Specs */}
           <div className="w-full lg:w-3/5 space-y-6">
             <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-              <span className="text-xs font-black text-amber-600 dark:text-amber-400 block mb-2">
-                دسته‌بندی: {catalog.category}
-              </span>
+              {catalog.category && (
+                <span className="text-xs font-black text-amber-600 dark:text-amber-400 block mb-2">
+                  دسته‌بندی: {catalog.category}
+                </span>
+              )}
               <h1 className="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white leading-tight">
                 {catalog.title}
               </h1>
             </div>
 
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              {catalog.description || catalog.seoDescription || 'کاتالوگ و ژورنال تخصصی معرفی محصولات، ساختارهای کارتن و جعبه و خدمات چاپ اشک قلم.'}
+              {catalog.description || catalog.seoDescription || `کاتالوگ رسمی ${catalog.title} صنایع چاپ و بسته‌بندی اشک قلم.`}
             </p>
 
-            {/* Catalog Metadata Badges */}
+            {/* Catalog Verified Metadata Badges */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-                <span className="text-[10px] text-slate-400 block mb-0.5">تعداد صفحات:</span>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{catalog.pageCount} صفحه</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-                <span className="text-[10px] text-slate-400 block mb-0.5">ناشر رسمی:</span>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{catalog.publisher || 'صنایع چاپ اشک قلم'}</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-                <span className="text-[10px] text-slate-400 block mb-0.5">پوشش و پرداخت:</span>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{catalog.paperFinish || 'ورنی و سلفون حرارتی'}</span>
-              </div>
+              {catalog.pageCount && catalog.pageCount > 0 ? (
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 block mb-0.5">تعداد صفحات:</span>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{catalog.pageCount} صفحه</span>
+                </div>
+              ) : null}
+              {catalog.publisher ? (
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 block mb-0.5">ناشر رسمی:</span>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{catalog.publisher}</span>
+                </div>
+              ) : null}
+              {finishLabel ? (
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                  <span className="text-[10px] text-slate-400 block mb-0.5">پوشش و پرداخت:</span>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{finishLabel}</span>
+                </div>
+              ) : null}
             </div>
 
             {/* CTAs */}
             <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
               <button
-                onClick={() => navigate(`/inquiry?category=box&service=packaging`)}
+                onClick={() => navigate(`/inquiry?category=box&service=packaging&catalog=${catalog.slug || catalog.id}`)}
                 className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black rounded-xl text-xs sm:text-sm transition-all shadow-md shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
               >
                 <span>استعلام قیمت بر اساس این کاتالوگ</span>
