@@ -3318,12 +3318,43 @@ async function startServer() {
         return res.status(404).type('text/plain').send('Asset not found');
       }
 
-      // Check if a pre-rendered route HTML exists (e.g. dist/services/printing/index.html)
+      // Check if a pre-rendered route HTML exists (e.g. dist/services/printing/index.html or dist/products/laminated-boxes/index.html)
       const cleanPath = req.path.replace(/^\/+/, '').replace(/\/+$/, '');
       if (cleanPath) {
         const routeHtml = path.join(_dirname, "dist", cleanPath, "index.html");
         if (fs.existsSync(routeHtml)) {
           return res.sendFile(routeHtml);
+        }
+
+        // Dynamic server-side SEO injection for published catalogs (/catalog/:slug)
+        if (cleanPath.startsWith('catalog/') && cleanPath.split('/').length === 2) {
+          const catSlug = cleanPath.split('/')[1];
+          try {
+            const serverCats = getHostCatalogsWithAutoDiscovery();
+            const foundCat = serverCats.find((c: any) => 
+              (c.slug === catSlug || String(c.id) === catSlug || String(c.uuid) === catSlug) && 
+              c.isPublished !== false
+            );
+            if (foundCat) {
+              const baseHtmlPath = path.join(_dirname, "dist", "index.html");
+              if (fs.existsSync(baseHtmlPath)) {
+                let html = fs.readFileSync(baseHtmlPath, "utf8");
+                const catTitle = `${foundCat.title} | کاتالوگ اشک قلم`;
+                const catDesc = foundCat.description || foundCat.seoDescription || `کاتالوگ رسمی ${foundCat.title} صنایع چاپ و بسته‌بندی اشک قلم`;
+                const catCanonical = `https://ashkghalam.ir/catalog/${foundCat.slug || foundCat.id}`;
+
+                html = html
+                  .replace(/<title>.*?<\/title>/, `<title>${catTitle}</title>`)
+                  .replace(/<meta name="description" content=".*?" \/>/, `<meta name="description" content="${catDesc}" />`)
+                  .replace(/<link rel="canonical" href=".*?" \/>/, `<link rel="canonical" href="${catCanonical}" />`);
+
+                const initialBody = `<div id="root"><main class="max-w-7xl mx-auto p-4 md:p-8 dir-rtl text-right font-sans"><nav aria-label="Breadcrumb" class="text-xs text-gray-500 mb-4"><span>خانه</span> / <span>ژورنال و کاتالوگ‌های تخصصی</span> / <span class="font-bold text-gray-900">${foundCat.title}</span></nav><h1 class="text-2xl md:text-3xl font-black text-gray-900 mb-4">${foundCat.title}</h1><p class="text-sm text-gray-700 leading-relaxed mb-6 font-medium">${catDesc}</p><a href="/inquiry?category=box&service=packaging" class="inline-block px-5 py-2.5 bg-amber-500 text-slate-950 rounded-xl text-xs font-bold">استعلام قیمت کاتالوگ</a></main></div>`;
+                html = html.replace('<div id="root"></div>', initialBody);
+
+                return res.status(200).type('text/html; charset=utf-8').send(html);
+              }
+            }
+          } catch (_) {}
         }
       }
 

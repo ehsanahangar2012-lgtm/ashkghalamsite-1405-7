@@ -15,6 +15,7 @@ import { AppView, User, UserRole, Project, SitePortalId } from './types';
 import { Dashboard } from './components/Dashboard';
 import { Inquiry } from './components/Inquiry';
 import { CatalogSection } from './src/components/catalog/CatalogSection';
+import { CatalogItemPage } from './src/components/catalog/CatalogItemPage';
 import { Button, Card, Badge } from './components/UIComponents';
 import { generateSupportResponse, analyzeDesignStyle } from './services/geminiService';
 import { DesignStudio } from './components/DesignStudio';
@@ -1533,6 +1534,7 @@ const AppContent = () => {
           } />
           <Route path="/inquiry" element={<><SeoHead view={AppView.INQUIRY} canonicalPath="/inquiry" /><Inquiry /></>} />
           <Route path="/catalog" element={<><SeoHead view={AppView.CATALOG} canonicalPath="/catalog" /><CatalogSection /></>} />
+          <Route path="/catalog/:slug" element={<CatalogItemPage />} />
           <Route path="/portfolio" element={<SmartPortfolio />} />
           <Route path="/portfolio/:slug" element={<SmartPortfolio />} />
           <Route path="/services" element={<ServicesHub />} />

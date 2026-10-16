@@ -141,7 +141,56 @@ const preRenderRoutes = [
     title: 'پوشش‌های محافظتی و تکمیلی چاپ | صنایع چاپ اشک قلم',
     h1: 'پوشش‌های محافظتی و تکمیلی چاپ (UV و سلفون)',
     desc: 'سلفون‌کشی مات و براق، یووی موضعی، طلاکوب گرم و بافت امباس برای محافظت و افزایش ماندگاری جعبه و بسته‌بندی در اشک قلم.',
-    intro: 'پوشش‌های تکمیلی علاوه بر محافظت از مرکب چاپ در برابر سایش، رطوبت و نور، ارزش حسی و بصری بسته‌بندی را دوچندان می‌کنند.'
+    intro: 'پوشش‌های تکمیلی علاوه بر محافظت از مرکب چاپ در برابر سایش، رطوبت و نور، ارزش حسی و بصری بسته‌بندی را دوچندان می‌کنند.',
+    breadcrumbParent: 'خدمات صنعتی اشک قلم',
+    ctaUrl: '/inquiry?service=surface-finishing'
+  },
+
+  // Products Routes (Stage 5)
+  {
+    path: 'products',
+    title: 'محصولات و رده‌های بسته‌بندی صنعتی | اشک قلم',
+    h1: 'محصولات و تولیدات صنعتی اشک قلم',
+    desc: 'انواع ساختارهای استاندارد کارتن لمینتی، جعبه‌های مقوایی دارویی، هاردباکس لوکس و کارتن‌های کیبوردی صادراتی با بالاترین کیفیت مهندسی.',
+    intro: 'سبد محصولات کارتن، جعبه و هاردباکس اشک قلم شامل انواع ساختارهای استاندارد صادراتی و بهداشتی است.',
+    breadcrumbParent: 'محصولات و رده‌های بسته‌بندی',
+    ctaUrl: '/inquiry?category=box'
+  },
+  {
+    path: 'products/laminated-boxes',
+    title: 'کارتن‌های لمینتی صنایع غذایی و کشاورزی | محصولات بسته‌بندی اشک قلم',
+    h1: 'کارتن‌های لمینتی صنایع غذایی و کشاورزی',
+    desc: 'تولید کارتن‌های لمینتی صادراتی ۳ لایه و ۵ لایه با چاپ باکیفیت افست، فلوت‌های مستحکم B ،C و E و مقاومت فشاری بالا در اشک قلم.',
+    intro: 'کارتن‌های لمینتی تلفیقی از مقاومت مکانیکی ورق‌های کنگره‌ای و وضوح گرافیکی چاپ افست ۵ رنگ هستند که برای بسته‌بندی‌های صادراتی طراحی می‌شوند.',
+    breadcrumbParent: 'محصولات و رده‌های بسته‌بندی',
+    ctaUrl: '/inquiry?product=laminated-boxes'
+  },
+  {
+    path: 'products/pharma-cosmetics',
+    title: 'جعبه‌های دارویی، آرایشی و بهداشتی | محصولات بسته‌بندی اشک قلم',
+    h1: 'جعبه‌های مقوایی دارویی، آرایشی و بهداشتی',
+    desc: 'تولید انواع جعبه‌های مقوایی بهداشتی، ایندربرد و پشت سفید مناسب برای داروها، لوازم آرایشی و محصولات مراقبت فردی با چاپ دقیق در اشک قلم.',
+    intro: 'بسته‌بندی‌های دارویی و آرایشی نیازمند بالاترین دقت ابعادی برای مونتاژ در خطوط پرکن اتوماتیک و رعایت الزامات سلامت متریال هستند.',
+    breadcrumbParent: 'محصولات و رده‌های بسته‌بندی',
+    ctaUrl: '/inquiry?product=pharma-cosmetics'
+  },
+  {
+    path: 'products/rigid-hardbox',
+    title: 'جعبه‌های سخت (هاردباکس) لوکس و کادویی | محصولات بسته‌بندی اشک قلم',
+    h1: 'جعبه‌های سخت (هاردباکس) لوکس و کادویی',
+    desc: 'طراحی و ساخت انواع هاردباکس و جعبه‌های صلب مگنتی، کشویی، تلسکوپی و چندضلعی با مغزی مقوای فشرده و روکش‌های فانتزی در اشک قلم.',
+    intro: 'هاردباکس بالاترین سطح بسته‌بندی لوکس و یادگاری است؛ جعبه‌ای مستحکم و باوقار که ارزش ادراک‌شده محصول درون خود را به شکلی چشمگیر ارتقا می‌دهد.',
+    breadcrumbParent: 'محصولات و رده‌های بسته‌بندی',
+    ctaUrl: '/inquiry?product=rigid-hardbox'
+  },
+  {
+    path: 'products/ecommerce-mailer',
+    title: 'کارتن‌های پستی و کیبوردی آنلاین‌شاپ‌ها | محصولات بسته‌بندی اشک قلم',
+    h1: 'کارتن‌های پستی و کیبوردی آنلاین‌شاپ‌ها',
+    desc: 'تولید انواع کارتن‌های کیبوردی، پستی و جعبه‌های ارسالی بازشونده سریع با قابلیت چاپ اختصاصی برند ویژه آنلاین‌شاپ‌ها و فروشگاه‌های اینترنتی در اشک قلم.',
+    intro: 'تجربه بسته‌بندی ارسالی (Unboxing) اولین نقطه تماس فیزیکی مشتری با برند آنلاین شماست. کارتن‌های کیبوردی علاوه بر محافظت مطمئن از مرسوله، سرعت بسته‌بندی را افزایش می‌دهند.',
+    breadcrumbParent: 'محصولات و رده‌های بسته‌بندی',
+    ctaUrl: '/inquiry?product=ecommerce-mailer'
   }
 ];
 
@@ -170,13 +219,14 @@ if (fs.existsSync(distIndexHtmlPath)) {
       customizedHtml = customizedHtml.replace(/(property="og:url" content=")[^"]*(")/, `$1${canonicalUrl}$2`);
     }
 
-    const serviceQuery = r.path.split('/')[1] || 'printing';
-    const initialBody = `<div id="root"><main class="max-w-7xl mx-auto p-4 md:p-8 dir-rtl text-right font-sans"><nav aria-label="Breadcrumb" class="text-xs text-gray-500 mb-4"><span>خانه</span> / <span>خدمات صنعتی اشک قلم</span> / <span class="font-bold text-gray-900">${r.title}</span></nav><h1 class="text-2xl md:text-3xl font-black text-gray-900 mb-4">${r.h1}</h1><p class="text-sm text-gray-700 leading-relaxed mb-6 font-medium">${r.intro}</p><p class="text-sm text-gray-600 leading-relaxed mb-6">${r.desc}</p><a href="/inquiry?service=${serviceQuery}" class="inline-block px-5 py-2.5 bg-sky-600 text-white rounded-xl text-xs font-bold">استعلام آنلاین قیمت</a></main></div>`;
+    const ctaLink = r.ctaUrl || (r.path.startsWith('products') ? '/inquiry?category=box' : `/inquiry?service=${r.path.split('/')[1] || 'printing'}`);
+    const parentNav = r.breadcrumbParent || (r.path.startsWith('products') ? 'محصولات و رده‌های بسته‌بندی' : 'خدمات صنعتی اشک قلم');
+    const initialBody = `<div id="root"><main class="max-w-7xl mx-auto p-4 md:p-8 dir-rtl text-right font-sans"><nav aria-label="Breadcrumb" class="text-xs text-gray-500 mb-4"><span>خانه</span> / <span>${parentNav}</span> / <span class="font-bold text-gray-900">${r.title}</span></nav><h1 class="text-2xl md:text-3xl font-black text-gray-900 mb-4">${r.h1}</h1><p class="text-sm text-gray-700 leading-relaxed mb-6 font-medium">${r.intro}</p><p class="text-sm text-gray-600 leading-relaxed mb-6">${r.desc}</p><a href="${ctaLink}" class="inline-block px-5 py-2.5 bg-amber-500 text-slate-950 rounded-xl text-xs font-bold">استعلام آنلاین قیمت</a></main></div>`;
     customizedHtml = customizedHtml.replace('<div id="root"></div>', initialBody);
 
     fs.writeFileSync(path.join(routeDir, 'index.html'), customizedHtml, 'utf8');
   }
-  console.log(`[Packager] Pre-rendered ${preRenderRoutes.length} services routes with static SEO HTML.`);
+  console.log(`[Packager] Pre-rendered ${preRenderRoutes.length} services & products routes with static SEO HTML.`);
 }
 
 // 1. Build Host-Ready ZIP (cPanel deployment - dist folder contents excluding downloads)

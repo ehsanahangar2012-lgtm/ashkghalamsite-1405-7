@@ -44,6 +44,13 @@ const EXTRAS = [
   { id: 'gold-foil', title: 'طلاکوب', icon: Zap },
 ];
 
+const VALID_PRODUCTS: Record<string, string> = {
+  'laminated-boxes': 'کارتن‌های لمینتی صنایع غذایی و کشاورزی',
+  'pharma-cosmetics': 'جعبه‌های دارویی، آرایشی و بهداشتی',
+  'rigid-hardbox': 'جعبه‌های سخت (هاردباکس) لوکس و کادویی',
+  'ecommerce-mailer': 'کارتن‌های پستی و کیبوردی آنلاین‌شاپ‌ها'
+};
+
 export const Inquiry: React.FC = () => {
   const { user, login } = useAuth();
   const { pricingFormula, globalSettings } = useContent(); 
@@ -54,6 +61,9 @@ export const Inquiry: React.FC = () => {
   // Guest Form State
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
+
+  // Selected Product from URL param
+  const [selectedProductTitle, setSelectedProductTitle] = useState<string | null>(null);
 
   // Smart Fill State
   const [smartInput, setSmartInput] = useState('');
@@ -81,16 +91,24 @@ export const Inquiry: React.FC = () => {
   // Price State
   const [price, setPrice] = useState<PriceResult | null>(null);
 
-  // Sync category from service/category query params
+  // Sync category & product from URL query params
   useEffect(() => {
     const service = searchParams.get('service');
     const category = searchParams.get('category');
-    if (category === 'box' || service === 'packaging' || service === 'box-making' || service === 'carton-making' || service === 'laminated-carton') {
-      setParams(p => ({ ...p, category: 'box', paperType: 'cardboard-ip' }));
-    } else if (category === 'business-card' || service === 'printing' || service === 'offset-printing') {
-      setParams(p => ({ ...p, category: 'business-card', paperType: 'glossy-300' }));
-    } else if (category === 'label' || service === 'surface-finishing') {
-      setParams(p => ({ ...p, category: 'label' }));
+    const product = searchParams.get('product');
+
+    if (product && VALID_PRODUCTS[product]) {
+      setSelectedProductTitle(VALID_PRODUCTS[product]);
+      setParams(p => ({ ...p, category: 'box' }));
+    } else {
+      setSelectedProductTitle(null);
+      if (category === 'box' || service === 'packaging' || service === 'box-making' || service === 'carton-making' || service === 'laminated-carton') {
+        setParams(p => ({ ...p, category: 'box', paperType: 'cardboard-ip' }));
+      } else if (category === 'business-card' || service === 'printing' || service === 'offset-printing') {
+        setParams(p => ({ ...p, category: 'business-card', paperType: 'glossy-300' }));
+      } else if (category === 'label' || service === 'surface-finishing') {
+        setParams(p => ({ ...p, category: 'label' }));
+      }
     }
   }, [searchParams]);
 
@@ -215,6 +233,15 @@ export const Inquiry: React.FC = () => {
 
   const renderProductSelection = () => (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
+      {selectedProductTitle && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 flex items-center justify-between text-xs sm:text-sm">
+          <div className="flex items-center gap-2.5">
+            <Box className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>استعلام اختصاصی برای محصول: <strong className="font-black text-gray-900 dark:text-white">{selectedProductTitle}</strong></span>
+          </div>
+          <span className="text-[11px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2.5 py-1 rounded-lg font-bold">بسته‌بندی صنعتی</span>
+        </div>
+      )}
       {renderSmartFill()}
       <h2 className="text-xl font-bold text-gray-800 dark:text-white">انتخاب محصول</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

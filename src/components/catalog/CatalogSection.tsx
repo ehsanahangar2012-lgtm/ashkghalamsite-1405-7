@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { CatalogItem } from '../../types/catalog';
 import { catalogService } from '../../services/catalogService';
 import { CatalogViewerModal } from './CatalogViewerModal';
-import { BookOpen, Eye, Download, Sparkles, ChevronLeft, Search, Tag, Layers } from 'lucide-react';
+import { BookOpen, Eye, Download, Sparkles, ChevronLeft, ArrowLeft, Search, Tag, Layers } from 'lucide-react';
 
 export const CatalogSection: React.FC = () => {
   const [catalogs, setCatalogs] = useState<CatalogItem[]>([]);
@@ -138,23 +139,36 @@ export const CatalogSection: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Footer stats & CTA */}
+                  {/* Footer stats & CTAs */}
                   <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
                     <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1" title="بازدید">
                         <Eye className="w-3.5 h-3.5 text-slate-400" />
                         {item.views || 0}
                       </span>
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1" title="دانلود">
                         <Download className="w-3.5 h-3.5 text-slate-400" />
                         {item.downloads || 0}
                       </span>
                     </div>
 
-                    <span className="font-bold text-amber-400 group-hover:translate-x-[-4px] transition-transform flex items-center gap-1">
-                      مشاهده
-                      <ChevronLeft className="w-4 h-4" />
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <Link
+                        to={`/catalog/${item.slug || item.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[11px] font-bold text-slate-400 hover:text-amber-400 flex items-center gap-1 transition-colors"
+                      >
+                        <span>صفحه اختصاصی</span>
+                        <ArrowLeft className="w-3 h-3" />
+                      </Link>
+                      <button 
+                        onClick={() => setSelectedCatalog(item)}
+                        className="font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>ورق‌زدن ۳D</span>
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
