@@ -165,6 +165,8 @@ if (ecmaDisplayMetrics.sheetWidth !== ecmaEngineMetrics.sheetWidth ||
     ecmaDisplayMetrics.sheetHeight !== ecmaEngineMetrics.sheetHeight) {
   fail('human-readable ECMA A20.20 code must resolve to its specific engine');
 }
+const automaticGlueMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'fefco-0201');
+if (automaticGlueMetrics.glueTab !== 35) fail('automatic glue-tab sizing must preserve the established 18%-of-length rule capped at 35mm');
 const narrowGlueMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'fefco-0201', 15);
 const wideGlueMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'fefco-0201', 60);
 if (narrowGlueMetrics.glueTab !== 15 || wideGlueMetrics.glueTab !== 60 ||
