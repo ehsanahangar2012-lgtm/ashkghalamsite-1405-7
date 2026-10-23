@@ -52,6 +52,8 @@ const STANDARDS_LIBRARY: PackagingModel[] = [
   { id: 'fefco-0201', name: 'کارتن استاندارد آمریکایی (RSC)', code: 'FEFCO 0201', category: 'FEFCO 0200 Series', icon: '📦', defaultDims: { L: 150, W: 120, H: 100 }, description: 'کارتن کارآمد حمل و نقل با درب‌های بالا و پایین متلاقی در خط وسط.' },
   { id: 'fefco-0200', name: 'کارتن نیمه‌شیاردار روباز (HSC)', code: 'FEFCO 0200', category: 'FEFCO 0200 Series', icon: '📥', defaultDims: { L: 140, W: 100, H: 80 }, description: 'کارتن فاقد درپوش، مناسب برای بارگیری سریع یا به عنوان کشو.' },
   { id: 'fefco-0203', name: 'جعبه درب هم‌پوشان سنگین (FOL)', code: 'FEFCO 0203', category: 'FEFCO 0200 Series', icon: '📦', defaultDims: { L: 180, W: 140, H: 120 }, description: 'درب‌های کاملا روی هم قرار گیرنده برای تقویت کف و سقف و جلوگیری از گسیختگی.' },
+  { id: 'fefco-0204', name: 'کارتن فلپ‌مرکزی (CSSC)', code: 'FEFCO 0204', category: 'FEFCO 0200 Series', icon: '📦', defaultDims: { L: 180, W: 120, H: 120 }, description: 'چهار فلپ به مرکز می‌رسند؛ هندسه فلپ‌های کناری با طول جعبه محاسبه می‌شود.' },
+  { id: 'fefco-0215', name: 'کارتن ته‌قفلی دستی (Snap-lock bottom)', code: 'FEFCO 0215', category: 'FEFCO 0200 Series', icon: '🔒', defaultDims: { L: 120, W: 90, H: 150 }, description: 'کف با زبانه‌های درگیرشونده بسته می‌شود؛ این نسخه محاسبات پایه دارد و قفل نهایی باید با نقشه رسمی و نمونه تاخورده تطبیق داده شود.' },
   
   // FEFCO 0300 Series
   { id: 'fefco-0300', name: 'جعبه تلسکوبی دو تکه درب و زیره', code: 'FEFCO 0300', category: 'FEFCO 0300', icon: '🎁', defaultDims: { L: 200, W: 150, H: 60 }, description: 'فرمت جعبه کفش کلاسیک شامل کفه مجزا و درب جداگانه با لبه‌های منگنه یا چسب.' },
@@ -1758,7 +1760,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
         return m.id === 'ecma-a2020' || m.id === 'snap-lock-123' || m.id === 'ecma-c1020' || m.category.includes('ECMA A');
       }
       if (selectedCategory === 'pharma') {
-        return m.id === 'snap-lock-123' || m.id === 'ecma-a2020' || m.category.includes('ECMA A');
+        return m.id === 'snap-lock-123' || m.id === 'ecma-a2020' || m.id === 'fefco-0215' || m.category.includes('ECMA A');
       }
       if (selectedCategory === 'ecommerce') {
         return m.id === 'fefco-0427' || m.id === 'fefco-0470' || m.category.includes('FEFCO 0400');
@@ -1959,7 +1961,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     if (tuck > effW * 0.8) constraintAlerts.push(`زبانه درب (${tuck}mm) بیش از حد بلند است و ممکن است با کف تداخل کند.`);
     if (dustFlap + tuck > effW && id.includes('tuck')) constraintAlerts.push(`مجموع طول زبانه و گوشواره (${dustFlap + tuck}mm) از عرض جعبه بیشتر است و تداخل فیزیکی ایجاد می‌کند!`);
 
-    const isAutoBottomModel = id === 'snap-lock-123' || id.includes('auto-bottom') || id.includes('crash-lock');
+    const isAutoBottomModel = id === 'fefco-0215' || id === 'snap-lock-123' || id.includes('auto-bottom') || id.includes('crash-lock');
     if (isAutoBottomModel) {
       if (effL <= effW) {
         constraintAlerts.push(`⛔ خطای بحرانی ساختار ته قفلی: طول (L=${effL}mm) باید حتماً از عرض (W=${effW}mm) بزرگتر باشد (حداقل L ≥ W + 10mm). در حالت L ≤ W زبانه‌های ۴۵ درجه کف دچار هم‌پوشانی ناممکن شده و جعبه به صورت خوابیده (Flat-pack) چسب‌خوری یا تا نمی‌شود.`);
@@ -2963,7 +2965,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       ];
     }
     
-    if (code.includes('crash-lock') || code.includes('auto-bottom')) {
+    if (code.includes('fefco-0215') || code.includes('crash-lock') || code.includes('auto-bottom')) {
       return [
         {
           title: 'گام ۱: تاشدن لبه چسب جانبی و اتصال تیوپ',
@@ -3525,7 +3527,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             </div>
 
             {/* Accordion Item 2: Bottom Lock Flap Settings (Conditional) */}
-            {(selectedModel.id === 'snap-lock-123' || selectedModel.id.includes('auto-bottom') || selectedModel.id.includes('crash-lock')) && (
+            {(selectedModel.id === 'fefco-0215' || selectedModel.id === 'snap-lock-123' || selectedModel.id.includes('auto-bottom') || selectedModel.id.includes('crash-lock')) && (
               <div className="border border-slate-800/60 rounded-xl overflow-hidden bg-[#070a0f]/40">
                 <button
                   onClick={() => setIsLockAnglesOpen(!isLockAnglesOpen)}
@@ -6656,7 +6658,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                         </div>
                         <div className="flex items-center gap-1">
                           <span className="px-2 py-0.5 rounded-lg bg-sky-500/15 border border-sky-500/40 text-cyan-300 font-mono text-[9.5px] font-bold">
-                            {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110 / FEFCO 0711' : selectedModel.id === 'fefco-0201' ? 'FEFCO 0201' : selectedModel.id === 'fefco-0427' ? 'FEFCO 0427' : 'ECMA Standard'}
+                            {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110 / FEFCO 0711' : selectedModel.id === 'fefco-0215' ? 'FEFCO 0215' : selectedModel.id === 'fefco-0201' ? 'FEFCO 0201' : selectedModel.id === 'fefco-0427' ? 'FEFCO 0427' : 'ECMA Standard'}
                           </span>
                           <button
                             onClick={() => setIsStandardHudCollapsed(true)}
