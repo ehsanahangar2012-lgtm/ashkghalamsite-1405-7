@@ -885,10 +885,10 @@ const createSnapLockBottomEngine = () => {
     const cuts: string[] = [];
     const creases: string[] = [];
     const labels: { x: number; y: number; text: string }[] = [];
-    const line = (x1: number, y1: number, x2: number, y2: number) => \`M \${x1} \${y1} L \${x2} \${y2}\`;
+    const line = (x1: number, y1: number, x2: number, y2: number) => `M ${x1} ${y1} L ${x2} ${y2}`;
 
     // Manufacturer's joint and outside right edge.
-    cuts.push(\`M \${x0 + 4} \${yBodyTop} L \${x0} \${yBodyTop + 4} L \${x0} \${yBodyBottom - 4} L \${x0 + 4} \${yBodyBottom}\`);
+    cuts.push(`M ${x0 + 4} ${yBodyTop} L ${x0} ${yBodyTop + 4} L ${x0} ${yBodyBottom - 4} L ${x0 + 4} ${yBodyBottom}`);
     cuts.push(line(x0 + 4, yBodyTop, xs[0], yBodyTop));
     cuts.push(line(x0 + 4, yBodyBottom, xs[0], yBodyBottom));
     cuts.push(line(xs[4], yBodyTop, xs[4], yBodyBottom));
@@ -902,13 +902,13 @@ const createSnapLockBottomEngine = () => {
     const thumbD = Math.min(4, tuckDepth * 0.16);
     const tuckOuterY = yBodyTop - tuckDepth;
     cuts.push(
-      \`M \${xs[0]} \${yBodyTop} L \${xs[0] + tuckInset} \${tuckOuterY} L \${tuckCenter - thumbW / 2} \${tuckOuterY} L \${tuckCenter - thumbW / 2} \${tuckOuterY + thumbD} L \${tuckCenter + thumbW / 2} \${tuckOuterY + thumbD} L \${tuckCenter + thumbW / 2} \${tuckOuterY} L \${xs[1] - tuckInset} \${tuckOuterY} L \${xs[1]} \${yBodyTop}\`
+      `M ${xs[0]} ${yBodyTop} L ${xs[0] + tuckInset} ${tuckOuterY} L ${tuckCenter - thumbW / 2} ${tuckOuterY} L ${tuckCenter - thumbW / 2} ${tuckOuterY + thumbD} L ${tuckCenter + thumbW / 2} ${tuckOuterY + thumbD} L ${tuckCenter + thumbW / 2} ${tuckOuterY} L ${xs[1] - tuckInset} ${tuckOuterY} L ${xs[1]} ${yBodyTop}`
     );
     creases.push(line(xs[0], yBodyTop, xs[1], yBodyTop));
     for (const i of [1, 3]) {
       const xa = xs[i], xb = xs[i + 1], outerY = yBodyTop - topDustDepth;
       const inset = Math.min(8, topDustDepth * 0.28, panelW * 0.12);
-      cuts.push(\`M \${xa} \${yBodyTop} L \${xa + inset} \${outerY} L \${xb - inset} \${outerY} L \${xb} \${yBodyTop}\`);
+      cuts.push(`M ${xa} ${yBodyTop} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${yBodyTop}`);
       creases.push(line(xa, yBodyTop, xb, yBodyTop));
     }
     cuts.push(line(xs[2], yBodyTop, xs[3], yBodyTop));
@@ -922,7 +922,7 @@ const createSnapLockBottomEngine = () => {
     const neckRight = tongueCenter + tongueNeck / 2;
     const tipInset = Math.max(1.5, Math.min(t * 1.5, tongueWidth * 0.1));
     cuts.push(
-      \`M \${xs[0]} \${yBodyBottom} L \${xs[0] + angleRun} \${tongueBaseY} L \${neckLeft} \${tongueBaseY} L \${tongueLeft} \${tongueBaseY + tongueProjection * 0.42} L \${tongueLeft + tipInset} \${tongueTipY} L \${tongueRight - tipInset} \${tongueTipY} L \${tongueRight} \${tongueBaseY + tongueProjection * 0.42} L \${neckRight} \${tongueBaseY} L \${xs[1] - angleRun} \${tongueBaseY} L \${xs[1]} \${yBodyBottom}\`
+      `M ${xs[0]} ${yBodyBottom} L ${xs[0] + angleRun} ${tongueBaseY} L ${neckLeft} ${tongueBaseY} L ${tongueLeft} ${tongueBaseY + tongueProjection * 0.42} L ${tongueLeft + tipInset} ${tongueTipY} L ${tongueRight - tipInset} ${tongueTipY} L ${tongueRight} ${tongueBaseY + tongueProjection * 0.42} L ${neckRight} ${tongueBaseY} L ${xs[1] - angleRun} ${tongueBaseY} L ${xs[1]} ${yBodyBottom}`
     );
     creases.push(line(xs[0], yBodyBottom, xs[1], yBodyBottom));
 
@@ -930,7 +930,7 @@ const createSnapLockBottomEngine = () => {
     for (const i of [1, 3]) {
       const xa = xs[i], xb = xs[i + 1], outerY = yBodyBottom + bottomSideDepth;
       const inset = Math.min(7, bottomSideDepth * 0.22, panelW * 0.1);
-      cuts.push(\`M \${xa} \${yBodyBottom} L \${xa + inset} \${outerY} L \${xb - inset} \${outerY} L \${xb} \${yBodyBottom}\`);
+      cuts.push(`M ${xa} ${yBodyBottom} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${yBodyBottom}`);
       creases.push(line(xa, yBodyBottom, xb, yBodyBottom));
     }
 
@@ -947,14 +947,14 @@ const createSnapLockBottomEngine = () => {
       [notchR - notchWidth * 0.18, receiverY - notchDepth * 0.72],
     ];
     cuts.push(
-      \`M \${receiverLeft} \${yBodyBottom} L \${receiverLeft + receiverInset} \${receiverY} L \${notchL} \${receiverY} L \${notchPoints[0][0]} \${notchPoints[0][1]} L \${notchPoints[1][0]} \${notchPoints[1][1]} L \${notchPoints[2][0]} \${notchPoints[2][1]} L \${notchPoints[3][0]} \${notchPoints[3][1]} L \${notchR} \${receiverY} L \${receiverRight - receiverInset} \${receiverY} L \${receiverRight} \${yBodyBottom}\`
+      `M ${receiverLeft} ${yBodyBottom} L ${receiverLeft + receiverInset} ${receiverY} L ${notchL} ${receiverY} L ${notchPoints[0][0]} ${notchPoints[0][1]} L ${notchPoints[1][0]} ${notchPoints[1][1]} L ${notchPoints[2][0]} ${notchPoints[2][1]} L ${notchPoints[3][0]} ${notchPoints[3][1]} L ${notchR} ${receiverY} L ${receiverRight - receiverInset} ${receiverY} L ${receiverRight} ${yBodyBottom}`
     );
     creases.push(line(receiverLeft, yBodyBottom, receiverRight, yBodyBottom));
 
-    labels.push({ x: (xs[0] + xs[1]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: \`بدنه L=\${Math.round(safeL)}mm\` });
-    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: \`پهنا W=\${Math.round(safeW)}mm\` });
-    labels.push({ x: tongueCenter, y: (yBodyBottom + tongueTipY) / 2, text: \`زبانه قفل \${Math.round(tongueWidth)}mm\` });
-    labels.push({ x: receiverCenter, y: receiverY - notchDepth - 4, text: \`دریچه نیم‌ماه قفل · عمق \${Math.round(lockDepth)}mm\` });
+    labels.push({ x: (xs[0] + xs[1]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `بدنه L=${Math.round(safeL)}mm` });
+    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `پهنا W=${Math.round(safeW)}mm` });
+    labels.push({ x: tongueCenter, y: (yBodyBottom + tongueTipY) / 2, text: `زبانه قفل ${Math.round(tongueWidth)}mm` });
+    labels.push({ x: receiverCenter, y: receiverY - notchDepth - 4, text: `دریچه نیم‌ماه قفل · عمق ${Math.round(lockDepth)}mm` });
     labels.push({ x: (xs[0] + xs[4]) / 2, y: receiverY + 14, text: 'ته قفلی ۱-۲-۳؛ نمونه تاخورده و خلاصی واقعی ورق باید تأیید شود' });
 
     const xMin = x0;
