@@ -1000,7 +1000,7 @@ const createSnapLockBottomEngine = () => {
     const neckRight = tongueCenter + tongueNeck / 2;
     const tipInset = Math.max(1.5, Math.min(t * 1.5, tongueWidth * 0.1));
     cuts.push(
-      `M ${xs[0]} ${yBodyBottom} L ${xs[0] + angleRun} ${tongueBaseY} L ${neckLeft} ${tongueBaseY} L ${tongueLeft} ${tongueBaseY + tongueProjection * 0.42} L ${tongueLeft + tipInset} ${tongueTipY} L ${tongueRight - tipInset} ${tongueTipY} L ${tongueRight} ${tongueBaseY + tongueProjection * 0.42} L ${neckRight} ${tongueBaseY} L ${xs[1] - angleRun} ${tongueBaseY} L ${xs[1]} ${yBodyBottom}`
+      `M ${xs[1]} ${yBodyBottom} L ${xs[1] + angleRun} ${tongueBaseY} L ${neckLeft} ${tongueBaseY} L ${tongueLeft} ${tongueBaseY + tongueProjection * 0.42} L ${tongueLeft + tipInset} ${tongueTipY} L ${tongueRight - tipInset} ${tongueTipY} L ${tongueRight} ${tongueBaseY + tongueProjection * 0.42} L ${neckRight} ${tongueBaseY} L ${xs[2] - angleRun} ${tongueBaseY} L ${xs[2]} ${yBodyBottom}`
     );
     creases.push(line(xs[1], yBodyBottom, xs[2], yBodyBottom));
 
