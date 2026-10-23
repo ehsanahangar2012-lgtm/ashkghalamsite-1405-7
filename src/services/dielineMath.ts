@@ -799,7 +799,74 @@ const crashLockEngine = createTuckEndEngine(true);
 const trayEngine = createTrayEngine();
 const sleeveEngine = createSleeveEngine();
 const pizzaBoxEngine = createPizzaBoxEngine();
+
 const telescopicEngine = createTelescopicEngine();
+
+/** Drawer carton baseline: the inner tray and surrounding sleeve are separate blanks. */
+const createDrawerBoxEngine = () => {
+  return (params: DielineEngineParams): DielineEngineResult => {
+    const { L, W, H, x0 = 50, thickness = 0.45, glueTab = 25 } = params;
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 0.45);
+    const tray = trayEngine({ ...params, x0 });
+    const clearance = Math.max(0.8, t * 1.5);
+    const sleeveX = tray.xMax + Math.max(24, t * 8);
+    const sleeve = sleeveEngine({
+      ...params, L: L + 2 * t + clearance, W: W + 2 * t + clearance,
+      H: Math.max(8, H * 0.55), glueTab, x0: sleeveX,
+    });
+    const yMin = Math.min(tray.yMin, sleeve.yMin);
+    const yMax = Math.max(tray.yMax, sleeve.yMax);
+    return {
+      cuts: [...tray.cuts, ...sleeve.cuts],
+      creases: [...tray.creases, ...sleeve.creases],
+      labels: [
+        ...tray.labels, ...sleeve.labels,
+        { x: (tray.xMin + tray.xMax) / 2, y: tray.yMin + 8, text: 'قطعه ۱: سینی کشویی' },
+        { x: (sleeve.xMin + sleeve.xMax) / 2, y: sleeve.yMin + 8, text: 'قطعه ۲: غلاف بیرونی' },
+      ],
+      xMin: tray.xMin, yMin, xMax: sleeve.xMax, yMax,
+      totalW: sleeve.xMax - tray.xMin, totalH: yMax - yMin,
+    };
+  };
+};
+
+/**
+ * Custom counter display-tray blank. This is intentionally not claimed as a verified ECMA D50 die.
+ */
+const createDisplayStandEngine = () => {
+  return ({ L, W, H, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const safeL = Math.max(20, Number.isFinite(L) ? L : 20);
+    const safeW = Math.max(20, Number.isFinite(W) ? W : 20);
+    const safeH = Math.max(10, Number.isFinite(H) ? H : 10);
+    const sideDepth = Math.max(12, Math.min(safeH, safeW * 0.55));
+    const lipHeight = Math.max(10, Math.min(safeH * 0.35, safeW * 0.3));
+    const xL = x0 + sideDepth, xR = xL + safeL;
+    const yB = 40 + lipHeight, yT = yB + safeW, yRear = yT + safeH;
+    const xMin = xL - sideDepth, xMax = xR + sideDepth;
+    const cuts = [
+      `M ${xL} ${yB - lipHeight} L ${xR} ${yB - lipHeight} L ${xR} ${yB} L ${xMax} ${yB} L ${xMax} ${yT} L ${xR} ${yT} L ${xR} ${yRear} L ${xL} ${yRear} L ${xL} ${yT} L ${xMin} ${yT} L ${xMin} ${yB} L ${xL} ${yB} Z`
+    ];
+    const creases = [
+      `M ${xL} ${yB} L ${xR} ${yB}`,
+      `M ${xL} ${yT} L ${xR} ${yT}`,
+      `M ${xL} ${yB} L ${xL} ${yT}`,
+      `M ${xR} ${yB} L ${xR} ${yT}`,
+    ];
+    const labels = [
+      { x: (xL + xR) / 2, y: (yB + yT) / 2, text: `پایه ${Math.round(safeL)} × ${Math.round(safeW)}mm` },
+      { x: (xL + xR) / 2, y: yT + safeH / 2, text: `دیواره پشتی ${Math.round(safeH)}mm` },
+      { x: (xL + xR) / 2, y: yB - lipHeight / 2, text: `لبه جلویی ${Math.round(lipHeight)}mm` },
+      { x: (xL + xR) / 2, y: yRear + 12, text: 'استند سفارشی؛ کد ECMA D50 و پایداری سازه تأیید نشده' },
+    ];
+    return {
+      cuts, creases, labels, xMin, yMin: yB - lipHeight, xMax, yMax: yRear + 18,
+      totalW: xMax - xMin, totalH: yRear + 18 - (yB - lipHeight),
+    };
+  };
+};
+
+const drawerBoxEngine = createDrawerBoxEngine();
+const displayStandEngine = createDisplayStandEngine();
 
 // The Master Registry of Parametric Dieline CAD Engines
 export const STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEngineParams) => DielineEngineResult> = {
@@ -831,6 +898,6 @@ export const STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEnginePara
   'snap-lock-123': fefco0215Engine,
   'ecma-a30': tuckEndEngine,
   'ecma-b10': sleeveEngine,
-  'ecma-c1020': trayEngine,
-  'ecma-d50': trayEngine,
+  'ecma-c1020': drawerBoxEngine,
+  'ecma-d50': displayStandEngine,
 };

@@ -80,7 +80,7 @@ const STANDARDS_LIBRARY: PackagingModel[] = [
   { id: 'ecma-c1020', name: 'کارتن کشویی ریلی (Drawer Box)', code: 'ECMA C10.20', category: 'ECMA C', icon: '🗄️', defaultDims: { L: 130, W: 90, H: 45 }, description: 'جعبه دو تکه کشویی لوکس کبریتی، بسیار گران‌قیمت بصری و مستحکم.' },
 
   // ECMA D Series
-  { id: 'ecma-d50', name: 'استند رومیزی دیسپلی فروشگاهی', code: 'ECMA D50', category: 'ECMA D', icon: '📊', defaultDims: { L: 160, W: 160, H: 180 }, description: 'نیمه‌کارتن با قابلیت کات هشتی جهت نمایش کاتالوگ یا محصولات پشت کانتر فروش.' }
+  { id: 'ecma-d50', name: 'استند رومیزی نمایش محصول (الگوی پایه سفارشی)', code: 'CUSTOM-DISPLAY-01', category: 'Custom Display', icon: '📊', defaultDims: { L: 160, W: 160, H: 180 }, description: 'الگوی پایه سفارشی با پایه، لبه جلویی، دیواره‌های جانبی و دیواره پشتی؛ کد ECMA D50 یا انطباق صنعتی این هندسه تأیید نشده است.' }
 ];
 
 export interface ProductCategoryOption {

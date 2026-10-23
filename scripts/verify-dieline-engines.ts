@@ -85,6 +85,21 @@ if (!telescope.labels.some(label => label.text.includes('قطعه ۱')) ||
   fail('FEFCO 0320 must generate separate base and lid pieces');
 }
 
+const drawer = STANDARD_DIELINE_ENGINES['ecma-c1020']({
+  L: 180, W: 120, H: 50, thickness: 0.45, glueTab: 25, x0: 40,
+});
+if (!drawer.labels.some(label => label.text.includes('سینی کشویی')) ||
+    !drawer.labels.some(label => label.text.includes('غلاف بیرونی'))) {
+  fail('drawer box baseline must generate separately identified tray and sleeve pieces');
+}
+const displayStand = STANDARD_DIELINE_ENGINES['ecma-d50']({
+  L: 160, W: 120, H: 90, thickness: 0.45, glueTab: 25, x0: 40,
+});
+if (!displayStand.labels.some(label => label.text.includes('استند سفارشی')) ||
+    JSON.stringify(displayStand.cuts) === JSON.stringify(telescope.cuts)) {
+  fail('custom display stand must have its own geometry and clearly disclaim ECMA verification');
+}
+
 const pizza = STANDARD_DIELINE_ENGINES['fefco-pizza']({
   L: 300, W: 300, H: 45, thickness: 1.6, glueTab: 30, x0: 40,
 });
