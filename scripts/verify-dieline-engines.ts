@@ -217,14 +217,19 @@ if (JSON.stringify(crashLock30.cuts) === JSON.stringify(crashLock60.cuts)) {
 }
 
 const lockBottom = STANDARD_DIELINE_ENGINES['snap-lock-123']({
-  L: 120, W: 90, H: 100, thickness: 0.45, glueTab: 22, x0: 40,
+  L: 70, W: 70, H: 80, thickness: 0.45, glueTab: 15, tuck: 25, dustFlap: 33, x0: 40,
 });
-if (!lockBottom.cuts.some(path => path.includes('Z'))) {
-  fail('snap-lock bottom must contain a closed receiving-slot cut path');
+if (lockBottom.cuts.some(path => /\bZ\s*$/.test(path))) {
+  fail('snap-lock receiver must use an edge-open half-moon notch, not an isolated rectangular slot');
 }
-if (!lockBottom.labels.some(label => label.text.includes('زبانه قفل')) ||
-    !lockBottom.labels.some(label => label.text.includes('شیار دریافت‌کننده'))) {
-  fail('snap-lock bottom must expose both tongue and receiving-slot geometry');
+if (!lockBottom.cuts.some(path => path.includes('M') && path.split(' L ').length >= 9) ||
+    !lockBottom.labels.some(label => label.text.includes('زبانه قفل')) ||
+    !lockBottom.labels.some(label => label.text.includes('نیم‌ماه'))) {
+  fail('snap-lock blank must contain the integral tongue and edge-open half-moon receiver notch');
+}
+const referenceWidth = 15 + 4 * (70 + 0.45);
+if (Math.abs(lockBottom.totalW - referenceWidth) > 1e-8) {
+  fail(`snap-lock inside-size panel width must match the reference convention: expected ${referenceWidth}, got ${lockBottom.totalW}`);
 }
 const lowAngleLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
   L: 120, W: 90, H: 100, thickness: 0.45, glueTab: 22, autoLockAngle: 30, x0: 40,
@@ -234,15 +239,6 @@ const highAngleLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
 });
 if (JSON.stringify(lowAngleLock.cuts) === JSON.stringify(highAngleLock.cuts)) {
   fail('snap-lock shoulder angles must change the generated cutting geometry');
-}
-const slotPath = lockBottom.cuts.find(path => /\bZ\s*$/.test(path));
-if (!slotPath) fail('snap-lock receiving slot must be a closed cut path');
-const slotCoordinates = (slotPath.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
-const slotYValues = slotCoordinates.filter((_value, index) => index % 2 === 1);
-const slotCenterY = (Math.min(...slotYValues) + Math.max(...slotYValues)) / 2;
-const expectedTongueTipY = 40 + 20 + 100 + Math.max(90 * 0.48, 14) + Math.max(90 * 0.13, 5);
-if (Math.abs(slotCenterY - expectedTongueTipY) > 0.01) {
-  fail(`snap-lock slot centre must align with the tongue tip station, got ${slotCenterY} vs ${expectedTongueTipY}`);
 }
 const thickBoardLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
   L: 120, W: 90, H: 100, thickness: 2.5, glueTab: 22, x0: 40,
