@@ -35,6 +35,17 @@ for (const id of requiredEngines) {
       fail(`${id}: invalid geometry bounds for ${JSON.stringify(dims)}`);
     }
 
+    const geometryReport = runComprehensiveGeometryCheck(
+      result.cuts, result.creases, dims.L, dims.W, dims.H, id,
+      dims.L * 0.18, dims.W * 0.42, result.totalW, result.totalH, 100000, 100000, dims.glueTab
+    );
+    if (geometryReport.errors.length > 0) {
+      fail(`${id}: geometry validator errors for ${JSON.stringify(dims)}: ${geometryReport.errors.join('; ')}`);
+    }
+    if (!Number.isFinite(geometryReport.cutLength) || !Number.isFinite(geometryReport.creaseLength)) {
+      fail(`${id}: geometry validator returned non-finite cut/crease lengths`);
+    }
+
     for (const [kind, paths] of [['cut', result.cuts], ['crease', result.creases]] as const) {
       for (const path of paths) {
         const values = path.match(/-?\d+(?:\.\d+)?(?:e[-+]?\d+)?/gi)?.map(Number) || [];
