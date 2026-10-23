@@ -85,6 +85,106 @@ export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
   }
   if (current) sections.push(current);
 
+  // Read named BLOCKS and flatten simple top-level INSERT instances into
+  // ENTITIES coordinates. This supports common line/polyline/arc/circle blocks;
+  // nested INSERTs and non-uniformly scaled curves are intentionally skipped.
+  type RawRecord = { type: string; pairs: Array<{ code: number; value: string }> };
+  const blockDefinitions = new Map<string, { base: Point; records: RawRecord[] }>();
+  for (let i = 0; i < pairs.length - 1; i++) {
+    if (pairs[i].code !== 0 || pairs[i].value !== 'SECTION' ||
+        pairs[i + 1].code !== 2 || pairs[i + 1].value.toUpperCase() !== 'BLOCKS') continue;
+    let j = i + 2;
+    while (j < pairs.length && !(pairs[j].code === 0 && pairs[j].value === 'ENDSEC')) {
+      if (pairs[j].code !== 0 || pairs[j].value !== 'BLOCK') { j++; continue; }
+      j++;
+      const header: Array<{ code: number; value: string }> = [];
+      while (j < pairs.length && pairs[j].code !== 0) header.push(pairs[j++]);
+      const name = header.find(pair => pair.code === 2)?.value;
+      const base = {
+        x: Number(header.find(pair => pair.code === 10)?.value ?? 0),
+        y: Number(header.find(pair => pair.code === 20)?.value ?? 0),
+      };
+      const records: RawRecord[] = [];
+      while (j < pairs.length && !(pairs[j].code === 0 && pairs[j].value === 'ENDBLK') &&
+             !(pairs[j].code === 0 && pairs[j].value === 'ENDSEC')) {
+        if (pairs[j].code !== 0) { j++; continue; }
+        const recordType = pairs[j++].value.toUpperCase();
+        const recordPairs: Array<{ code: number; value: string }> = [];
+        while (j < pairs.length && pairs[j].code !== 0) recordPairs.push(pairs[j++]);
+        if (recordType !== 'ENDBLK' && recordType !== 'BLOCK' && recordType !== 'SEQEND') {
+          records.push({ type: recordType, pairs: recordPairs });
+        }
+      }
+      if (name) blockDefinitions.set(name.toUpperCase(), { base, records });
+      if (pairs[j]?.value === 'ENDBLK') j++;
+    }
+    break;
+  }
+
+  const expandedSections: RawRecord[] = [];
+  const transformPoint = (point: Point, base: Point, insertion: Point, sx: number, sy: number, angle: number): Point => {
+    const x = (point.x - base.x) * sx, y = (point.y - base.y) * sy;
+    return {
+      x: insertion.x + x * Math.cos(angle) - y * Math.sin(angle),
+      y: insertion.y + x * Math.sin(angle) + y * Math.cos(angle),
+    };
+  };
+  const transformBlockRecord = (
+    record: RawRecord, insertLayer: string, base: Point, insertion: Point,
+    sx: number, sy: number, angle: number
+  ): RawRecord | null => {
+    const pairsCopy = record.pairs.map(pair => ({ ...pair }));
+    const uniformScale = Math.abs(Math.abs(sx) - Math.abs(sy)) < 1e-8;
+    if ((record.type === 'ARC' || record.type === 'CIRCLE') && !uniformScale) return null;
+    if (record.type !== 'LINE' && record.type !== 'LWPOLYLINE' && record.type !== 'ARC' && record.type !== 'CIRCLE') return null;
+    const layerPair = pairsCopy.find(pair => pair.code === 8);
+    if (layerPair?.value === '0') layerPair.value = insertLayer;
+    // Transform each coordinate pair (10,20) and (11,21); preserve all other groups.
+    for (let k = 0; k < pairsCopy.length; k++) {
+      const xCode = pairsCopy[k].code;
+      const yCode = xCode === 10 ? 20 : xCode === 11 ? 21 : -1;
+      if (yCode < 0) continue;
+      const yPair = pairsCopy.slice(k + 1).find(pair => pair.code === yCode);
+      if (!yPair) continue;
+      const transformed = transformPoint(
+        { x: Number(pairsCopy[k].value), y: Number(yPair.value) },
+        base, insertion, sx, sy, angle
+      );
+      pairsCopy[k].value = String(transformed.x);
+      yPair.value = String(transformed.y);
+    }
+    for (const pair of pairsCopy) {
+      if (pair.code === 40 && (record.type === 'ARC' || record.type === 'CIRCLE')) {
+        pair.value = String(Number(pair.value) * Math.abs(sx));
+      }
+      if ((pair.code === 50 || pair.code === 51) && record.type === 'ARC') {
+        pair.value = String(Number(pair.value) + angle * 180 / Math.PI);
+      }
+      // DXF bulges survive rotation and uniform scale; non-uniform scales would
+      // turn circular arcs into ellipses and were excluded for curve records.
+    }
+    return { type: record.type, pairs: pairsCopy };
+  };
+
+  for (const entity of sections) {
+    if (entity.type !== 'INSERT') {
+      expandedSections.push(entity);
+      continue;
+    }
+    const p = entity.pairs;
+    const blockName = p.find(pair => pair.code === 2)?.value?.toUpperCase();
+    const block = blockName ? blockDefinitions.get(blockName) : undefined;
+    if (!block) continue;
+    const insertion = { x: groupByCode(p, 10)[0] ?? 0, y: groupByCode(p, 20)[0] ?? 0 };
+    const sx = groupByCode(p, 41)[0] ?? 1, sy = groupByCode(p, 42)[0] ?? sx;
+    const angle = (groupByCode(p, 50)[0] ?? 0) * Math.PI / 180;
+    const insertLayer = p.find(pair => pair.code === 8)?.value || '0';
+    for (const record of block.records) {
+      const transformed = transformBlockRecord(record, insertLayer, block.base, insertion, sx, sy, angle);
+      if (transformed) expandedSections.push(transformed);
+    }
+  }
+
   const result: DxfEntity[] = [];
   const addLine = (a: Point, b: Point, layer: string) => {
     if (![a.x, a.y, b.x, b.y].every(Number.isFinite) || (Math.abs(a.x-b.x) < 1e-9 && Math.abs(a.y-b.y) < 1e-9)) return;
