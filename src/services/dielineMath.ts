@@ -409,6 +409,111 @@ const createSleeveEngine = () => {
   };
 };
 
+
+/**
+ * Custom one-piece pizza / food carton. This is deliberately labelled as a
+ * custom 04-series-inspired construction, not as an exact FEFCO-numbered die.
+ * L/W are the base footprint; H is wall height; tuck is the front closure depth.
+ */
+const createPizzaBoxEngine = () => {
+  return ({ L, W, H, tuck = 24, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const wall = Math.max(12, H);
+    const T = Math.max(12, Math.min(tuck || 24, Math.min(L, W) * 0.35));
+    const sideTab = Math.max(8, Math.min(wall * 0.45, W * 0.22));
+    const xB = x0 + wall;
+    const yTuck = 30;
+    const yLidTop = yTuck + T;
+    const yLidBottom = yLidTop + W;
+    const yBackBottom = yLidBottom + wall;
+    const yBaseBottom = yBackBottom + W;
+    const yFrontBottom = yBaseBottom + wall;
+    const xR = xB + L;
+    const cuts: string[] = [];
+    const creases: string[] = [];
+    const labels: { x: number; y: number; text: string }[] = [];
+
+    // One continuous blank: front tuck + lid + back wall + base + front wall,
+    // with side walls attached to the base. Side locking details are simplified.
+    cuts.push(
+      `M ${xB + 3} ${yTuck} L ${xR - 3} ${yTuck} L ${xR} ${yLidTop} L ${xR} ${yBackBottom} L ${xR + wall} ${yBackBottom} L ${xR + wall} ${yBaseBottom} L ${xR} ${yBaseBottom} L ${xR} ${yFrontBottom} L ${xB} ${yFrontBottom} L ${xB} ${yBaseBottom} L ${xB - wall} ${yBaseBottom} L ${xB - wall} ${yBackBottom} L ${xB} ${yBackBottom} L ${xB} ${yLidTop} Z`
+    );
+
+    // Cut reliefs at lid corners and simple tuck ears; dimensions remain parametric.
+    cuts.push(`M ${xB} ${yLidTop} L ${xB + sideTab} ${yLidTop + Math.min(wall, 12)} L ${xB + sideTab} ${yLidBottom - 8}`);
+    cuts.push(`M ${xR} ${yLidTop} L ${xR - sideTab} ${yLidTop + Math.min(wall, 12)} L ${xR - sideTab} ${yLidBottom - 8}`);
+
+    // Creases: tuck/lid, lid/back, back/base, base/front and side-wall hinges.
+    creases.push(`M ${xB} ${yLidTop} L ${xR} ${yLidTop}`);
+    creases.push(`M ${xB} ${yLidBottom} L ${xR} ${yLidBottom}`);
+    creases.push(`M ${xB} ${yBackBottom} L ${xR} ${yBackBottom}`);
+    creases.push(`M ${xB} ${yBaseBottom} L ${xR} ${yBaseBottom}`);
+    creases.push(`M ${xB} ${yBackBottom} L ${xB} ${yBaseBottom}`);
+    creases.push(`M ${xR} ${yBackBottom} L ${xR} ${yBaseBottom}`);
+
+    labels.push({ x: (xB + xR) / 2, y: (yBackBottom + yBaseBottom) / 2, text: `کفه ${Math.round(L)} × ${Math.round(W)}mm` });
+    labels.push({ x: (xB + xR) / 2, y: (yLidTop + yLidBottom) / 2, text: 'درب' });
+    labels.push({ x: (xB + xR) / 2, y: (yBaseBottom + yFrontBottom) / 2, text: `دیواره ${Math.round(wall)}mm` });
+
+    return {
+      cuts, creases, labels,
+      xMin: xB - wall, yMin: yTuck, xMax: xR + wall, yMax: yFrontBottom,
+      totalW: L + 2 * wall, totalH: yFrontBottom - yTuck
+    };
+  };
+};
+
+/**
+ * Two-piece telescopic carton (separate base and lid) in a single flat layout.
+ * H is the assembled total depth; it is split between base and lid. Lid clearance
+ * uses the supplied board caliper as a starting point and must be calibrated.
+ */
+const createTelescopicEngine = () => {
+  return ({ L, W, H, thickness = 1.5, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, thickness || 1.5);
+    const baseDepth = Math.max(8, H * 0.65);
+    const lidDepth = Math.max(8, H - baseDepth);
+    const lidL = L + 2 * t + 0.8;
+    const lidW = W + 2 * t + 0.8;
+    const gap = Math.max(20, t * 8);
+    const cuts: string[] = [];
+    const creases: string[] = [];
+    const labels: { x: number; y: number; text: string }[] = [];
+
+    const addCross = (x: number, y: number, l: number, w: number, d: number, label: string) => {
+      const bx = x + d, by = y + d;
+      const xR = bx + l, yB = by + w;
+      const path = [
+        `M ${bx} ${y}`, `L ${xR} ${y}`, `L ${xR} ${by}`,
+        `L ${xR + d} ${by}`, `L ${xR + d} ${yB}`, `L ${xR} ${yB}`,
+        `L ${xR} ${yB + d}`, `L ${bx} ${yB + d}`, `L ${bx} ${yB}`,
+        `L ${x} ${yB}`, `L ${x} ${by}`, `L ${bx} ${by}`, 'Z'
+      ].join(' ');
+      cuts.push(path);
+      creases.push(`M ${bx} ${by} L ${xR} ${by}`);
+      creases.push(`M ${bx} ${yB} L ${xR} ${yB}`);
+      creases.push(`M ${bx} ${by} L ${bx} ${yB}`);
+      creases.push(`M ${xR} ${by} L ${xR} ${yB}`);
+      labels.push({ x: bx + l / 2, y: by + w / 2, text: `${label}: ${Math.round(l)} × ${Math.round(w)}mm` });
+      labels.push({ x: bx + l / 2, y: y + d / 2, text: `دیواره ${Math.round(d)}mm` });
+      return { minX: x, minY: y, maxX: xR + d, maxY: yB + d };
+    };
+
+    const base = addCross(x0, 40, L, W, baseDepth, 'زیره');
+    const lidX = base.maxX + gap;
+    const lid = addCross(lidX, 40, lidL, lidW, lidDepth, 'درب');
+    labels.push({ x: (base.minX + base.maxX) / 2, y: base.maxY + 12, text: 'قطعه ۱: زیره' });
+    labels.push({ x: (lid.minX + lid.maxX) / 2, y: lid.maxY + 12, text: 'قطعه ۲: درب تلسکوپی' });
+
+    return {
+      cuts, creases, labels,
+      xMin: base.minX, yMin: 40,
+      xMax: lid.maxX, yMax: Math.max(base.maxY, lid.maxY),
+      totalW: lid.maxX - base.minX,
+      totalH: Math.max(base.maxY, lid.maxY) - 40
+    };
+  };
+};
+
 const rscStandardEngine = createRscEngine(0.5, 0.5);
 const openTopEngine = createRscEngine(0, 0.5);
 const folEngine = createRscEngine(1.0, 1.0);
@@ -417,6 +522,8 @@ const tuckEndEngine = createTuckEndEngine(false);
 const crashLockEngine = createTuckEndEngine(true);
 const trayEngine = createTrayEngine();
 const sleeveEngine = createSleeveEngine();
+const pizzaBoxEngine = createPizzaBoxEngine();
+const telescopicEngine = createTelescopicEngine();
 
 // The Master Registry of Parametric Dieline CAD Engines
 export const STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEngineParams) => DielineEngineResult> = {
@@ -428,13 +535,13 @@ export const STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEnginePara
   'fefco-0215': crashLockEngine,
 
   // FEFCO 0300 Series (Telescope & Tray)
-  'fefco-0300': trayEngine,
-  'fefco-0301': trayEngine,
-  'fefco-0320': trayEngine,
+  'fefco-0300': telescopicEngine,
+  'fefco-0301': telescopicEngine,
+  'fefco-0320': telescopicEngine,
 
   // FEFCO 0400 Series (Mailer & Folders)
   'fefco-0427': mailerEngine,
-  'fefco-pizza': mailerEngine,
+  'fefco-pizza': pizzaBoxEngine,
   'fefco-0409': mailerEngine,
   'fefco-0470': mailerEngine,
 
