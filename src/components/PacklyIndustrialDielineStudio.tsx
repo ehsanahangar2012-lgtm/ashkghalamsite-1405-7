@@ -79,6 +79,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [showLabels, setShowLabels] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [show3D, setShow3D] = useState(false);
+  const [openRatio, setOpenRatio] = useState(1);
   const [saved, setSaved] = useState(false);
 
   const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
@@ -225,7 +226,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 <a className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800" href="https://www.fefco.org/technical-information/fefco-code" target="_blank" rel="noreferrer">مرجع رسمی FEFCO ↗</a>
                 <a className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800" href="https://www.packmage.com/Home/BoxLibrary" target="_blank" rel="noreferrer">کتابخانه Packmage ↗</a>
               </div>
-              {show3D && <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950 p-3"><div className="mb-2 flex items-center gap-2 text-sm font-bold"><Rotate3d className="h-4 w-4 text-sky-300"/>نمای حجمی مرجع ابعاد</div><div className="h-[300px] overflow-hidden rounded-lg"><ThreeDPreview width={length} height={height} depth={width} autoRotate/></div><p className="mt-2 text-xs leading-5 text-amber-200"><Info className="ml-1 inline h-4 w-4"/>این مدل، جعبه مستطیلی را برای مقایسه ابعاد نشان می‌دهد؛ تاخوردن واقعی فلپ‌ها یا صحت مونتاژ از روی آن شبیه‌سازی نمی‌شود.</p></div>}
+              {show3D && <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950 p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold"><Rotate3d className="h-4 w-4 text-sky-300"/>پیش‌نمایش حجمی با فلپ‌های لولایی</div><span className="text-xs text-slate-400">{Math.round(openRatio * 100)}٪ بازشدگی</span></div><div className="h-[360px] overflow-hidden rounded-lg"><ThreeDPreview width={length} height={height} depth={width} isOpenRatio={openRatio} autoRotate/></div><label className="mt-3 flex items-center gap-3 text-xs text-slate-300">بسته <input type="range" min={0} max={1} step={0.05} value={openRatio} onChange={e => setOpenRatio(Number(e.target.value))} className="w-full accent-sky-500"/> باز</label><p className="mt-2 text-xs leading-5 text-amber-200"><Info className="ml-1 inline h-4 w-4"/>این نسخه، مدل حجمی عمومی با چهار دیواره و فلپ‌های لولایی است؛ هنوز هندسه سه‌بعدی اختصاصی و ترتیب مونتاژ هر کد FEFCO/ECMA را از روی نقشه دوبعدی بازسازی نمی‌کند.</p></div>}
             </section>
             <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3 text-xs leading-6 text-slate-400 sm:p-4">
               <h4 className="mb-1 flex items-center gap-2 font-bold text-slate-200"><Scissors className="h-4 w-4 text-rose-300"/>یادداشت تولید</h4>
