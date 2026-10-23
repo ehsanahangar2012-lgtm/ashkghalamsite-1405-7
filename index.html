@@ -1,40 +1,76 @@
-<!DOCTYPE html>
-<html lang="fa" dir="rtl" class="scroll-smooth">
+<!doctype html>
+<html lang="fa" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
-      // Suppress non-breaking WebSocket / HMR transport errors in AI Studio iframe environment
-      window.addEventListener('error', function(e) {
-        if (e && (
-          (e.message && (e.message.includes('WebSocket') || e.message.includes('createWebSocketModuleRunnerTransport'))) ||
-          (e.filename && e.filename.includes('@vite/client'))
-        )) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          return true;
-        }
-      }, true);
-      window.addEventListener('unhandledrejection', function(e) {
-        var reason = e ? (e.reason ? String(e.reason) : '') : '';
-        if (reason.includes('WebSocket') || reason.includes('@vite/client') || reason.includes('createWebSocketModuleRunnerTransport')) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-        }
-      }, true);
+      (function() {
+        // Suppress and gracefully handle Vite HMR WebSockets in preview environment
+        try {
+          var NativeWebSocket = window.WebSocket;
+          if (NativeWebSocket) {
+            window.WebSocket = function(url, protocols) {
+              if (protocols === 'vite-hmr' || (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1)) {
+                var target = new EventTarget();
+                var mock = {
+                  readyState: 1,
+                  OPEN: 1,
+                  CLOSED: 3,
+                  CLOSING: 2,
+                  CONNECTING: 0,
+                  send: function() {},
+                  close: function() {},
+                  addEventListener: target.addEventListener.bind(target),
+                  removeEventListener: target.removeEventListener.bind(target),
+                  dispatchEvent: target.dispatchEvent.bind(target)
+                };
+                setTimeout(function() {
+                  var openEvent = new Event('open');
+                  target.dispatchEvent(openEvent);
+                  if (typeof mock.onopen === 'function') mock.onopen(openEvent);
+                }, 10);
+                return mock;
+              }
+              return new NativeWebSocket(url, protocols);
+            };
+            window.WebSocket.prototype = NativeWebSocket.prototype;
+            window.WebSocket.CONNECTING = 0;
+            window.WebSocket.OPEN = 1;
+            window.WebSocket.CLOSING = 2;
+            window.WebSocket.CLOSED = 3;
+          }
+        } catch (e) {}
+
+        window.addEventListener('unhandledrejection', function(event) {
+          var msg = '' + (event && event.reason && (event.reason.message || event.reason) || '');
+          var stack = '' + (event && event.reason && event.reason.stack || '');
+          if (msg.indexOf('WebSocket') !== -1 || stack.indexOf('createWebSocketModuleRunnerTransport') !== -1) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('error', function(event) {
+          var msg = '' + (event && event.message || '');
+          var filename = '' + (event && event.filename || '');
+          if (msg.indexOf('WebSocket') !== -1 || filename.indexOf('@vite/client') !== -1) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+      })();
     </script>
-    <title>اشک قلم | چاپ، جعبه‌سازی، کارتن‌سازی و بسته‌بندی</title>
-    <meta name="description" content="اشک قلم؛ معرفی خدمات چاپ و بسته‌بندی، جعبه‌سازی و کارتن‌سازی. محصولات، کاتالوگ‌ها و نمونه‌کارها را مشاهده کنید و برای سفارش و استعلام قیمت اقدام کنید." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>اشک قلم (Ashk Ghalam) - CAD Studio v3.10.0</title>
+    <meta name="description" content="سامانه جامع مهندسی کارتن، بسته‌بندی، محصولات و کاتالوگ هوشمند اشک قلم v3.10.0 با سئو اختصاصی و پیش‌رندرهای صنعتی." />
     <link rel="canonical" href="https://ashkghalam.ir/" />
-    <meta property="og:title" content="اشک قلم | چاپ، جعبه‌سازی، کارتن‌سازی و بسته‌بندی" />
-    <meta property="og:description" content="اشک قلم؛ معرفی خدمات چاپ و بسته‌بندی، جعبه‌سازی و کارتن‌سازی. محصولات، کاتالوگ‌ها و نمونه‌کارها را مشاهده کنید و برای سفارش و استعلام قیمت اقدام کنید." />
-    <meta property="og:type" content="website" />
+    <meta property="og:title" content="اشک قلم (Ashk Ghalam) - CAD Studio v3.10.0" />
+    <meta property="og:description" content="سامانه جامع مهندسی کارتن، بسته‌بندی، محصولات و کاتالوگ هوشمند اشک قلم v3.10.0 با سئو اختصاصی و پیش‌رندرهای صنعتی." />
     <meta property="og:url" content="https://ashkghalam.ir/" />
-    <meta property="og:site_name" content="اشک قلم" />
-    <meta property="og:locale" content="fa_IR" />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#f59e0b" />
   </head>
-  <body class="bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 font-sans transition-colors duration-300 overflow-x-hidden">
+  <body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-slate-950">
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

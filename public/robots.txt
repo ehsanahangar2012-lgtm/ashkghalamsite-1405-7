@@ -1,6 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /api/
-Disallow: /backups/
-
-Sitemap: https://ashkghalam.ir/sitemap.xml

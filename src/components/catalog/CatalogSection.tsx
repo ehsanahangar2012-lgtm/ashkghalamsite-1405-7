@@ -1,190 +1,135 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CatalogItem } from '../../types/catalog';
-import { catalogService } from '../../services/catalogService';
-import { CatalogViewerModal } from './CatalogViewerModal';
-import { BookOpen, Eye, Download, Sparkles, ChevronLeft, ArrowLeft, Search, Tag, Layers } from 'lucide-react';
+import { catalogService, CatalogItem } from '../../services/catalogService';
+import { Card, Button, Badge } from '../UIComponents';
+import { BookOpen, Search, Download, Eye, Layers, Filter } from 'lucide-react';
 
 export const CatalogSection: React.FC = () => {
   const [catalogs, setCatalogs] = useState<CatalogItem[]>([]);
-  const [selectedCatalog, setSelectedCatalog] = useState<CatalogItem | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string>('همه');
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
 
   useEffect(() => {
-    loadCatalogs();
-  }, [activeCategory, searchQuery]);
-
-  const loadCatalogs = async () => {
-    setLoading(true);
-    const data = await catalogService.fetchCatalogs({
-      isPublishedOnly: true,
-      category: activeCategory,
-      searchQuery: searchQuery
+    catalogService.fetchCatalogs(true).then((data) => {
+      setCatalogs(data);
+      setLoading(false);
     });
-    setCatalogs(data);
-    setLoading(false);
-  };
+  }, []);
 
-  const categories = ['همه', 'جعبه هاردباکس', 'کارتن‌سازی و لمینت', 'چاپ افست و خدمات تکمیلی'];
+  const categories = ['ALL', ...Array.from(new Set(catalogs.map(c => c.category).filter(Boolean)))];
+
+  const filtered = catalogs.filter(c => {
+    const matchCat = selectedCategory === 'ALL' || c.category === selectedCategory;
+    const matchSearch = !search || c.title.toLowerCase().includes(search.toLowerCase()) || 
+                        c.description?.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchSearch;
+  });
 
   return (
-    <section id="catalog-section" className="py-20 bg-slate-950 text-slate-100 relative overflow-hidden font-sans">
-      {/* Background Subtle Gradient Flares */}
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-amber-600/5 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        
-        {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold mb-4">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>کاتالوگ و ژورنال هوشمند با قابلیت زوم و استعلام قیمت</span>
-          </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-4 tracking-tight">
-            ژورنال و کاتالوگ‌های تخصصی چاپ و بسته‌بندی
-          </h2>
-          <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-            مشاهده ساختارهای هاردباکس، کارتن‌های لمینیتی و افکت‌های خاص چاپ افست اشک قلم به همراه نقاط تعاملی و استعلام قیمت آنی.
-          </p>
+    <div className="max-w-6xl mx-auto p-4 md:p-8 font-sans">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+          <span className="text-xs font-black text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
+            کاتالوگ‌های تخصصی اشک قلم
+          </span>
+          <h1 className="text-3xl font-black text-slate-100 mt-2">کاتالوگ‌های دیجیتال و مهندسی جعبه</h1>
+          <p className="text-slate-400 text-sm mt-1">مشاهده و دریافت کاتالوگ‌های رسمی مقاطع قالب، ساختارهای FEFCO و نمونه‌های تولیدی.</p>
         </div>
 
-        {/* Filters & Search */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-10 bg-slate-900/60 p-3 rounded-2xl border border-slate-800 backdrop-blur-md">
-          {/* Category Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 scrollbar-none">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                  activeCategory === cat
-                    ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          {/* Search Input */}
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <div className="flex items-center gap-3">
+          <div className="relative">
             <input
               type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="جستجو در کاتالوگ‌ها..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-9 pl-4 py-2 text-xs text-white placeholder-slate-500 focus:border-amber-500 outline-none transition-colors"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-100 pl-9 focus:outline-none focus:border-amber-500 w-64"
             />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
           </div>
         </div>
-
-        {/* Catalogs Grid */}
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-96 rounded-3xl bg-slate-900/50 animate-pulse border border-slate-800" />
-            ))}
-          </div>
-        ) : catalogs.length === 0 ? (
-          <div className="text-center py-16 bg-slate-900/40 rounded-3xl border border-slate-800">
-            <BookOpen className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-            <p className="text-slate-400 text-sm">هیچ کاتالوگی با این مشخصات یافت نشد.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {catalogs.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => setSelectedCatalog(item)}
-                className="group bg-slate-900/80 border border-slate-800/80 hover:border-amber-500/50 rounded-3xl overflow-hidden shadow-xl hover:shadow-amber-500/10 transition-all duration-300 flex flex-col cursor-pointer"
-              >
-                {/* Cover Preview Image Container - CONTAIN MODE */}
-                <div className="relative h-64 overflow-hidden bg-slate-950/90 flex items-center justify-center p-3 border-b border-slate-800/80">
-                  <img
-                    src={item.coverImage}
-                    alt={item.title}
-                    className="max-h-full max-w-full object-contain rounded-xl shadow-2xl group-hover:scale-105 transition-transform duration-500"
-                    referrerPolicy="no-referrer"
-                  />
-                  
-                  {/* Badge & Page count */}
-                  <div className="absolute top-3 right-3 px-3 py-1 bg-slate-950/80 backdrop-blur-md rounded-full text-[11px] font-bold text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5" />
-                    <span>{item.pageCount} صفحه</span>
-                  </div>
-
-                  {/* Hover Badge Overlay */}
-                  <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                    <div className="px-5 py-2.5 bg-amber-500 text-slate-950 font-extrabold text-xs rounded-2xl shadow-xl flex items-center gap-2 transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                      <BookOpen className="w-4 h-4" />
-                      مشاهده کاتالوگ
-                    </div>
-                  </div>
-                </div>
-
-                {/* Content info */}
-                <div className="p-6 flex-1 flex flex-col justify-between">
-                  <div>
-                    <span className="text-[11px] font-bold text-amber-400 mb-1.5 block">{item.category}</span>
-                    <h3 className="font-extrabold text-white text-base mb-2 group-hover:text-amber-300 transition-colors line-clamp-1">
-                      {item.title}
-                    </h3>
-                    <p className="text-slate-400 text-xs leading-relaxed line-clamp-2 mb-4">
-                      {item.description}
-                    </p>
-                  </div>
-
-                  {/* Footer stats & CTAs */}
-                  <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1" title="بازدید">
-                        <Eye className="w-3.5 h-3.5 text-slate-400" />
-                        {item.views || 0}
-                      </span>
-                      <span className="flex items-center gap-1" title="دانلود">
-                        <Download className="w-3.5 h-3.5 text-slate-400" />
-                        {item.downloads || 0}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <Link
-                        to={`/catalog/${item.slug || item.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-[11px] font-bold text-slate-400 hover:text-amber-400 flex items-center gap-1 transition-colors"
-                      >
-                        <span>صفحه اختصاصی</span>
-                        <ArrowLeft className="w-3 h-3" />
-                      </Link>
-                      <button 
-                        onClick={() => setSelectedCatalog(item)}
-                        className="font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
-                      >
-                        <span>ورق‌زدن ۳D</span>
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            ))}
-          </div>
-        )}
-
       </div>
 
-      {/* 3D Catalog Modal Reader */}
-      <CatalogViewerModal
-        catalog={selectedCatalog}
-        isOpen={!!selectedCatalog}
-        onClose={() => setSelectedCatalog(null)}
-      />
-    </section>
+      {categories.length > 2 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-6 scrollbar-none">
+          <Filter className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+                selectedCategory === cat
+                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
+              }`}
+            >
+              {cat === 'ALL' ? 'همه کاتالوگ‌ها' : cat}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map(n => (
+            <div key={n} className="h-64 rounded-2xl bg-slate-900/60 animate-pulse border border-slate-800" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card className="text-center py-16">
+          <div className="w-16 h-16 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto mb-4">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-slate-200 mb-1">کاتالوگی یافت نشد</h3>
+          <p className="text-sm text-slate-400 max-w-sm mx-auto">
+            در حال حاضر کاتالوگ عمومی تایید شده‌ای برای این دسته‌بندی وجود ندارد.
+          </p>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {filtered.map(cat => (
+            <Card key={cat.id} className="flex flex-col justify-between hover:border-slate-700 transition-all">
+              <div>
+                <div className="aspect-[4/3] rounded-xl bg-slate-800 overflow-hidden mb-4 relative">
+                  {cat.coverImage ? (
+                    <img src={cat.coverImage} alt={cat.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-800/50">
+                      <BookOpen className="w-10 h-10 mb-2 opacity-50" />
+                      <span className="text-xs">کاتالوگ رسمی</span>
+                    </div>
+                  )}
+                  <span className="absolute top-3 right-3 text-[10px] font-bold bg-slate-950/80 backdrop-blur px-2.5 py-1 rounded-md text-amber-400 border border-amber-500/30">
+                    {cat.category || 'صنعتی'}
+                  </span>
+                </div>
+
+                <h3 className="text-base font-bold text-slate-100 mb-1.5 line-clamp-1">{cat.title}</h3>
+                {cat.description && (
+                  <p className="text-xs text-slate-400 line-clamp-2 mb-4 leading-relaxed">{cat.description}</p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-800 mt-2">
+                <Link to={`/catalog/${cat.slug || cat.id}`} className="flex-1">
+                  <Button variant="primary" size="sm" className="w-full">
+                    <Eye className="w-3.5 h-3.5 ml-1" />
+                    مشاهده کاتالوگ
+                  </Button>
+                </Link>
+                {cat.pdfUrl && (
+                  <a href={cat.pdfUrl} target="_blank" rel="noopener noreferrer" download>
+                    <Button variant="outline" size="sm">
+                      <Download className="w-3.5 h-3.5" />
+                    </Button>
+                  </a>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
