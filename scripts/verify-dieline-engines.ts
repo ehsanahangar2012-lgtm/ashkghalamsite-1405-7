@@ -36,8 +36,8 @@ for (const id of requiredEngines) {
         x0 + glue + dims.L + dims.W,
         x0 + glue + 2 * dims.L + dims.W,
       ];
-      const mainDepth = Math.max(12, Math.min(dims.W * 0.5, dims.L * 0.9));
-      const sideDepth = Math.max(12, Math.min(dims.L * 0.5, dims.W * 0.9));
+      const mainDepth = Math.max(12, Math.min(dims.W * 0.75, dims.L * 0.9));
+      const sideDepth = Math.max(12, Math.min(dims.L * 0.35, dims.W * 0.9));
       const expectedOuterYs = [
         bodyBottomY + mainDepth,
         bodyBottomY + sideDepth,
