@@ -266,7 +266,7 @@ export const runComprehensiveGeometryCheck = (
   if (topologyTruncated) warnings.push('بررسی تقاطع بین مسیرهای مختلف پس از ۵۰۰۰۰ جفت نزدیک متوقف شد؛ نقشه برای بررسی کامل‌تر علامت‌گذاری شد.');
   if (cutCutCrossings) errors.push(cutCutCrossings + ' تقاطع داخلی بین مسیرهای برش جداگانه یافت شد.');
   if (cutCreaseCrossings) errors.push(cutCreaseCrossings + ' عبور نامعتبر بین خط‌برش و خط‌تا یافت شد.');
-  if (overlaps) errors.push(overlaps + ' هم‌پوشانی خطی بین مسیرهای برش/خط‌تا یافت شد؛ ممکن است برش یا خط‌تا دوباره اجرا شود.');
+  if (overlaps) errors.push(overlaps + ' هم‌پوشانی خطی بین مسیرهای برش/خط‌تا یافت شد؛ ممکن است برش یا خط‌تا دوباره اجرا شود. نمونه‌ها: ' + topologyDetails.filter(detail => detail.includes('هم‌پوشانی')).join('؛ '));
   if (teeContacts) warnings.push(teeContacts + ' اتصال T بین قطعات برش دیده شد؛ نقاطی که شیار به فلپ کوتاه می‌رسد ممکن است عمدی باشد و نیاز به بازبینی تصویری دارد.');
   if (topologyDetails.length) suggestions.push('نمونه‌های برخورد: ' + topologyDetails.join('؛ '));
 
