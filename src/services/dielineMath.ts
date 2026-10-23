@@ -468,48 +468,56 @@ const createPizzaBoxEngine = () => {
  * uses the supplied board caliper as a starting point and must be calibrated.
  */
 const createTelescopicEngine = () => {
-  return ({ L, W, H, thickness = 1.5, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+  return ({ L, W, H, thickness = 1.5, glueTab = 30, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
     const t = Math.max(0.2, thickness || 1.5);
-    const baseDepth = Math.max(8, H * 0.65);
-    const lidDepth = Math.max(8, H - baseDepth);
+    const G = Math.max(15, glueTab || 30);
+    // FEFCO 0320 is a lid/base set based on two 0200-style pieces.
+    // The editor's three-dimension input splits H as a default; production
+    // drawings should expose lid height as an explicit fourth parameter.
+    const baseH = Math.max(8, H * 0.65);
+    const lidH = Math.max(8, H - baseH);
     const lidL = L + 2 * t + 0.8;
     const lidW = W + 2 * t + 0.8;
-    const gap = Math.max(20, t * 8);
+    const gap = Math.max(24, t * 10);
     const cuts: string[] = [];
     const creases: string[] = [];
     const labels: { x: number; y: number; text: string }[] = [];
 
-    const addCross = (x: number, y: number, l: number, w: number, d: number, label: string) => {
-      const bx = x + d, by = y + d;
-      const xR = bx + l, yB = by + w;
-      const path = [
-        `M ${bx} ${y}`, `L ${xR} ${y}`, `L ${xR} ${by}`,
-        `L ${xR + d} ${by}`, `L ${xR + d} ${yB}`, `L ${xR} ${yB}`,
-        `L ${xR} ${yB + d}`, `L ${bx} ${yB + d}`, `L ${bx} ${yB}`,
-        `L ${x} ${yB}`, `L ${x} ${by}`, `L ${bx} ${by}`, 'Z'
-      ].join(' ');
-      cuts.push(path);
-      creases.push(`M ${bx} ${by} L ${xR} ${by}`);
-      creases.push(`M ${bx} ${yB} L ${xR} ${yB}`);
-      creases.push(`M ${bx} ${by} L ${bx} ${yB}`);
-      creases.push(`M ${xR} ${by} L ${xR} ${yB}`);
-      labels.push({ x: bx + l / 2, y: by + w / 2, text: `${label}: ${Math.round(l)} × ${Math.round(w)}mm` });
-      labels.push({ x: bx + l / 2, y: y + d / 2, text: `دیواره ${Math.round(d)}mm` });
-      return { minX: x, minY: y, maxX: xR + d, maxY: yB + d };
+    const addHalfSlottedPiece = (xStart: number, yStart: number, l: number, w: number, h: number, label: string) => {
+      const xs = [xStart + G, xStart + G + l, xStart + G + l + w, xStart + G + 2 * l + w, xStart + G + 2 * l + 2 * w];
+      const flap = w / 2;
+      const yTop = yStart + flap;
+      const yBottom = yTop + h;
+      cuts.push(`M ${xStart + 4} ${yTop} L ${xStart} ${yTop + 4} L ${xStart} ${yBottom - 4} L ${xStart + 4} ${yBottom}`);
+      cuts.push(`M ${xs[4]} ${yTop} L ${xs[4]} ${yBottom}`);
+      cuts.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`); // open end of the 0200-style piece
+      creases.push(`M ${xStart + G} ${yTop} L ${xStart + G} ${yBottom}`); // glue seam
+      creases.push(`M ${xs[0]} ${yBottom} L ${xs[4]} ${yBottom}`);
+      for (let i = 1; i < 4; i++) creases.push(`M ${xs[i]} ${yTop} L ${xs[i]} ${yBottom}`);
+
+      for (let i = 0; i < 4; i++) {
+        const xa = xs[i], xb = xs[i + 1];
+        const inset = Math.min(6, Math.max(1, (xb - xa) * 0.05));
+        const outerY = yBottom + flap;
+        cuts.push(`M ${xa} ${yBottom} L ${xa} ${outerY - 3} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${outerY - 3} L ${xb} ${yBottom}`);
+      }
+      labels.push({ x: (xs[0] + xs[4]) / 2, y: (yTop + yBottom) / 2, text: `${label}: ${Math.round(l)} × ${Math.round(w)} × ${Math.round(h)}mm` });
+      return { minX: xStart, minY: yTop - flap, maxX: xs[4], maxY: yBottom + flap };
     };
 
-    const base = addCross(x0, 40, L, W, baseDepth, 'زیره');
+    const base = addHalfSlottedPiece(x0, 40, L, W, baseH, 'زیره');
     const lidX = base.maxX + gap;
-    const lid = addCross(lidX, 40, lidL, lidW, lidDepth, 'درب');
-    labels.push({ x: (base.minX + base.maxX) / 2, y: base.maxY + 12, text: 'قطعه ۱: زیره' });
-    labels.push({ x: (lid.minX + lid.maxX) / 2, y: lid.maxY + 12, text: 'قطعه ۲: درب تلسکوپی' });
+    const lid = addHalfSlottedPiece(lidX, 40, lidL, lidW, lidH, 'درب');
+    labels.push({ x: (base.minX + base.maxX) / 2, y: base.maxY + 14, text: 'قطعه ۱: زیره' });
+    labels.push({ x: (lid.minX + lid.maxX) / 2, y: lid.maxY + 14, text: 'قطعه ۲: درب تلسکوپی' });
+    labels.push({ x: (lid.minX + lid.maxX) / 2, y: lid.maxY + 30, text: 'ارتفاع درب پیش‌فرض است؛ برای تولید باید جداگانه تعیین شود' });
 
     return {
       cuts, creases, labels,
       xMin: base.minX, yMin: 40,
-      xMax: lid.maxX, yMax: Math.max(base.maxY, lid.maxY),
+      xMax: lid.maxX, yMax: Math.max(base.maxY, lid.maxY) + 32,
       totalW: lid.maxX - base.minX,
-      totalH: Math.max(base.maxY, lid.maxY) - 40
+      totalH: Math.max(base.maxY, lid.maxY) + 32 - 40
     };
   };
 };
