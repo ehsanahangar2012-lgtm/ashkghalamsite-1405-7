@@ -1,4 +1,4 @@
-import { STANDARD_DIELINE_ENGINES } from '../src/services/dielineMath.ts';
+import { calculateDielineParameters, STANDARD_DIELINE_ENGINES } from '../src/services/dielineMath.ts';
 
 const requiredEngines = [
   'default-rsc',
@@ -78,3 +78,25 @@ if (JSON.stringify(lockBottom.cuts) === JSON.stringify(thickBoardLock.cuts)) {
 }
 
 console.log(`Dieline geometry checks passed: ${requiredEngines.length} engines × ${dimensions.length} dimension sets.`);
+
+
+// Metrics must use the selected engine geometry and consistent square-metre units.
+const rscMetrics = calculateDielineParameters('FEFCO 0201', 240, 160, 100, 1.6);
+const sleeveMetrics = calculateDielineParameters('ecma-b10', 240, 160, 100, 1.6);
+if (!(rscMetrics.sheetWidth > 0 && rscMetrics.sheetHeight > 0)) {
+  fail('calculated sheet dimensions must be positive');
+}
+if (!(rscMetrics.grossArea > 0 && rscMetrics.grossArea < 10 && rscMetrics.netArea > 0 && rscMetrics.netArea < 1)) {
+  fail('areas must be reported in square metres, not mixed mm/cm units');
+}
+if (!(rscMetrics.cutLength > 0 && rscMetrics.creaseLength > 0)) {
+  fail('cut and crease lengths must be calculated from actual paths');
+}
+if (rscMetrics.sheetWidth === sleeveMetrics.sheetWidth && rscMetrics.sheetHeight === sleeveMetrics.sheetHeight) {
+  fail('metrics must use the requested dieline engine instead of one generic formula');
+}
+const thinMetrics = calculateDielineParameters('snap-lock-123', 120, 90, 100, 0.45);
+const thickMetrics = calculateDielineParameters('snap-lock-123', 120, 90, 100, 2.5);
+if (thinMetrics.cutLength === thickMetrics.cutLength && thinMetrics.sheetHeight === thickMetrics.sheetHeight) {
+  fail('caliper must be passed through to geometry-derived manufacturing metrics');
+}
