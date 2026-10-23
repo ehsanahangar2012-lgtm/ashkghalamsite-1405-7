@@ -247,7 +247,7 @@ export const runComprehensiveGeometryCheck = (
         if (contact === 'crossing' || contact === 'overlap') {
           if (contact === 'overlap') overlaps++;
           else cutCutCrossings++;
-          if (topologyDetails.length < 8) topologyDetails.push(pairLabel + (contact === 'overlap' ? ': هم‌پوشانی قطعات برش' : ': تقاطع داخلی قطعات برش'));
+          if (topologyDetails.length < 8) topologyDetails.push(pairLabel + (contact === 'overlap' ? ': هم‌پوشانی قطعات برش' : ': تقاطع داخلی قطعات برش') + ' [' + first.a.x + ',' + first.a.y + '→' + first.b.x + ',' + first.b.y + '] / [' + second.a.x + ',' + second.a.y + '→' + second.b.x + ',' + second.b.y + ']');
         } else if (contact === 'tee') {
           teeContacts++;
         }
@@ -255,7 +255,7 @@ export const runComprehensiveGeometryCheck = (
         if (contact === 'crossing' || contact === 'overlap') {
           if (contact === 'overlap') overlaps++;
           else cutCreaseCrossings++;
-          if (topologyDetails.length < 8) topologyDetails.push(pairLabel + (contact === 'overlap' ? ': هم‌پوشانی برش و خط‌تا' : ': عبور خط برش از خط‌تا'));
+          if (topologyDetails.length < 8) topologyDetails.push(pairLabel + (contact === 'overlap' ? ': هم‌پوشانی برش و خط‌تا' : ': عبور خط برش از خط‌تا') + ' [' + first.a.x + ',' + first.a.y + '→' + first.b.x + ',' + first.b.y + '] / [' + second.a.x + ',' + second.a.y + '→' + second.b.x + ',' + second.b.y + ']');
         } else if (contact === 'tee') {
           // A score ending at the blank perimeter, or a cut terminating on a score,
           // is a normal folded-carton junction and is intentionally not counted as an error.
