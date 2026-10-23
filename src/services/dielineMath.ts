@@ -365,8 +365,8 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
     const yTopFlap = yTopTuck + T;
     const yBodyTop = yTopFlap + W;
     const yBodyBtm = yBodyTop + H;
-    const crashLockMainDepth = Math.max(12, Math.min(W * 0.5, L * 0.9));
-    const crashLockSideDepth = Math.max(12, Math.min(L * 0.5, W * 0.9));
+    const crashLockMainDepth = Math.max(12, Math.min(W * 0.75, L * 0.9));
+    const crashLockSideDepth = Math.max(12, Math.min(L * 0.35, W * 0.9));
     const yBtmFlap = yBodyBtm + (isCrashLock ? Math.max(crashLockMainDepth, crashLockSideDepth) : isStraightTuck ? T : W);
     const yBtmTuck = isCrashLock || isStraightTuck ? yBtmFlap : yBtmFlap + T;
 
@@ -444,7 +444,8 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       // FEFCO 0713 uses a four-flap automatic base. The previous draft drew
       // three of those flaps as open triangles and gave every flap the same
       // depth (0.75 W), so the blank could not form a rectangular base.
-      // Long-wall flaps fold across W/2; short-wall flaps fold across L/2.
+      // The long-wall flaps are deeper (about 0.75 W); short-wall base tabs
+      // are shallower (about 0.35 L), following the published 0713 outline.
       // This is a parametric base outline; the two-point pre-glue pattern still
       // needs production-board calibration before it can be called plate-verified.
       const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45));
@@ -453,8 +454,8 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       const sideFlapDepth = crashLockSideDepth;
       const mainOuterY = yBodyBtm + mainFlapDepth;
       const sideOuterY = yBodyBtm + sideFlapDepth;
-      const mainRun = Math.min(L * 0.2, mainFlapDepth / Math.tan(angleRad));
-      const sideRun = Math.min(W * 0.2, sideFlapDepth / Math.tan(angleRad));
+      const mainRun = Math.min(L * 0.38, mainFlapDepth / Math.tan(angleRad));
+      const sideRun = Math.min(W * 0.38, sideFlapDepth / Math.tan(angleRad));
 
       // Two full-width long-wall flaps; neither is reduced to a triangular wedge.
       cuts.push(`M ${xG} ${yBodyBtm} L ${xG + mainRun} ${mainOuterY} L ${xP1 - mainRun} ${mainOuterY} L ${xP1} ${yBodyBtm}`);
