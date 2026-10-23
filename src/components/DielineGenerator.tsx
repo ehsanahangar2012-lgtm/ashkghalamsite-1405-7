@@ -62,11 +62,9 @@ const STANDARDS_LIBRARY: PackagingModel[] = [
   // FEFCO 0400 Series
   { id: 'fefco-pizza', name: 'جعبه پیتزا یک‌تکه (الگوی پارامتریک اختصاصی)', code: 'CUSTOM-PIZZA-01', category: 'Custom Food Packaging', icon: '🍕', defaultDims: { L: 300, W: 300, H: 40 }, description: 'الگوی اختصاصی یک‌تکه با درب لولایی، کفه و دیواره‌ها؛ کد رسمی FEFCO برای این هندسه ادعا نمی‌شود و جزئیات قفل/تهویه نیازمند تنظیم قالب است.' },
   { id: 'fefco-0427', name: 'جعبه کیبوردی/پستی (Mailer — FEFCO 0427)', code: 'FEFCO 0427', category: 'FEFCO 0400', icon: '✉️', defaultDims: { L: 200, W: 150, H: 50 }, description: 'جعبه پاکتی بی‌نیاز از چسب‌کاری با زبانه گرد پشتیبان، ایده اساسی لجستیک تجارت الکترونیک.' },
-  { id: 'fefco-0409', name: 'جعبه لفافه‌ پیچ کلوش دار', code: 'FEFCO 0409', category: 'FEFCO 0400', icon: '📑', defaultDims: { L: 280, W: 200, H: 30 }, description: 'شیت مسطح مایکرو که دورتادور کالاهای مسطح مانند کتاب و تابلو رول می‌شود.' },
-  { id: 'fefco-0470', name: 'جعبه زبانه سرخود دایکاتی', code: 'FEFCO 0470', category: 'FEFCO 0400', icon: '💼', defaultDims: { L: 220, W: 160, H: 60 }, description: 'بسته‌بندی باز شونده از بالا با شیار جفت در بغل، دوام بسیار بالا در حمل بار.' },
 
   // FEFCO 0700 Series
-  { id: 'fefco-0713', name: 'کارتن آماده نیمه اتومات پله‌ای', code: 'FEFCO 0713', category: 'FEFCO 0700', icon: '🧳', defaultDims: { L: 220, W: 140, H: 110 }, description: 'تا شدن به ثانیه بدون هیچ تایر گسستنی صنعتی.' },
+  { id: 'fefco-0713', name: 'کارتن آماده‌چسب‌شده با کف قفل‌شونده و درب زبانه‌ای', code: 'FEFCO 0713', category: 'FEFCO 0700', icon: '🧳', defaultDims: { L: 220, W: 140, H: 110 }, description: 'خانواده آماده‌چسب‌شده با کف قفل‌شونده و درب زبانه‌ای؛ هندسه فعلی یک الگوی پایه است و باید با نقشه رسمی 0713 تطبیق داده شود.' },
 
   // ECMA A Series
   { id: 'ecma-a2020', name: 'جعبه دارویی Reverse Tuck End (RTE)', code: 'ECMA A20.20', category: 'ECMA A', icon: '💊', defaultDims: { L: 60, W: 40, H: 100 }, description: 'کارتن مقوایی لوله‌ای با زبانه‌های بالا و پایین روی دو پنل اصلی مقابل؛ ابعاد داخلی و ضخامت مقوا در تولید باید جبران شوند.' },
@@ -1764,7 +1762,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
         return m.id === 'snap-lock-123' || m.id === 'ecma-a2020' || m.id === 'fefco-0215' || m.category.includes('ECMA A');
       }
       if (selectedCategory === 'ecommerce') {
-        return m.id === 'fefco-0427' || m.id === 'fefco-0470' || m.category.includes('FEFCO 0400');
+        return m.id === 'fefco-0427' || m.category.includes('FEFCO 0400');
       }
       if (selectedCategory === 'food_bakery') {
         return m.id === 'fefco-pizza' || m.id === 'ecma-b10' || m.id === 'snap-lock-123' || m.category.includes('FEFCO 0400') || m.category.includes('Custom Food');
