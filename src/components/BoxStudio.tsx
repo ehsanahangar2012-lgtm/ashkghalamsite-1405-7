@@ -6,9 +6,19 @@ type Segment = { x1: number; y1: number; x2: number; y2: number; kind: 'cut' | '
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
-type BoxTemplate = 'rsc' | 'mailer' | 'tray';
+type BoxTemplate = '0200' | '0201' | '0203' | '0204';
 
-function makeGeometry(L: number, W: number, H: number, glue: number, allowance: number, template: BoxTemplate) {
+type Geometry = {
+  lines: Segment[];
+  totalW: number;
+  totalH: number;
+  yTop: number;
+  yBottom: number;
+  xs: number[];
+  flap: number;
+};
+
+function makeGeometry(L: number, W: number, H: number, glue: number, allowance: number, template: BoxTemplate): Geometry {
   const lines: Segment[] = [];
   const line = (x1: number, y1: number, x2: number, y2: number, kind: Segment['kind']) => {
     if (![x1, y1, x2, y2].every(Number.isFinite)) return;
@@ -16,73 +26,56 @@ function makeGeometry(L: number, W: number, H: number, glue: number, allowance: 
     lines.push({ x1, y1, x2, y2, kind });
   };
 
-  if (template === 'tray' || template === 'mailer') {
-    // Conceptual one-piece tray / mailer blank: base, folding walls and a lid extension for mailers.
-    const wall = Math.max(10, H + allowance);
-    const x0 = wall + 18, y0 = (template === 'mailer' ? L : wall) + wall + 28;
-    const x1 = x0 + L, y1 = y0 + W;
-    line(x0, y0, x1, y0, 'fold');
-    line(x1, y0, x1, y1, 'fold');
-    line(x1, y1, x0, y1, 'fold');
-    line(x0, y1, x0, y0, 'fold');
-    line(x0, y0, x0, y0 - wall, 'cut');
-    line(x0, y0 - wall, x1, y0 - wall, 'cut');
-    line(x1, y0 - wall, x1, y0, 'cut');
-    line(x0, y1, x0, y1 + wall, 'cut');
-    line(x0, y1 + wall, x1, y1 + wall, 'cut');
-    line(x1, y1 + wall, x1, y1, 'cut');
-    line(x0, y0, x0 - wall, y0, 'cut');
-    line(x0 - wall, y0, x0 - wall, y1, 'cut');
-    line(x0 - wall, y1, x0, y1, 'cut');
-    line(x1, y0, x1 + wall, y0, 'cut');
-    line(x1 + wall, y0, x1 + wall, y1, 'cut');
-    line(x1 + wall, y1, x1, y1, 'cut');
-    line(x0 - wall, y0, x0, y0 + Math.min(wall, 12), 'cut');
-    line(x0 - wall, y1, x0, y1 - Math.min(wall, 12), 'cut');
-    line(x1 + wall, y0, x1, y0 + Math.min(wall, 12), 'cut');
-    line(x1 + wall, y1, x1, y1 - Math.min(wall, 12), 'cut');
-    if (template === 'mailer') {
-      // Lid panel and a small tuck lip, attached to the rear wall.
-      line(x0, y0 - wall, x0, y0 - wall - L, 'cut');
-      line(x0, y0 - wall - L, x1, y0 - wall - L, 'cut');
-      line(x1, y0 - wall - L, x1, y0 - wall, 'cut');
-      line(x0, y0 - wall - L, x0 + Math.min(wall, 18), y0 - wall - L + Math.min(wall, 18), 'cut');
-      line(x1 - Math.min(wall, 18), y0 - wall - L + Math.min(wall, 18), x1, y0 - wall - L, 'cut');
-    }
-    return { lines, totalW: x1 + wall + 18, totalH: y1 + wall + 18 + (template === 'mailer' ? L : 0), yTop: y0, yBottom: y1, xs: [x0, x1], flap: wall };
-  }
-
-  // FEFCO 0201-style regular slotted carton (RSC), parametric concept.
-  const flap = Math.max(8, W / 2 + allowance);
-  const yTop = flap + 18;
-  const yBottom = yTop + H;
+  // FEFCO 02-series slotted cases. L/W/H are nominal internal dimensions;
+  // board-caliper and converting allowances remain explicit production inputs.
   const xs = [glue, glue + L, glue + L + W, glue + 2 * L + W, glue + 2 * L + 2 * W];
+  const slot = 3;
+  const bevel = 5;
+  const baseDepth = Math.max(8, W / 2 + allowance);
+  const topFlaps = template !== '0200';
+  const bottomFlaps = true;
+  const topDepth = (i: number) => {
+    if (template === '0203') return (i === 0 || i === 2) ? Math.max(8, W + allowance) : baseDepth;
+    if (template === '0204') return (i === 0 || i === 2) ? baseDepth : Math.max(8, L / 2 + allowance);
+    return baseDepth;
+  };
+  const bottomDepth = (i: number) => topDepth(i);
+  const maxTop = topFlaps ? Math.max(...xs.slice(0, 4).map((_, i) => topDepth(i))) : 0;
+  const maxBottom = bottomFlaps ? Math.max(...xs.slice(0, 4).map((_, i) => bottomDepth(i))) : 0;
+  const margin = 18;
+  const yTop = margin + maxTop;
+  const yBottom = yTop + H;
   const totalW = xs[4];
-  const totalH = yBottom + flap + 18;
+  const totalH = yBottom + maxBottom + margin;
+
+  // Manufacturer's joint and body panel creases/cuts.
   line(0, yTop + 8, 0, yBottom - 8, 'cut');
   line(0, yTop + 8, glue, yTop, 'cut');
   line(0, yBottom - 8, glue, yBottom, 'cut');
   line(glue, yTop, glue, yBottom, 'fold');
   line(xs[0], yTop, xs[4], yTop, 'fold');
   line(xs[0], yBottom, xs[4], yBottom, 'fold');
-  line(xs[0], yTop, xs[0], yBottom, 'cut');
   line(xs[4], yTop, xs[4], yBottom, 'cut');
   [xs[1], xs[2], xs[3]].forEach(x => line(x, yTop, x, yBottom, 'fold'));
+
   for (let i = 0; i < 4; i++) {
-    const x0 = xs[i], x1 = xs[i + 1], panelW = x1 - x0;
-    const sideInset = (i === 0 || i === 2) ? 0 : Math.min(8, panelW * 0.18);
-    line(x0, yTop, x0, yTop - flap + (sideInset ? 7 : 0), 'cut');
-    if (sideInset) line(x0, yTop - flap + 7, x0 + sideInset, yTop - flap, 'cut');
-    line(x0 + sideInset, yTop - flap, x1 - sideInset, yTop - flap, 'cut');
-    if (sideInset) line(x1 - sideInset, yTop - flap, x1, yTop - flap + 7, 'cut');
-    line(x1, yTop - flap + (sideInset ? 7 : 0), x1, yTop, 'cut');
-    line(x0, yBottom, x0, yBottom + flap - (sideInset ? 7 : 0), 'cut');
-    if (sideInset) line(x0, yBottom + flap - 7, x0 + sideInset, yBottom + flap, 'cut');
-    line(x0 + sideInset, yBottom + flap, x1 - sideInset, yBottom + flap, 'cut');
-    if (sideInset) line(x1 - sideInset, yBottom + flap, x1, yBottom + flap - 7, 'cut');
-    line(x1, yBottom + flap - (sideInset ? 7 : 0), x1, yBottom, 'cut');
+    const x0 = xs[i], x1 = xs[i + 1];
+    const drawFlap = (edgeY: number, depth: number, direction: -1 | 1) => {
+      const outerY = edgeY + direction * depth;
+      const innerY = edgeY + direction * Math.max(0, depth - bevel);
+      const inset = Math.min(slot, Math.max(1, (x1 - x0) * 0.04));
+      // Side cuts and angled shoulders make independent, non-overlapping flaps.
+      line(x0, edgeY, x0, innerY, 'cut');
+      line(x0, innerY, x0 + inset, outerY, 'cut');
+      line(x0 + inset, outerY, x1 - inset, outerY, 'cut');
+      line(x1 - inset, outerY, x1, innerY, 'cut');
+      line(x1, innerY, x1, edgeY, 'cut');
+    };
+    if (topFlaps) drawFlap(yTop, topDepth(i), -1);
+    if (bottomFlaps) drawFlap(yBottom, bottomDepth(i), 1);
   }
-  return { lines, totalW, totalH, yTop, yBottom, xs, flap };
+
+  return { lines, totalW, totalH, yTop, yBottom, xs, flap: baseDepth };
 }
 
 function downloadFile(name: string, contents: string, mime: string) {
@@ -125,9 +118,9 @@ export function BoxStudio() {
   const sheetHeight = Math.max(0, bounds.maxY - bounds.minY) + 2 * thickness;
   const warnings = [
     ...(L < 40 || W < 40 || H < 20 ? ['ابعاد انتخابی کوچک است؛ امکان ساخت را بررسی کنید.'] : []),
-    ...(template === 'rsc' && W / 2 + Number(allowance) < thickness * 2 ? ['عمق فلپ نسبت به ضخامت ورق کم است.'] : []),
-    ...(template === 'rsc' && G < Math.max(15, thickness * 8) ? ['لبه چسب انتخابی ممکن است برای خط تولید شما باریک باشد.'] : []),
-    'الگوهای Mailer و Tray در این نسخه مفهومی هستند؛ پیش از قالب‌سازی باید توسط طراح بسته‌بندی بازبینی شوند.'
+    ...(W / 2 + Number(allowance) < thickness * 2 ? ['عمق فلپ نسبت به ضخامت ورق کم است.'] : []),
+    ...(G < Math.max(15, thickness * 8) ? ['لبه چسب انتخابی ممکن است برای خط تولید شما باریک باشد.'] : []),
+    'خروجی، الگوی پارامتریک اولیه بر مبنای ساختار FEFCO است؛ جبران ضخامت ورق، جهت فلوت، ابزار خط‌تا و تلرانس سازنده باید پیش از تولید نهایی تأیید شود.'
   ];
   const materialArea = (sheetWidth * sheetHeight) / 1_000_000;
 
@@ -157,7 +150,7 @@ export function BoxStudio() {
       schema: 'ashkghalam.box-studio.v1',
       savedAt: new Date().toISOString(),
       units: 'mm',
-      template: template === 'rsc' ? 'RSC / FEFCO 0201 (conceptual parametric preview)' : template === 'mailer' ? 'One-piece mailer (conceptual preview)' : 'Open tray (conceptual preview)',
+      template: `FEFCO ${template}`,
       dimensions: { length: L, width: W, height: H, glueFlap: G, flapAllowance: Number(allowance) || 0 },
       geometry: { segmentCount: geom.lines.length, cutSegments: geom.lines.filter(line => line.kind === 'cut').length, foldSegments: geom.lines.filter(line => line.kind === 'fold').length },
       board: { grade: board, nominalThicknessMm: thickness },
@@ -193,7 +186,7 @@ export function BoxStudio() {
             </div>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[['ساختار', 'RSC / FEFCO 0201'], ['واحد طراحی', 'میلی‌متر'], ['محاسبه', 'محلی و لحظه‌ای'], ['خروجی', 'SVG · DXF · JSON']].map(([k,v]) => <div key={k} className="rounded-xl border border-white/10 bg-white/5 p-3"><div className="text-[10px] text-slate-400">{k}</div><div className="mt-1 text-xs font-bold text-white">{v}</div></div>)}
+            {[['ساختار', 'FEFCO 02-series'], ['واحد طراحی', 'میلی‌متر'], ['محاسبه', 'محلی و لحظه‌ای'], ['خروجی', 'SVG · DXF · JSON']].map(([k,v]) => <div key={k} className="rounded-xl border border-white/10 bg-white/5 p-3"><div className="text-[10px] text-slate-400">{k}</div><div className="mt-1 text-xs font-bold text-white">{v}</div></div>)}
           </div>
         </header>
 
@@ -201,7 +194,7 @@ export function BoxStudio() {
           <aside className="space-y-4">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center gap-2"><Settings2 size={18} className="text-indigo-600" /><h2 className="font-extrabold">پارامترهای جعبه</h2></div>
-              <label className="mb-4 block"><span className="mb-1.5 block text-xs font-bold text-slate-600">نوع ساختار</span><select value={template} onChange={e => setTemplate(e.target.value as BoxTemplate)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500"><option value="rsc">کارتن چهارلَت (RSC / FEFCO 0201)</option><option value="mailer">جعبه پستی یک‌تکه (Mailer — مفهومی)</option><option value="tray">سینی چهارلبه (Tray — مفهومی)</option></select></label>
+              <label className="mb-4 block"><span className="mb-1.5 block text-xs font-bold text-slate-600">نوع ساختار</span><select value={template} onChange={e => setTemplate(e.target.value as BoxTemplate)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500"><option value="0200">FEFCO 0200 — کارتن نیمه‌شیاردار (یک سمت باز)</option><option value="0201">FEFCO 0201 — کارتن چهارلَت استاندارد (RSC)</option><option value="0203">FEFCO 0203 — کارتن با فلپ‌های بیرونی هم‌پوشان (FOL)</option><option value="0204">FEFCO 0204 — کارتن فلپ‌مرکزی (CSSC)</option></select></label>
               <div className="grid grid-cols-2 gap-3">
                 {field('طول', length, setLength, 20, 2000)}
                 {field('عرض', width, setWidth, 20, 2000)}
@@ -218,7 +211,7 @@ export function BoxStudio() {
                 <span className="mt-1 flex justify-between text-[10px] text-slate-400"><span>۵- mm</span><span>۱۵+ mm</span></span>
               </label>
               <label className="mt-4 flex items-center gap-2 text-xs font-semibold text-slate-600"><input type="checkbox" checked={showDimensions} onChange={e => setShowDimensions(e.target.checked)} className="accent-indigo-600" /> نمایش اندازه‌گذاری روی نقشه</label>
-              <button onClick={() => {setLength(240);setWidth(160);setHeight(100);setGlue(28);setAllowance(0);setBoard('E');setTemplate('rsc');}} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"><RotateCcw size={14}/> بازگشت به ابعاد نمونه</button>
+              <button onClick={() => {setLength(240);setWidth(160);setHeight(100);setGlue(28);setAllowance(0);setBoard('E');setTemplate('0201');}} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"><RotateCcw size={14}/> بازگشت به ابعاد نمونه</button>
             </section>
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-3 flex items-center gap-2"><Ruler size={18} className="text-indigo-600"/><h2 className="font-extrabold">برآورد ابعاد گسترده</h2></div>
@@ -249,7 +242,7 @@ export function BoxStudio() {
                   <g transform="translate(25 25)">
                     {geom.lines.map((s, i) => <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke={s.kind === 'cut' ? '#e44747' : '#2878cf'} strokeWidth={s.kind === 'cut' ? 1.35 : 1.05} strokeDasharray={s.kind === 'fold' ? '5 3' : undefined} vectorEffect="non-scaling-stroke"/>)}
                     {showDimensions && <g data-ui-only="true" fill="#526176" fontSize="9" fontWeight="600">
-                      {template === 'rsc' ? <>
+                      {template !== '0200' ? <>
                         <text x={geom.xs[0] + L/2} y={geom.yTop + H/2} textAnchor="middle">{L} mm</text>
                         <text x={geom.xs[1] + W/2} y={geom.yTop + H/2} textAnchor="middle">{W} mm</text>
                         <text x={geom.xs[2] + L/2} y={geom.yTop + H/2} textAnchor="middle">{L} mm</text>
@@ -264,12 +257,12 @@ export function BoxStudio() {
             </section>
 
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-5 py-4"><h2 className="font-extrabold">پیش‌نمایش سه‌بعدی تعاملی</h2><p className="mt-1 text-[11px] text-slate-500">مدل حجمی با چرخش خودکار برای بررسی تناسبات؛ این نما هنوز شماتیک است و شکل فلپ‌ها را بازسازی نمی‌کند.</p></div>
+              <div className="border-b border-slate-100 px-5 py-4"><h2 className="font-extrabold">پیش‌نمایش سه‌بعدی تعاملی</h2><p className="mt-1 text-[11px] text-slate-500">مدل حجمی با چرخش خودکار برای بررسی تناسبات؛ این نمای حجمی تناسبات جعبه را نشان می‌دهد؛ بازشدن واقعی فلپ‌ها هنوز شبیه‌سازی نشده است.</p></div>
               <div className="bg-slate-950 p-3"><ThreeDPreview width={L} height={H} depth={W} autoRotate={true} color="#d4b98c" /></div>
               <div className="px-5 py-3 text-[11px] text-slate-500">طول: {L} mm · عرض: {W} mm · ارتفاع: {H} mm</div>
             </section>
             <section className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-2 flex items-center gap-2"><Layers3 size={18} className="text-indigo-600"/><h3 className="font-extrabold">خلاصه ساختار</h3></div><p className="text-xs leading-6 text-slate-600">الگوی چهار پنل با لبه چسب، دو جفت فلپ بالا و پایین و خطوط تا مستقل. تمام هندسه با تغییر ابعاد دوباره محاسبه می‌شود؛ فایل‌های SVG و DXF به صورت محلی ساخته می‌شوند و به سرویس خارجی نیاز ندارند.</p></div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-2 flex items-center gap-2"><Layers3 size={18} className="text-indigo-600"/><h3 className="font-extrabold">خلاصه ساختار</h3></div><p className="text-xs leading-6 text-slate-600">الگوی چهار پنل با لبه اتصال، خطوط تا و فلپ‌های متناسب با خانواده انتخابی FEFCO 02. تمام هندسه با تغییر ابعاد دوباره محاسبه می‌شود؛ فایل‌های SVG و DXF به صورت محلی ساخته می‌شوند و به سرویس خارجی نیاز ندارند.</p></div>
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-2 flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-600"/><h3 className="font-extrabold">کنترل قبل از تولید</h3></div><ul className="space-y-1.5 text-xs leading-5 text-slate-600"><li>• تطبیق ابعاد داخلی/خارجی با ضخامت ورق</li><li>• کنترل هم‌پوشانی فلپ‌ها و عرض لبه چسب</li><li>• بررسی جهت فلوت و محدودیت‌های قالب دایکات</li><li>• تست نمونه فیزیکی پیش از تیراژ</li></ul></div>
             </section>
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-6 text-amber-950"><div className="mb-2 flex items-center gap-2 font-extrabold"><Info size={17}/> کنترل هندسه و پیش از تولید</div><ul className="space-y-1">{warnings.map((warning, i) => <li key={i}>• {warning}</li>)}</ul><p className="mt-2 text-[11px] text-amber-800">قطعات هندسی: {geom.lines.length} · خطوط برش: {geom.lines.filter(line => line.kind === 'cut').length} · خطوط تا: {geom.lines.filter(line => line.kind === 'fold').length}</p></div>
