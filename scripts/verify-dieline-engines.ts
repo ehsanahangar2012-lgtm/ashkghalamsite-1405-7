@@ -202,6 +202,31 @@ if (Math.abs((bulgedEntities[0].start?.x ?? NaN) - 0) > 1e-9 ||
   fail('DXF bulge tessellation must preserve the source segment endpoints');
 }
 
+// A block INSERT applies its insertion point, uniform scale, and rotation to
+// local block geometry. This fixture should map a 10-unit horizontal edge to
+// a 20-unit vertical edge at (100,200).
+const insertedBlockDxf = [
+  '0','SECTION','2','BLOCKS',
+  '0','BLOCK','8','0','2','TEST_BLOCK','70','0','10','0','20','0',
+  '0','LINE','8','0','10','0','20','0','11','10','21','0',
+  '0','ENDBLK','8','0',
+  '0','ENDSEC',
+  '0','SECTION','2','ENTITIES',
+  '0','INSERT','8','CUT','2','TEST_BLOCK','10','100','20','200','41','2','42','2','50','90',
+  '0','ENDSEC','0','EOF'
+].join('\\n');
+const insertedBlockEntities = parseDxfToEntities(insertedBlockDxf);
+if (insertedBlockEntities.length !== 1) {
+  fail(`DXF INSERT should expand one block edge, got ${insertedBlockEntities.length}`);
+}
+const inserted = insertedBlockEntities[0];
+if (Math.abs((inserted.start?.x ?? NaN) - 100) > 1e-8 ||
+    Math.abs((inserted.start?.y ?? NaN) - 200) > 1e-8 ||
+    Math.abs((inserted.end?.x ?? NaN) - 100) > 1e-8 ||
+    Math.abs((inserted.end?.y ?? NaN) - 220) > 1e-8) {
+  fail(`DXF INSERT transform incorrect: ${JSON.stringify(inserted)}`);
+}
+
 // Legacy POLYLINE closure is encoded in header group 70; it must produce
 // the missing final edge exactly once, even if the last vertex repeats the first.
 const closedLegacyPolyline = [
