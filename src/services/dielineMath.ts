@@ -365,7 +365,7 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
     const yTopFlap = yTopTuck + T;
     const yBodyTop = yTopFlap + W;
     const yBodyBtm = yBodyTop + H;
-    const yBtmFlap = yBodyBtm + (isCrashLock ? W * 0.75 : isStraightTuck ? T : W);
+    const yBtmFlap = yBodyBtm + (isCrashLock ? Math.max(W * 0.5, L * 0.5) : isStraightTuck ? T : W);
     const yBtmTuck = isCrashLock || isStraightTuck ? yBtmFlap : yBtmFlap + T;
 
     const xG = x0 + G;
@@ -439,19 +439,34 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       cuts.push(dustFlapPath(xP3, xP4, yBodyBtm, DF, 1));
       creases.push(`M ${xP3} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
     } else {
-      // Experimental crash-lock-inspired bottom. The long-panel shoulders scale
-      // with the selected angle and actual flap depth rather than a fixed 10 mm.
+      // FEFCO 0713 uses a four-flap automatic base. The previous draft drew
+      // three of those flaps as open triangles and gave every flap the same
+      // depth (0.75 W), so the blank could not form a rectangular base.
+      // Long-wall flaps fold across W/2; short-wall flaps fold across L/2.
+      // This is a parametric base outline; the two-point pre-glue pattern still
+      // needs production-board calibration before it can be called plate-verified.
       const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45));
       const angleRad = angleDeg * Math.PI / 180;
-      const flapDepth = yBtmFlap - yBodyBtm;
-      const lockRun = Math.min(L * 0.9, flapDepth / Math.tan(angleRad));
-      cuts.push(`M ${xG} ${yBodyBtm} L ${xG} ${yBtmFlap} L ${xP1 - lockRun} ${yBtmFlap} L ${xP1} ${yBodyBtm}`);
-      cuts.push(`M ${xP1} ${yBodyBtm} L ${xP2} ${yBtmFlap} L ${xP2} ${yBodyBtm}`);
-      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP3 - lockRun} ${yBtmFlap} L ${xP3} ${yBodyBtm}`);
-      cuts.push(`M ${xP3} ${yBodyBtm} L ${xP4} ${yBtmFlap} L ${xP4} ${yBodyBtm}`);
+      const mainFlapDepth = Math.max(12, Math.min(W * 0.5, L * 0.9));
+      const sideFlapDepth = Math.max(12, Math.min(L * 0.5, W * 0.9));
+      const mainOuterY = yBodyBtm + mainFlapDepth;
+      const sideOuterY = yBodyBtm + sideFlapDepth;
+      const mainRun = Math.min(L * 0.2, mainFlapDepth / Math.tan(angleRad));
+      const sideRun = Math.min(W * 0.2, sideFlapDepth / Math.tan(angleRad));
+
+      // Two full-width long-wall flaps; neither is reduced to a triangular wedge.
+      cuts.push(`M ${xG} ${yBodyBtm} L ${xG + mainRun} ${mainOuterY} L ${xP1 - mainRun} ${mainOuterY} L ${xP1} ${yBodyBtm}`);
+      // Short-wall flaps reach across L/2, with a trapezoidal perimeter.
+      cuts.push(`M ${xP1} ${yBodyBtm} L ${xP1 + sideRun} ${sideOuterY} L ${xP2 - sideRun} ${sideOuterY} L ${xP2} ${yBodyBtm}`);
+      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP2 + mainRun} ${mainOuterY} L ${xP3 - mainRun} ${mainOuterY} L ${xP3} ${yBodyBtm}`);
+      cuts.push(`M ${xP3} ${yBodyBtm} L ${xP3 + sideRun} ${sideOuterY} L ${xP4 - sideRun} ${sideOuterY} L ${xP4} ${yBodyBtm}`);
+
+      // The panel hinges are crease lines, not blade cuts. Keep the fold axis
+      // continuous across all four walls; avoid the former diagonal cut/crease
+      // that visually divided the base into a triangle.
       creases.push(`M ${xG} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
-      creases.push(`M ${xG} ${yBodyBtm} L ${xP1 - lockRun} ${yBtmFlap}`);
-      // The second lock edge is a cut edge, not a crease; a score here would double-process the knife path.
+      labels.push({ x: (xG + xP1) / 2, y: mainOuterY - 5, text: `فلپ کف دیواره بلند · عمق ${Math.round(mainFlapDepth)}mm` });
+      labels.push({ x: (xP1 + xP2) / 2, y: sideOuterY - 5, text: `فلپ کف دیواره کوتاه · عمق ${Math.round(sideFlapDepth)}mm` });
     }
 
     // Outer Right Wall Cut
