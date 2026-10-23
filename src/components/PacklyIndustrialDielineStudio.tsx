@@ -76,22 +76,25 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [width, setWidth] = useState(160);
   const [height, setHeight] = useState(100);
   const [thickness, setThickness] = useState(1.5);
+  const [slotGap, setSlotGap] = useState(2.25);
+  const [dimensionConvention, setDimensionConvention] = useState<'inside' | 'outside'>('inside');
   const [materialPreset, setMaterialPreset] = useState('corrugated-e');
   const [glueTab, setGlueTab] = useState(30);
   const [showLabels, setShowLabels] = useState(true);
-  const [showGrid, setShowGrid] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
   const [show3D, setShow3D] = useState(false);
   const [openRatio, setOpenRatio] = useState(1);
   const [saved, setSaved] = useState(false);
 
   const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
   const validInputs = numeric(length, 10, 2000) && numeric(width, 10, 2000) && numeric(height, 10, 2000) &&
-    numeric(thickness, 0.2, 10) && numeric(glueTab, 5, 200);
+    numeric(thickness, 0.2, 10) && numeric(glueTab, 5, 200) && numeric(slotGap, 1, 10);
   const engine = STANDARD_DIELINE_ENGINES[templateId];
+  const supportsDimensionConvention = ['fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'default-rsc'].includes(templateId);
   const geometryState = useMemo(() => {
     if (!validInputs || typeof engine !== 'function') return { geometry: null as DielineEngineResult | null, error: 'ابعاد باید عدد معتبر باشند و در محدوده مجاز قرار گیرند.' };
     try {
-      const g = engine({ L: length, W: width, H: height, thickness, glueTab, x0: 40 });
+      const g = engine({ L: length, W: width, H: height, thickness, glueTab, slotGap, dimensionConvention, x0: 40 });
       const allValues = [g.xMin, g.yMin, g.xMax, g.yMax, g.totalW, g.totalH];
       const pathsValid = Array.isArray(g.cuts) && g.cuts.length > 0 &&
         Array.isArray(g.creases) && g.creases.length > 0 &&
@@ -104,7 +107,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     } catch (error) {
       return { geometry: null, error: error instanceof Error ? error.message : 'خطای ناشناخته در موتور تولید قالب.' };
     }
-  }, [engine, length, width, height, thickness, glueTab, validInputs]);
+  }, [engine, length, width, height, thickness, glueTab, slotGap, dimensionConvention, validInputs]);
 
   const geometry = geometryState.geometry;
   const geometryAudit = useMemo(() => {
@@ -130,9 +133,9 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     const cuts = geometry.cuts.map(d => `<path d="${d}" fill="none" stroke="#dc2626" stroke-width="0.25"/>`).join('');
     const creases = geometry.creases.map(d => `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="0.25" stroke-dasharray="2 1"/>`).join('');
     const labels = showLabels ? geometry.labels.map(label => `<text x="${label.x}" y="${label.y}" font-size="4" text-anchor="middle" fill="#64748b">${label.text.replace(/[&<>"]/g, '')}</text>`).join('') : '';
-    const dimensions = showLabels ? `<g id="DIMENSIONS" fill="#475569" stroke="#64748b" stroke-width=".25"><path d="M ${geometry.xMin} ${geometry.yMin - 5} L ${geometry.xMax} ${geometry.yMin - 5} M ${geometry.xMin} ${geometry.yMin - 7} L ${geometry.xMin} ${geometry.yMin - 3} M ${geometry.xMax} ${geometry.yMin - 7} L ${geometry.xMax} ${geometry.yMin - 3} M ${geometry.xMax + 5} ${geometry.yMin} L ${geometry.xMax + 5} ${geometry.yMax} M ${geometry.xMax + 3} ${geometry.yMin} L ${geometry.xMax + 7} ${geometry.yMin} M ${geometry.xMax + 3} ${geometry.yMax} L ${geometry.xMax + 7} ${geometry.yMax}"/><text x="${(geometry.xMin + geometry.xMax) / 2}" y="${geometry.yMin - 6}" font-size="4" text-anchor="middle" stroke="none">${(geometry.xMax - geometry.xMin).toFixed(1)} mm</text><text x="${geometry.xMax + 6}" y="${(geometry.yMin + geometry.yMax) / 2}" font-size="4" text-anchor="middle" stroke="none" transform="rotate(90 ${geometry.xMax + 6} ${(geometry.yMin + geometry.yMax) / 2})">${(geometry.yMax - geometry.yMin).toFixed(1)} mm</text></g>` : '';
+    const dimensions = showLabels ? `<g id="DIMENSIONS" fill="#475569" stroke="#64748b" stroke-width=".25"><path d="M ${geometry.xMin} ${geometry.yMin - 5} L ${geometry.xMax} ${geometry.yMin - 5} M ${geometry.xMin} ${geometry.yMin - 7} L ${geometry.xMin} ${geometry.yMin - 3} M ${geometry.xMax} ${geometry.yMin - 7} L ${geometry.xMax} ${geometry.yMin - 3} M ${geometry.xMax + 5} ${geometry.yMin} L ${geometry.xMax + 5} ${geometry.yMax} M ${geometry.xMax + 3} ${geometry.yMin} L ${geometry.xMax + 7} ${geometry.yMin} M ${geometry.xMax + 3} ${geometry.yMax} L ${geometry.xMax + 7} ${geometry.yMax}"/><text x="${(geometry.xMin + geometry.xMax) / 2}" y="${geometry.yMin - 7}" font-size="4" text-anchor="middle" stroke="none">گسترده: $گسترده: {(geometry.xMax - geometry.xMin).toFixed(1)} mm</text><text x="${geometry.xMax + 6}" y="${(geometry.yMin + geometry.yMax) / 2}" font-size="4" text-anchor="middle" stroke="none" transform="rotate(90 ${geometry.xMax + 6} ${(geometry.yMin + geometry.yMax) / 2})">${(geometry.yMax - geometry.yMin).toFixed(1)} mm</text></g>` : '';
     const grid = showGrid ? `<defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" stroke-opacity=".35" stroke-width=".15"/></pattern></defs><rect x="${geometry.xMin}" y="${geometry.yMin}" width="${viewW}" height="${viewH}" fill="url(#grid)"/>` : '';
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW + 16}mm" height="${viewH + 16}mm" viewBox="${geometry.xMin - 8} ${geometry.yMin - 8} ${viewW + 16} ${viewH + 16}">${grid}<g id="CUT">${cuts}</g><g id="CREASE">${creases}</g>${labels}${dimensions}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW + 22}mm" height="${viewH + 22}mm" viewBox="${geometry.xMin - 8} ${geometry.yMin - 14} ${viewW + 22} ${viewH + 22}">${grid}<g id="CUT">${cuts}</g><g id="CREASE">${creases}</g>${labels}${dimensions}</svg>`;
   }, [geometry, showLabels, showGrid]);
 
   const exportDxf = () => {
@@ -164,35 +167,41 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     window.setTimeout(() => setSaved(false), 1800);
   };
 
-  const inputClass = 'mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-sm text-white outline-none focus:border-sky-500';
+  const inputClass = 'mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100';
   const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40';
 
   return (
-    <div dir="rtl" className="h-full min-h-0 overflow-y-auto bg-slate-950 p-3 text-slate-100 sm:p-5">
+    <div dir="rtl" className="min-h-screen overflow-y-auto bg-slate-50 p-3 text-slate-900 sm:p-5">
       <div className="mx-auto max-w-[1500px] space-y-4">
-        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-gradient-to-l from-slate-900 to-slate-950 p-4">
-          <div className="flex items-center gap-3"><div className="rounded-xl bg-sky-500/10 p-2 text-sky-300"><Box className="h-6 w-6"/></div><div><h2 className="text-lg font-black sm:text-xl">استودیوی طراحی دایلاین</h2><p className="mt-1 text-xs text-slate-400">کتابخانه پارامتریک · پیش‌نمایش ۲بعدی · خروجی برداری</p></div></div>
-          <div className="flex flex-wrap items-center gap-2 text-xs"><span className="rounded-full border border-slate-700 px-3 py-1.5">{TEMPLATES.length} قالب پایه</span><span className="rounded-full border border-emerald-900 bg-emerald-950/50 px-3 py-1.5 text-emerald-300">واحد هندسه: mm</span></div>
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-3"><div className="rounded-xl bg-sky-50 p-2 text-sky-700"><Box className="h-6 w-6"/></div><div><h2 className="text-lg font-black sm:text-xl">استودیوی طراحی دایلاین</h2><p className="mt-1 text-xs text-slate-600">کتابخانه پارامتریک · پیش‌نمایش ۲بعدی · خروجی برداری</p></div></div>
+          <div className="flex flex-wrap items-center gap-2 text-xs"><span className="rounded-full border border-slate-300 px-3 py-1.5">{TEMPLATES.length} ساختار پارامتریک</span><span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">واحد هندسه: mm</span></div>
         </header>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
-          <aside className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:p-4">
-            <div className="flex items-center justify-between"><h3 className="font-black">کتابخانه قالب‌ها</h3><Layers className="h-4 w-4 text-sky-300"/></div>
+          <aside className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+            <div className="flex items-center justify-between"><h3 className="font-black">کتابخانه قالب‌ها</h3><Layers className="h-4 w-4 text-sky-700"/></div>
             <label className="relative block"><Search className="absolute right-3 top-3 h-4 w-4 text-slate-500"/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="جست‌وجوی نام یا کد..." className={inputClass + ' pr-9'}/></label>
-            <label className="block text-xs font-bold text-slate-300">دسته‌بندی<select value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
+            <label className="block text-xs font-bold text-slate-700">دسته‌بندی<select value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
 
-            <label className="block text-xs font-bold text-slate-300">نوع قالب / جعبه
+            <label className="block text-xs font-bold text-slate-700">نوع قالب / جعبه
               <select value={templateId} onChange={e => setTemplateId(e.target.value)} className={inputClass}>
                 {TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
               </select>
             </label>
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <h4 className="mb-3 text-sm font-bold">۱. ابعاد محصول (mm)</h4>
               <div className="grid grid-cols-3 gap-2">
-                {([['طول', length, setLength], ['عرض', width, setWidth], ['ارتفاع', height, setHeight]] as const).map(([label, value, setter]) => <label key={label} className="text-[11px] font-bold text-slate-300">{label}<input type="number" min={10} max={2000} value={Number.isFinite(value) ? value : ''} onChange={e => setter(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>)}
+                {([['طول', length, setLength], ['عرض', width, setWidth], ['ارتفاع', height, setHeight]] as const).map(([label, value, setter]) => <label key={label} className="text-[11px] font-bold text-slate-700">{label}<input type="number" min={10} max={2000} value={Number.isFinite(value) ? value : ''} onChange={e => setter(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>)}
               </div>
+              {supportsDimensionConvention && <label className="mt-3 block text-[11px] font-bold text-slate-700">مبنای اندازه‌گذاری
+                <select value={dimensionConvention} onChange={e => setDimensionConvention(e.target.value as 'inside' | 'outside')} className={inputClass}>
+                  <option value="inside">ابعاد داخلی محصول — جبران کالیپر در گسترده</option>
+                  <option value="outside">ابعاد خارجی محصول — ابعاد واردشده برابر ابعاد خارجی</option>
+                </select>
+              </label>}
               <h4 className="mb-2 mt-4 text-sm font-bold">۲. جنس و ضخامت ورق</h4>
-              <label className="block text-[11px] font-bold text-slate-300">گروه مقوا
+              <label className="block text-[11px] font-bold text-slate-700">گروه مقوا
                 <select value={materialPreset} onChange={e => { const value=e.target.value; setMaterialPreset(value); const presets:Record<string,number>={'folding-carton':0.45,'corrugated-e':1.5,'corrugated-b':3,'corrugated-c':4,'corrugated-eb':6.5,'custom':thickness}; if(value!=='custom')setThickness(presets[value]); }} className={inputClass}>
                   <option value="folding-carton">مقوای تاشو — حدود ۰٫۴۵ mm</option>
                   <option value="corrugated-e">کارتن فلوت E — حدود ۱٫۵ mm</option>
@@ -202,56 +211,57 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                   <option value="custom">ضخامت سفارشی</option>
                 </select>
               </label>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <label className="text-[11px] font-bold text-slate-300">ضخامت واقعی (mm)<input type="number" min={0.2} max={10} step={0.1} value={Number.isFinite(thickness) ? thickness : ''} onChange={e => { setThickness(e.target.value === '' ? NaN : Number(e.target.value)); setMaterialPreset('custom'); }} className={inputClass}/></label>
-                <label className="text-[11px] font-bold text-slate-300">لبه چسب (mm)<input type="number" min={5} max={200} value={Number.isFinite(glueTab) ? glueTab : ''} onChange={e => setGlueTab(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+              <div className={`mt-3 grid ${supportsDimensionConvention ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
+                <label className="text-[11px] font-bold text-slate-700">ضخامت واقعی (mm)<input type="number" min={0.2} max={10} step={0.1} value={Number.isFinite(thickness) ? thickness : ''} onChange={e => { setThickness(e.target.value === '' ? NaN : Number(e.target.value)); setMaterialPreset('custom'); }} className={inputClass}/></label>
+                <label className="text-[11px] font-bold text-slate-700">لبه چسب (mm)<input type="number" min={5} max={200} value={Number.isFinite(glueTab) ? glueTab : ''} onChange={e => setGlueTab(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+                {supportsDimensionConvention && <label className="text-[11px] font-bold text-slate-700">فاصله شیار (mm)<input type="number" min={1} max={10} step={0.1} value={Number.isFinite(slotGap) ? slotGap : ''} onChange={e => setSlotGap(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>}
               </div>
-              <p className="mt-2 text-[10px] leading-5 text-slate-400">این گزینه فقط ضخامت مرجع و پارامترهای موتور را تنظیم می‌کند؛ جبران کامل ضخامت، داخل/خارج و خطوط تا هنوز برای همه قالب‌ها پیاده‌سازی نشده است.</p>
-              {!validInputs && <p className="mt-2 rounded-lg border border-red-900 bg-red-950/50 p-2 text-xs leading-5 text-red-200">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
+              <p className="mt-2 text-[10px] leading-5 text-slate-600">{supportsDimensionConvention ? 'برای خانواده FEFCO 0200، ابعاد داخلی پیش‌فرض است؛ کالیپر به ابعاد پنل و بدنه افزوده می‌شود و فاصله شیار بین فلپ‌ها جداگانه تنظیم می‌شود. اصلاح دقیق خطوط تا باید با روش قالب‌ساز کالیبره شود.' : 'برای این ساختار پارامتریک، تفسیر دقیق ابعاد داخل/خارج و جبران کامل خطوط تا هنوز تأیید نشده است.'}</p>
+              {!validInputs && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm · فاصله شیار: ۱ تا ۱۰ mm. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
             </div>
-            <details className="rounded-xl border border-slate-800 bg-slate-950/50 p-2">
-              <summary className="cursor-pointer px-2 py-1 text-xs font-bold text-slate-300">مرور همه قالب‌ها و توضیحات</summary>
+            <details className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+              <summary className="cursor-pointer px-2 py-1 text-xs font-bold text-slate-700">مرور همه قالب‌ها و توضیحات</summary>
               <div className="mt-2 grid max-h-[320px] grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2 xl:grid-cols-1">
-              {filteredTemplates.map(t => <button key={t.id} type="button" onClick={() => setTemplateId(t.id)} className={`rounded-xl border p-3 text-right transition ${t.id === templateId ? 'border-sky-500 bg-sky-950/50 ring-1 ring-sky-500/30' : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'}`}>
-                <div className="flex items-start justify-between gap-2"><span className="text-sm font-bold leading-6">{t.name}</span>{t.id === templateId && <Check className="mt-1 h-4 w-4 shrink-0 text-sky-300"/>}</div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5"><span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">{t.code}</span><span className={`rounded px-1.5 py-0.5 text-[10px] ${t.status === 'baseline' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-200'}`}>{t.status === 'baseline' ? 'موتور موجود' : 'قالب سفارشی / پایه'}</span></div>
-                <p className="mt-2 text-xs leading-5 text-slate-400">{t.description}</p>
+              {filteredTemplates.map(t => <button key={t.id} type="button" onClick={() => setTemplateId(t.id)} className={`rounded-xl border p-3 text-right transition ${t.id === templateId ? 'border-sky-500 bg-sky-50 ring-1 ring-sky-200' : 'border-slate-200 bg-slate-50 hover:border-slate-400'}`}>
+                <div className="flex items-start justify-between gap-2"><span className="text-sm font-bold leading-6">{t.name}</span>{t.id === templateId && <Check className="mt-1 h-4 w-4 shrink-0 text-sky-700"/>}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5"><span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">{t.code}</span><span className={`rounded px-1.5 py-0.5 text-[10px] ${t.status === 'baseline' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-950 text-amber-800'}`}>{t.status === 'baseline' ? 'مبنای پارامتریک' : 'غیرتأییدشده'}</span></div>
+                <p className="mt-2 text-xs leading-5 text-slate-600">{t.description}</p>
               </button>)}
-              {filteredTemplates.length === 0 && <p className="rounded-lg border border-slate-800 p-4 text-sm text-slate-400">قالبی با این عبارت پیدا نشد.</p>}
+              {filteredTemplates.length === 0 && <p className="rounded-lg border border-slate-200 p-4 text-sm text-slate-600">قالبی با این عبارت پیدا نشد.</p>}
               </div>
             </details>
-            {template.note && <p className="rounded-lg border border-amber-900/70 bg-amber-950/30 p-3 text-xs leading-6 text-amber-100"><AlertTriangle className="ml-1 inline h-4 w-4"/>{template.note}</p>}
+            {template.note && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-6 text-amber-900"><AlertTriangle className="ml-1 inline h-4 w-4"/>{template.note}</p>}
             <div className="grid grid-cols-2 gap-2">
-              <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className={buttonClass + ' bg-sky-600 hover:bg-sky-500'}><Download className="h-4 w-4"/>خروجی SVG</button>
-              <button disabled={!exportReady} onClick={exportDxf} className={buttonClass + ' bg-indigo-600 hover:bg-indigo-500'}><Download className="h-4 w-4"/>خروجی DXF</button>
-              <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height }, material: { thickness, glueTab }, geometry }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-700 hover:bg-slate-600'}><Download className="h-4 w-4"/>پروژه JSON</button>
-              <button disabled={!exportReady || !onSaveProject} onClick={saveProject} className={buttonClass + ' border border-emerald-800 bg-emerald-950/50 text-emerald-200 hover:bg-emerald-900'}><Save className="h-4 w-4"/>ثبت پروژه</button>
+              <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className={buttonClass + ' bg-sky-600 text-white hover:bg-sky-500'}><Download className="h-4 w-4"/>خروجی SVG</button>
+              <button disabled={!exportReady} onClick={exportDxf} className={buttonClass + ' bg-indigo-600 text-white hover:bg-indigo-500'}><Download className="h-4 w-4"/>خروجی DXF</button>
+              <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height }, material: { thickness, glueTab }, geometry }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-200 hover:bg-slate-300'}><Download className="h-4 w-4"/>پروژه JSON</button>
+              <button disabled={!exportReady || !onSaveProject} onClick={saveProject} className={buttonClass + ' border border-emerald-200 bg-emerald-50 text-emerald-200 hover:bg-emerald-900'}><Save className="h-4 w-4"/>ثبت پروژه</button>
             </div>
-            {saved && <p className="text-center text-xs text-emerald-300"><CheckCircle2 className="ml-1 inline h-4 w-4"/>پروژه به تابع ذخیره‌سازی تحویل شد.</p>}
+            {saved && <p className="text-center text-xs text-emerald-700"><CheckCircle2 className="ml-1 inline h-4 w-4"/>پروژه به تابع ذخیره‌سازی تحویل شد.</p>}
           </aside>
 
           <main className="min-w-0 space-y-4">
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:p-4">
+            <section className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
               <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{template.code} — {template.name}</h3><span className={`rounded-full px-2 py-1 text-[10px] ${geometry ? 'bg-emerald-950 text-emerald-300' : 'bg-red-950 text-red-200'}`}>{geometry ? 'هندسه تولید شد' : 'خطای تولید'}</span></div><p className="mt-1 text-xs leading-5 text-slate-400">قرمز: برش · آبی خط‌چین: خط‌تا · مقیاس مختصات: میلی‌متر</p></div>
-                <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"><Ruler className="ml-1 inline h-4 w-4 text-sky-300"/>{geometry ? `${(geometry.xMax - geometry.xMin).toFixed(1)} × ${(geometry.yMax - geometry.yMin).toFixed(1)} mm` : '—'}</span></div>
+                <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{template.code} — {template.name}</h3><span className={`rounded-full px-2 py-1 text-[10px] ${geometry ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-800'}`}>{geometry ? 'هندسه تولید شد' : 'خطای تولید'}</span></div><p className="mt-1 text-xs leading-5 text-slate-600">قرمز پیوسته: برش · آبی خط‌چین: خط‌تا · L×W×H ورودی بر حسب میلی‌متر</p></div>
+                <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-lg border border-slate-300 bg-white px-3 py-2"><Ruler className="ml-1 inline h-4 w-4 text-sky-700"/>{geometry ? `${(geometry.xMax - geometry.xMin).toFixed(1)} × ${(geometry.yMax - geometry.yMin).toFixed(1)} mm` : '—'}</span></div>
               </div>
-              {geometryAudit && <div className={`mb-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-900 bg-emerald-950/30 text-emerald-100' : 'border-amber-900 bg-amber-950/30 text-amber-100'}`}>
+              {geometryAudit && <div className={`mb-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-200 bg-emerald-50 text-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
                 <div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4"/>{exportReady ? 'بررسی ساختاری مسیرها گذشت' : 'خروجی به بررسی بیشتر نیاز دارد'}</div>
                 <p className="mt-1">طول برش تقریبی: {geometryAudit.cutLength} mm · طول خط‌تا: {geometryAudit.creaseLength} mm · امتیاز بررسی ساختاری: {geometryAudit.score}/100</p>
                 {geometryAudit.errors.map((message, i) => <p key={`audit-error-${i}`} className="mt-1">• {message}</p>)}
                 {geometryAudit.warnings.map((message, i) => <p key={`audit-warning-${i}`} className="mt-1">• {message}</p>)}
                 {geometryAudit.hasSelfIntersection && <p className="mt-1 font-bold">به‌دلیل تقاطع مسیر برش در یک مسیر، خروجی فایل و ثبت پروژه موقتاً غیرفعال است.</p>}
               </div>}
-              {geometryState.error && <div role="alert" className="mb-3 flex gap-2 rounded-xl border border-red-800 bg-red-950/40 p-3 text-sm text-red-100"><XCircle className="mt-0.5 h-5 w-5 shrink-0"/><div><strong>تولید دایلاین متوقف شد.</strong><p className="mt-1 text-xs leading-5">{geometryState.error}</p></div></div>}
-              {geometry && <div className="overflow-auto rounded-xl border border-slate-800 bg-white p-2">
+              {geometryState.error && <div role="alert" className="mb-3 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-100"><XCircle className="mt-0.5 h-5 w-5 shrink-0"/><div><strong>تولید دایلاین متوقف شد.</strong><p className="mt-1 text-xs leading-5">{geometryState.error}</p></div></div>}
+              {geometry && <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-2">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
                   <span>پیش‌نمایش بازشده / ۲بعدی</span>
                   <div className="flex flex-wrap gap-3"><label className="flex items-center gap-1"><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)}/>شبکه</label><label className="flex items-center gap-1"><input type="checkbox" checked={showLabels} onChange={e => setShowLabels(e.target.checked)}/>ابعاد و برچسب‌ها</label></div>
                 </div>
-                <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="auto" viewBox={`${geometry.xMin - 8} ${geometry.yMin - 8} ${Math.max(1, geometry.xMax - geometry.xMin + 16)} ${Math.max(1, geometry.yMax - geometry.yMin + 16)}`} className="max-h-[680px] min-h-[360px] w-full">
+                <svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox={`${geometry.xMin - 8} ${geometry.yMin - 14} ${Math.max(1, geometry.xMax - geometry.xMin + 22)} ${Math.max(1, geometry.yMax - geometry.yMin + 22)}`} className="block h-auto w-full max-h-[680px]">
                   {showGrid && <defs><pattern id="dieline-grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" strokeWidth="0.2"/></pattern></defs>}
-                  {showGrid && <rect x={geometry.xMin - 8} y={geometry.yMin - 8} width={geometry.xMax - geometry.xMin + 16} height={geometry.yMax - geometry.yMin + 16} fill="url(#dieline-grid)"/>}
+                  {showGrid && <rect x={geometry.xMin - 8} y={geometry.yMin - 14} width={geometry.xMax - geometry.xMin + 22} height={geometry.yMax - geometry.yMin + 22} fill="url(#dieline-grid)"/>}
                   {geometry.cuts.map((d, i) => <path key={`cut-${i}`} d={d} fill="none" stroke="#dc2626" strokeWidth="0.8" vectorEffect="non-scaling-stroke"/>)}
                   {geometry.creases.map((d, i) => <path key={`crease-${i}`} d={d} fill="none" stroke="#2563eb" strokeWidth="0.8" strokeDasharray="5 3" vectorEffect="non-scaling-stroke"/>)}
                   {showLabels && geometry.labels.map((label, i) => <text key={`label-${i}`} x={label.x} y={label.y} fill="#475569" fontSize="5" textAnchor="middle">{label.text}</text>)}
@@ -263,20 +273,20 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 </svg>
               </div>}
               {geometry && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3"><span className="text-[10px] text-slate-500">مسیرهای برش</span><p className="mt-1 text-xl font-black">{geometry.cuts.length}</p></div>
-                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3"><span className="text-[10px] text-slate-500">مسیرهای تا</span><p className="mt-1 text-xl font-black">{geometry.creases.length}</p></div>
-                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3"><span className="text-[10px] text-slate-500">سطح مستطیل پوشاننده</span><p className="mt-1 text-xl font-black">{(((geometry.xMax - geometry.xMin) * (geometry.yMax - geometry.yMin)) / 1_000_000).toFixed(3)} m²</p><p className="text-[10px] text-slate-500">برآورد ورق، نه سطح خالص قالب</p></div>
-                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3"><span className="text-[10px] text-slate-500">ضخامت ورق</span><p className="mt-1 text-xl font-black">{thickness} mm</p></div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3"><span className="text-[10px] text-slate-500">مسیرهای برش</span><p className="mt-1 text-xl font-black">{geometry.cuts.length}</p></div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3"><span className="text-[10px] text-slate-500">مسیرهای تا</span><p className="mt-1 text-xl font-black">{geometry.creases.length}</p></div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3"><span className="text-[10px] text-slate-500">سطح مستطیل پوشاننده</span><p className="mt-1 text-xl font-black">{(((geometry.xMax - geometry.xMin) * (geometry.yMax - geometry.yMin)) / 1_000_000).toFixed(3)} m²</p><p className="text-[10px] text-slate-500">برآورد ورق، نه سطح خالص قالب</p></div>
+                <div className="rounded-lg border border-slate-200 bg-white p-3"><span className="text-[10px] text-slate-500">ضخامت ورق</span><p className="mt-1 text-xl font-black">{thickness} mm</p></div>
               </div>}
               <div className="mt-3 flex flex-wrap gap-2">
-                <button type="button" onClick={() => setShow3D(v => !v)} className={buttonClass + ' border border-slate-700 bg-slate-950 hover:bg-slate-800'}><Rotate3d className="h-4 w-4"/>{show3D ? 'بستن نمای حجمی' : 'نمای حجمی ابعاد'}</button>
-                <a className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800" href="https://www.fefco.org/technical-information/fefco-code" target="_blank" rel="noreferrer">مرجع رسمی FEFCO ↗</a>
-                <a className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800" href="https://www.packmage.com/Home/BoxLibrary" target="_blank" rel="noreferrer">کتابخانه Packmage ↗</a>
+                <button type="button" onClick={() => setShow3D(v => !v)} className={buttonClass + ' border border-slate-300 bg-white hover:bg-slate-100'}><Rotate3d className="h-4 w-4"/>{show3D ? 'بستن نمای حجمی' : 'نمای حجمی ابعاد'}</button>
+                <a className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100" href="https://www.fefco.org/technical-information/fefco-code" target="_blank" rel="noreferrer">مرجع رسمی FEFCO ↗</a>
+                <a className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100" href="https://www.packmage.com/Home/BoxLibrary" target="_blank" rel="noreferrer">کتابخانه Packmage ↗</a>
               </div>
-              {show3D && <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950 p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold"><Rotate3d className="h-4 w-4 text-sky-300"/>پیش‌نمایش حجمی با فلپ‌های لولایی</div><span className="text-xs text-slate-400">{Math.round(openRatio * 100)}٪ بازشدگی</span></div><div className="h-[360px] overflow-hidden rounded-lg"><ThreeDPreview width={length} height={height} depth={width} isOpenRatio={openRatio} autoRotate/></div><label className="mt-3 flex items-center gap-3 text-xs text-slate-300">بسته <input type="range" min={0} max={1} step={0.05} value={openRatio} onChange={e => setOpenRatio(Number(e.target.value))} className="w-full accent-sky-500"/> باز</label><p className="mt-2 text-xs leading-5 text-amber-200"><Info className="ml-1 inline h-4 w-4"/>این نسخه، مدل حجمی عمومی با چهار دیواره و فلپ‌های لولایی است؛ هنوز هندسه سه‌بعدی اختصاصی و ترتیب مونتاژ هر کد FEFCO/ECMA را از روی نقشه دوبعدی بازسازی نمی‌کند.</p></div>}
+              {show3D && <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold"><Rotate3d className="h-4 w-4 text-sky-700"/>پیش‌نمایش حجمی با فلپ‌های لولایی</div><span className="text-xs text-slate-600">{Math.round(openRatio * 100)}٪ بازشدگی</span></div><div className="h-[360px] overflow-hidden rounded-lg"><ThreeDPreview width={length} height={height} depth={width} isOpenRatio={openRatio} autoRotate/></div><label className="mt-3 flex items-center gap-3 text-xs text-slate-700">بسته <input type="range" min={0} max={1} step={0.05} value={openRatio} onChange={e => setOpenRatio(Number(e.target.value))} className="w-full accent-sky-500"/> باز</label><p className="mt-2 text-xs leading-5 text-amber-800"><Info className="ml-1 inline h-4 w-4"/>این نسخه، مدل حجمی عمومی با چهار دیواره و فلپ‌های لولایی است؛ هنوز هندسه سه‌بعدی اختصاصی و ترتیب مونتاژ هر کد FEFCO/ECMA را از روی نقشه دوبعدی بازسازی نمی‌کند.</p></div>}
             </section>
-            <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3 text-xs leading-6 text-slate-400 sm:p-4">
-              <h4 className="mb-1 flex items-center gap-2 font-bold text-slate-200"><Scissors className="h-4 w-4 text-rose-300"/>یادداشت تولید</h4>
+            <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs leading-6 text-slate-600 sm:p-4">
+              <h4 className="mb-1 flex items-center gap-2 font-bold text-slate-800"><Scissors className="h-4 w-4 text-rose-700"/>یادداشت تولید</h4>
               <p>نام یا شماره قالب به‌تنهایی تضمین‌کننده تطابق با نقشه رسمی نیست. در این نسخه، ضخامت ورق روی خلاصی فلپ‌ها اثر می‌گذارد، اما جبران کامل ابعاد داخل/خارج و اصلاحات هر خط تا هنوز برای همه قالب‌ها پیاده‌سازی نشده است؛ ابعاد را پیش از تولید با نقشه مرجع، جهت الیاف، تلرانس ماشین و نمونه تاخورده تطبیق دهید. این استودیو علاوه بر کنترل ابعاد و مسیرهای خالی، مسیرهای SVG تولیدشده را از نظر ساختار و تقاطع‌های آشکار بررسی می‌کند؛ این بررسی جایگزین تأیید نقشه مرجع یا نمونه فیزیکی نیست.</p>
               <p className="mt-1">* برچسب ستاره‌دار یا «قالب سفارشی» به معنی هندسه پایه داخلی است، نه تأیید رسمی FEFCO/ECMA.</p>
             </section>
