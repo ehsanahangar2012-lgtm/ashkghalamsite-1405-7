@@ -89,11 +89,44 @@ if (!rteGeometry.cuts.some(path =>
 }
 
 const telescope = STANDARD_DIELINE_ENGINES['fefco-0320']({
-  L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, x0: 40,
+  L: 240, W: 160, H: 100, lidHeight: 35, thickness: 1.6, glueTab: 30, slotGap: 2.4, x0: 40,
 });
-if (!telescope.labels.some(label => label.text.includes('قطعه ۱')) ||
-    !telescope.labels.some(label => label.text.includes('قطعه ۲'))) {
-  fail('FEFCO 0320 must generate separate base and lid pieces');
+if (!telescope.labels.some(label => label.text.includes('قطعه ۱: زیره')) ||
+    !telescope.labels.some(label => label.text.includes('قطعه ۲: درب'))) {
+  fail('FEFCO 0320 must generate two separately identified half-slotted blanks');
+}
+const deeper0320Lid = STANDARD_DIELINE_ENGINES['fefco-0320']({
+  L: 240, W: 160, H: 100, lidHeight: 65, thickness: 1.6, glueTab: 30, slotGap: 2.4, x0: 40,
+});
+if (JSON.stringify(telescope.cuts) === JSON.stringify(deeper0320Lid.cuts)) {
+  fail('FEFCO 0320 lid wall depth must change the second blank geometry');
+}
+if (telescope.cuts.filter(path => /\\bZ\\s*$/.test(path)).length !== 0) {
+  fail('FEFCO 0320 half-slotted blank paths should use their own separate segment contours, not a fictitious closed tray contour');
+}
+
+const trayLid = STANDARD_DIELINE_ENGINES['fefco-0301']({
+  L: 240, W: 160, H: 100, lidHeight: 35, thickness: 1.6, glueTab: 30, x0: 40,
+});
+if (!trayLid.labels.some(label => label.text.includes('زیره')) ||
+    !trayLid.labels.some(label => label.text.includes('درب')) ||
+    trayLid.cuts.filter(path => /\\bZ\\s*$/.test(path)).length !== 2) {
+  fail('FEFCO 0301 baseline must draw and identify two separate tray-shaped blanks');
+}
+if (Math.abs(trayLid.totalW - 787.6) > 0.11 || Math.abs(trayLid.totalH - 364.8) > 0.11) {
+  fail(`FEFCO 0301 blank bounds must include both tray blanks and the layout gap, got ${trayLid.totalW} × ${trayLid.totalH}`);
+}
+const taller0301Lid = STANDARD_DIELINE_ENGINES['fefco-0301']({
+  L: 240, W: 160, H: 100, lidHeight: 65, thickness: 1.6, glueTab: 30, x0: 40,
+});
+if (JSON.stringify(trayLid.cuts) === JSON.stringify(taller0301Lid.cuts)) {
+  fail('FEFCO 0301 lid wall depth must update the lid blank geometry');
+}
+const thick0301 = STANDARD_DIELINE_ENGINES['fefco-0301']({
+  L: 240, W: 160, H: 100, lidHeight: 35, thickness: 4.8, glueTab: 30, x0: 40,
+});
+if (JSON.stringify(trayLid.cuts) === JSON.stringify(thick0301.cuts)) {
+  fail('FEFCO 0301 inside-size panel geometry must respond to board caliper'); 
 }
 
 const drawer = STANDARD_DIELINE_ENGINES['ecma-c1020']({
