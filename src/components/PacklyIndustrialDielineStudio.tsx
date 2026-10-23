@@ -76,6 +76,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [width, setWidth] = useState(160);
   const [height, setHeight] = useState(100);
   const [thickness, setThickness] = useState(1.6);
+  const [materialPreset, setMaterialPreset] = useState('corrugated-e');
   const [glueTab, setGlueTab] = useState(30);
   const [showLabels, setShowLabels] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
@@ -178,23 +179,43 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             <div className="flex items-center justify-between"><h3 className="font-black">کتابخانه قالب‌ها</h3><Layers className="h-4 w-4 text-sky-300"/></div>
             <label className="relative block"><Search className="absolute right-3 top-3 h-4 w-4 text-slate-500"/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="جست‌وجوی نام یا کد..." className={inputClass + ' pr-9'}/></label>
             <label className="block text-xs font-bold text-slate-300">دسته‌بندی<select value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
-            <div className="grid max-h-[420px] grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2 xl:grid-cols-1">
+            <details className="rounded-xl border border-slate-800 bg-slate-950/50 p-2">
+              <summary className="cursor-pointer px-2 py-1 text-xs font-bold text-slate-300">مرور همه قالب‌ها و توضیحات</summary>
+              <div className="mt-2 grid max-h-[320px] grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2 xl:grid-cols-1">
               {filteredTemplates.map(t => <button key={t.id} type="button" onClick={() => setTemplateId(t.id)} className={`rounded-xl border p-3 text-right transition ${t.id === templateId ? 'border-sky-500 bg-sky-950/50 ring-1 ring-sky-500/30' : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'}`}>
                 <div className="flex items-start justify-between gap-2"><span className="text-sm font-bold leading-6">{t.name}</span>{t.id === templateId && <Check className="mt-1 h-4 w-4 shrink-0 text-sky-300"/>}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5"><span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">{t.code}</span><span className={`rounded px-1.5 py-0.5 text-[10px] ${t.status === 'baseline' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-200'}`}>{t.status === 'baseline' ? 'موتور موجود' : 'قالب سفارشی / پایه'}</span></div>
                 <p className="mt-2 text-xs leading-5 text-slate-400">{t.description}</p>
               </button>)}
               {filteredTemplates.length === 0 && <p className="rounded-lg border border-slate-800 p-4 text-sm text-slate-400">قالبی با این عبارت پیدا نشد.</p>}
-            </div>
+              </div>
+            </details>
+            <label className="block text-xs font-bold text-slate-300">نوع قالب / جعبه
+              <select value={templateId} onChange={e => setTemplateId(e.target.value)} className={inputClass}>
+                {TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
+              </select>
+            </label>
             <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-              <h4 className="mb-3 text-sm font-bold">ابعاد و متریال</h4>
+              <h4 className="mb-3 text-sm font-bold">۱. ابعاد محصول (mm)</h4>
               <div className="grid grid-cols-3 gap-2">
                 {([['طول', length, setLength], ['عرض', width, setWidth], ['ارتفاع', height, setHeight]] as const).map(([label, value, setter]) => <label key={label} className="text-[11px] font-bold text-slate-300">{label}<input type="number" min={10} max={2000} value={Number.isFinite(value) ? value : ''} onChange={e => setter(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>)}
               </div>
+              <h4 className="mb-2 mt-4 text-sm font-bold">۲. جنس و ضخامت ورق</h4>
+              <label className="block text-[11px] font-bold text-slate-300">گروه مقوا
+                <select value={materialPreset} onChange={e => { const value=e.target.value; setMaterialPreset(value); const presets:Record<string,number>={'folding-carton':0.45,'corrugated-e':1.5,'corrugated-b':3,'corrugated-c':4,'corrugated-eb':6.5,'custom':thickness}; if(value!=='custom')setThickness(presets[value]); }} className={inputClass}>
+                  <option value="folding-carton">مقوای تاشو — حدود ۰٫۴۵ mm</option>
+                  <option value="corrugated-e">کارتن فلوت E — حدود ۱٫۵ mm</option>
+                  <option value="corrugated-b">کارتن فلوت B — حدود ۳ mm</option>
+                  <option value="corrugated-c">کارتن فلوت C — حدود ۴ mm</option>
+                  <option value="corrugated-eb">کارتن دوبل EB — حدود ۶٫۵ mm</option>
+                  <option value="custom">ضخامت سفارشی</option>
+                </select>
+              </label>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <label className="text-[11px] font-bold text-slate-300">ضخامت ورق (mm)<input type="number" min={0.2} max={10} step={0.1} value={Number.isFinite(thickness) ? thickness : ''} onChange={e => setThickness(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+                <label className="text-[11px] font-bold text-slate-300">ضخامت واقعی (mm)<input type="number" min={0.2} max={10} step={0.1} value={Number.isFinite(thickness) ? thickness : ''} onChange={e => { setThickness(e.target.value === '' ? NaN : Number(e.target.value)); setMaterialPreset('custom'); }} className={inputClass}/></label>
                 <label className="text-[11px] font-bold text-slate-300">لبه چسب (mm)<input type="number" min={5} max={200} value={Number.isFinite(glueTab) ? glueTab : ''} onChange={e => setGlueTab(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
               </div>
+              <p className="mt-2 text-[10px] leading-5 text-slate-400">این گزینه فقط ضخامت مرجع و پارامترهای موتور را تنظیم می‌کند؛ جبران کامل ضخامت، داخل/خارج و خطوط تا هنوز برای همه قالب‌ها پیاده‌سازی نشده است.</p>
               {!validInputs && <p className="mt-2 rounded-lg border border-red-900 bg-red-950/50 p-2 text-xs leading-5 text-red-200">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
             </div>
             {template.note && <p className="rounded-lg border border-amber-900/70 bg-amber-950/30 p-3 text-xs leading-6 text-amber-100"><AlertTriangle className="ml-1 inline h-4 w-4"/>{template.note}</p>}
