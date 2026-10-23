@@ -625,14 +625,15 @@ const createSlottedCaseEngine = (style: SlottedStyle) => {
   return ({ L, W, H, glueTab = 35, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
     const G = Math.max(15, glueTab || 35);
     const xs = [x0 + G, x0 + G + L, x0 + G + L + W, x0 + G + 2 * L + W, x0 + G + 2 * L + 2 * W];
+    const halfFlaps = getRscFlapDepths(L, W, 0.5, 0.5, 2);
+    const fullOverlapFlaps = getRscFlapDepths(L, W, 1, 1, 2);
     const topDepths = style === '0200'
       ? [0, 0, 0, 0]
       : style === '0203'
-        ? [W, W / 2, W, W / 2]
-        : style === '0204'
-          ? [W / 2, L / 2, W / 2, L / 2]
-          : [W / 2, W / 2, W / 2, W / 2];
-    const bottomDepths = style === '0200' ? [W / 2, W / 2, W / 2, W / 2] : [...topDepths];
+        ? fullOverlapFlaps.top
+        : halfFlaps.top;
+    // FEFCO 0200 is open at the top, but its bottom still needs the normal opposing flap geometry.
+    const bottomDepths = style === '0200' ? halfFlaps.bottom : [...topDepths];
     const maxTop = Math.max(...topDepths);
     const maxBottom = Math.max(...bottomDepths);
     const yTop = 40 + maxTop;
