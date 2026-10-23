@@ -315,6 +315,21 @@ for (const id of Object.keys(STANDARD_DIELINE_ENGINES)) {
     if (result.totalW <= 0 || result.totalH <= 0) fail(`${id}: non-positive bounds from registry sweep`);
   }
 }
+// FEFCO 0201 bounds must follow its four-panel strip and opposing half-depth flaps.
+const rscThin = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, thickness: 0.45, glueTab: 35, x0: 0 });
+const rscThick = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, thickness: 4.8, glueTab: 35, x0: 0 });
+const expectedRscWidth = 35 + 2 * 240 + 2 * 160;
+const expectedRscHeightThin = 100 + Math.max(240, 160) - 2 * Math.max(1, Math.min(6, 0.45 * 1.5));
+if (Math.abs(rscThin.totalW - expectedRscWidth) > 1e-8) {
+  fail(`FEFCO 0201 strip width incorrect: expected ${expectedRscWidth}, got ${rscThin.totalW}`);
+}
+if (Math.abs(rscThin.totalH - expectedRscHeightThin) > 1e-8) {
+  fail(`FEFCO 0201 half-flap bounds incorrect: expected ${expectedRscHeightThin}, got ${rscThin.totalH}`);
+}
+if (!(rscThick.totalH < rscThin.totalH)) {
+  fail('thicker-board clearance should shorten opposing FEFCO 0201 flaps');
+}
+
 // Board caliper must influence opposing-flap clearance for slotted-case templates.
 // This is a parameter-sensitivity regression, not a claim that the allowance is machine-certified.
 for (const id of ['fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'default-rsc']) {
