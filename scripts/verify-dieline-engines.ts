@@ -52,7 +52,7 @@ for (const id of requiredEngines) {
       }
       bottomContours.forEach((path, index) => {
         const contour = path as string;
-        const numbers = contour.match(/-?\d+(?:\\.\d+)?/g)?.map(Number) || [];
+        const numbers = contour.match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
         const vertices = (contour.match(/\bL\b/g) || []).length + 1;
         if (vertices < 4) {
           fail(`fefco-0713: bottom flap ${index + 1} is triangular; at least four contour vertices are required: ${contour}`);
