@@ -5,6 +5,7 @@ on:
       - upgrade/review-and-improvements
     paths:
       - 'src/**'
+      - 'scripts/**'
       - 'public/**'
       - 'index.html'
       - 'package.json'
@@ -34,6 +35,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+      - name: Run dieline geometry regression checks
+        run: bun scripts/verify-dieline-engines.ts
       - name: Build the actual React/Vite application
         run: bunx vite build --base=/ashkghalamsite-1405-7/
       - name: Prepare static Pages output and SPA fallback
