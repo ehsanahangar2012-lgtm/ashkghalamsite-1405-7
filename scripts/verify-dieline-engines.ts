@@ -122,19 +122,19 @@ const autoLockRectangular = STANDARD_DIELINE_ENGINES['fefco-0713']({
   L: 90, W: 60, H: 80, thickness: 0.45, glueTab: 15, tuck: 25,
   dustFlap: 28.5, dimensionConvention: 'inside', autoLockAngle: 45, x0: 40,
 });
-const rectG = 55, rectPanelW = 60.45, rectPanelL = 90.45;
-const rectBottomY = 30 + rectPanelW + 25 + (80 + 1.35);
-const rectPanelStarts = [rectG, rectG + rectPanelW, rectG + rectPanelW + rectPanelL,
-  rectG + 2 * rectPanelW + rectPanelL];
-const rectBottomPaths = rectPanelStarts.map(x =>
-  autoLockRectangular.cuts.find(path => path.startsWith(`M ${x} ${rectBottomY} L `))
+const autoLockRectG = 55, autoLockRectPanelW = 60.45, autoLockRectPanelL = 90.45;
+const autoLockRectBottomY = 30 + autoLockRectPanelW + 25 + (80 + 1.35);
+const autoLockRectPanelStarts = [autoLockRectG, autoLockRectG + autoLockRectPanelW, autoLockRectG + autoLockRectPanelW + autoLockRectPanelL,
+  autoLockRectG + 2 * autoLockRectPanelW + autoLockRectPanelL];
+const autoLockRectBottomPaths = autoLockRectPanelStarts.map(x =>
+  autoLockRectangular.cuts.find(path => path.startsWith(`M ${x} ${autoLockRectBottomY} L `))
 );
-if (rectBottomPaths.some(path => !path) ||
-    Math.abs(autoLockRectangular.totalW - (15 + 2 * rectPanelW + 2 * rectPanelL)) > 1e-8) {
+if (autoLockRectBottomPaths.some(path => !path) ||
+    Math.abs(autoLockRectangular.totalW - (15 + 2 * autoLockRectPanelW + 2 * autoLockRectPanelL)) > 1e-8) {
   fail('FEFCO 0713 rectangular blank must preserve the W/L/W/L body topology and expected width');
 }
-if (!autoLockRectangular.cuts.some(path => path.startsWith(`M ${rectG + rectPanelW} ${30 + rectPanelW + 25} L `)) ||
-    !autoLockRectangular.cuts.some(path => path.startsWith(`M ${rectG + rectPanelW + rectPanelL} ${30 + rectPanelW + 25} L `))) {
+if (!autoLockRectangular.cuts.some(path => path.startsWith(`M ${autoLockRectG + autoLockRectPanelW} ${30 + autoLockRectPanelW + 25} L `)) ||
+    !autoLockRectangular.cuts.some(path => path.startsWith(`M ${autoLockRectG + autoLockRectPanelW + autoLockRectPanelL} ${30 + autoLockRectPanelW + 25} L `))) {
   fail('FEFCO 0713 rectangular template must put the tuck flap on the L panel and dust flaps on W panels');
 }
 
