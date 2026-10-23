@@ -21,6 +21,13 @@ Updated: 2026-10-23. This records technical guidance and licensing decisions; it
 - The DXF parser converts `LINE`, `LWPOLYLINE`, `POLYLINE`, `ARC`, and `CIRCLE` into line segments. Recognized `$INSUNITS` values (inches, feet, miles, millimetres, centimetres, metres, kilometres, microinches, mils, yards) are normalized to millimetres; unitless or unrecognized unit codes preserve source coordinates rather than being guessed. Legacy `POLYLINE` closed flags are honored, and `LWPOLYLINE` bulge arcs are tessellated into short line segments. Simple top-level `INSERT` references are expanded for common line/polyline/arc/circle block contents with insertion point, rotation, uniform scale, and block base-point handling. Nested inserts, non-uniformly scaled curves inside blocks, external references, and reliable L/W/H anchor mapping are not fully supported. Standalone `SPLINE` entities with valid control points/knots are now tessellated using rational B-spline evaluation; native editable curves are not preserved. Curves are tessellated, not preserved as native arcs; line semantics are inferred from layer names.
 - The imported-DXF scaling helper preserves source coordinates rather than mapping known anchors to new L/W/H values. Arbitrary imported art must not be presented as correctly rescaled when dimensions change.
 
+## FEFCO 0200-series geometry review (2026-10-23)
+
+- FEFCO 0201 flap-height reference reviewed: https://www.theessentialimage.com/Packaging%20Catalogue/Html5_Packaging/Corrugated_Standards_Library/FEFCO_Standards_Library/F_0200/0201/0201_Flaps_Parameters.htm . Its 0201 flap-height parameter is based on W/2 plus a fold correction; the engine now uses W-based half-depths consistently for 0201 instead of incorrectly extending the width-panel flaps by L/2.
+- FEFCO 0204 is modeled separately as the width-panel-meeting variant: width-panel flaps extend by L/2 while length-panel flaps use W/2. FEFCO 0203 uses W-based full-overlap flap depth. These are parametric baselines, not manufacturer-calibrated tooling.
+- The 0200-series blank-area metric now estimates body-panel area plus flap area using the selected style's flap layout. For other engine families, the area remains a box-surface proxy and must not be interpreted as a validated blank-area or waste calculation.
+- Board-caliper handling currently applies a bounded flap/slot clearance heuristic. The engine does **not** yet implement selectable inside/outside/score-to-score dimension conventions or full fold-compensation equations across all styles. The user interface must disclose this limitation, and physical sample/reference-drawing checks remain required.
+
 ## Engineering decisions
 
 - No runtime dependency was added for the UI redesign.
