@@ -471,6 +471,7 @@ const createTrayEngine = () => {
     const wall = h + t;
     const requestedTab = Number.isFinite(glueTab) ? glueTab : wall * 0.65;
     const tab = Math.max(4, Math.min(requestedTab, wall * 0.9, panelL * 0.2, panelW * 0.45));
+    const cornerRelief = Math.min(tab * 0.35, wall * 0.25, 8);
     const xL = x0 + wall;
     const xR = xL + panelL;
     const y0 = 40;
@@ -481,17 +482,15 @@ const createTrayEngine = () => {
     const yMin = yT - wall;
     const yMax = yB + wall;
 
-    // Single non-self-crossing outer contour. Corner tabs occupy the blank
-    // quadrants outside the base and do not overlap the four wall panels.
+    // Corner glue tabs have diagonal shoulders to relieve the folded four-wall intersections.
     const cuts = [
-      `M ${xMin} ${yT} L ${xL - tab} ${yT} L ${xL - tab} ${yMin} L ${xR + tab} ${yMin} L ${xR + tab} ${yT} L ${xMax} ${yT} L ${xMax} ${yB} L ${xR + tab} ${yB} L ${xR + tab} ${yMax} L ${xL - tab} ${yMax} L ${xL - tab} ${yB} L ${xMin} ${yB} Z`,
+      `M ${xMin} ${yT} L ${xL - tab} ${yT} L ${xL - tab} ${yMin + cornerRelief} L ${xL - tab + cornerRelief} ${yMin} L ${xR + tab - cornerRelief} ${yMin} L ${xR + tab} ${yMin + cornerRelief} L ${xR + tab} ${yT} L ${xMax} ${yT} L ${xMax} ${yB} L ${xR + tab} ${yB} L ${xR + tab} ${yMax - cornerRelief} L ${xR + tab - cornerRelief} ${yMax} L ${xL - tab + cornerRelief} ${yMax} L ${xL - tab} ${yMax - cornerRelief} L ${xL - tab} ${yB} L ${xMin} ${yB} Z`,
     ];
     const creases = [
       `M ${xL} ${yT} L ${xR} ${yT}`,
       `M ${xL} ${yB} L ${xR} ${yB}`,
       `M ${xL} ${yT} L ${xL} ${yB}`,
       `M ${xR} ${yT} L ${xR} ${yB}`,
-      // Corner tabs hinge on the ends of the top/bottom walls.
       `M ${xL} ${yMin} L ${xL} ${yT}`,
       `M ${xR} ${yMin} L ${xR} ${yT}`,
       `M ${xL} ${yB} L ${xL} ${yMax}`,
@@ -510,7 +509,6 @@ const createTrayEngine = () => {
     };
   };
 };
-
 // 5. ECMA B10 (Sleeve / Band) Engine
 const createSleeveEngine = () => {
   return ({ L, W, H, glueTab = 25, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
@@ -817,38 +815,47 @@ const fefco0204Engine = createSlottedCaseEngine('0204');
  * flaps are shorter so they do not occupy the same locking interface.
  */
 const createSnapLockBottomEngine = () => {
-  return ({ L, W, H, glueTab = 22, thickness = 0.45, tuck = 20, dustFlap = 12, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
-    const safeL = Math.max(20, L);
-    const safeW = Math.max(20, W);
-    const safeH = Math.max(10, H);
-    const G = Math.max(12, Math.min(glueTab || 22, safeH * 0.8));
-    const t = Math.max(0.2, thickness || 0.45);
-    const tuckDepth = Math.max(12, Math.min(tuck || 20, safeW * 0.95));
-    const dustDepth = Math.max(8, Math.min(dustFlap || 12, safeW * 0.42));
+  return ({
+    L, W, H, glueTab = 22, thickness = 0.45, tuck = 20, dustFlap = 12,
+    x0 = 50, autoLockAngle = 45, autoLockGlueWidth,
+  }: DielineEngineParams): DielineEngineResult => {
+    const safeL = Math.max(20, Number.isFinite(L) ? L : 20);
+    const safeW = Math.max(20, Number.isFinite(W) ? W : 20);
+    const safeH = Math.max(10, Number.isFinite(H) ? H : 10);
+    const G = Math.max(5, Math.min(Number.isFinite(glueTab) ? glueTab : 22, safeH * 0.8));
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 0.45);
+    const tuckDepth = Math.max(12, Math.min(Number.isFinite(tuck) ? tuck : 20, safeW * 0.95));
+    const dustDepth = Math.max(8, Math.min(Number.isFinite(dustFlap) ? dustFlap : 12, safeW * 0.42));
+    const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45));
+    const angleRad = angleDeg * Math.PI / 180;
     const xs = [x0 + G, x0 + G + safeL, x0 + G + safeL + safeW, x0 + G + 2 * safeL + safeW, x0 + G + 2 * safeL + 2 * safeW];
     const topDepths = [tuckDepth, dustDepth, 0, dustDepth];
     const maxTop = Math.max(...topDepths);
     const yTop = 40 + maxTop;
     const yBottom = yTop + safeH;
     const lockDepth = Math.max(safeW * 0.48, 14);
-    const tongueWidth = Math.max(10, Math.min(safeL * 0.34, safeW * 0.42));
+    const requestedTongue = Number.isFinite(autoLockGlueWidth) ? autoLockGlueWidth as number : safeL * 0.34;
+    const tongueWidth = Math.max(10, Math.min(requestedTongue, safeL * 0.42, safeW * 0.42));
     const tongueNeck = Math.max(7, tongueWidth * 0.72);
     const tongueProjection = Math.max(5, Math.min(safeW * 0.13, 18));
     const slotLength = tongueWidth + Math.max(1.2, t * 1.5);
     const slotWidth = Math.max(1.2, t * 2.2);
-    const slotY = yBottom + lockDepth * 0.64;
+    const primaryOuter = yBottom + lockDepth;
+    const receiverEdgeMargin = Math.max(3, t * 2);
+    const receivingOuter = primaryOuter + tongueProjection + receiverEdgeMargin;
+    const slotY = primaryOuter + tongueProjection - slotWidth / 2;
+    const cornerRise = Math.max(2, Math.min(lockDepth * 0.18, safeW * 0.12, 8));
+    const cornerRun = Math.min(safeL * 0.2, cornerRise / Math.tan(angleRad));
     const cuts: string[] = [];
     const creases: string[] = [];
     const labels: { x: number; y: number; text: string }[] = [];
 
-    // Glue seam and body outline.
     cuts.push(`M ${x0 + 4} ${yTop} L ${x0} ${yTop + 4} L ${x0} ${yBottom - 4} L ${x0 + 4} ${yBottom}`);
     cuts.push(`M ${xs[4]} ${yTop} L ${xs[4]} ${yBottom}`);
     creases.push(`M ${x0 + G} ${yTop} L ${x0 + G} ${yBottom}`);
     for (let i = 1; i < 4; i++) creases.push(`M ${xs[i]} ${yTop} L ${xs[i]} ${yBottom}`);
     creases.push(`M ${xs[0]} ${yBottom} L ${xs[4]} ${yBottom}`);
 
-    // Top: tuck flap on panel 1, dust flaps on the side panels.
     for (let i = 0; i < 4; i++) {
       const xa = xs[i], xb = xs[i + 1], depth = topDepths[i];
       if (depth <= 0) {
@@ -861,19 +868,17 @@ const createSnapLockBottomEngine = () => {
       creases.push(`M ${xa} ${yTop} L ${xb} ${yTop}`);
     }
 
-    // Bottom locking pair. The tongue is tapered at the shoulder and has a flat tip.
-    const tongueLeft = (xs[1] + xs[0]) / 2 - tongueWidth / 2;
+    const tongueCenter = (xs[0] + xs[1]) / 2;
+    const tongueLeft = tongueCenter - tongueWidth / 2;
     const tongueRight = tongueLeft + tongueWidth;
-    const neckLeft = (xs[1] + xs[0]) / 2 - tongueNeck / 2;
+    const neckLeft = tongueCenter - tongueNeck / 2;
     const neckRight = neckLeft + tongueNeck;
-    const mainInset = Math.min(7, Math.max(2, safeL * 0.045));
-    const primaryOuter = yBottom + lockDepth;
+    const tipInset = Math.max(2, Math.min(t * 1.5, tongueWidth * 0.12));
     cuts.push(
-      `M ${xs[0]} ${yBottom} L ${xs[0]} ${primaryOuter - 4} L ${xs[0] + mainInset} ${primaryOuter} L ${neckLeft} ${primaryOuter} L ${tongueLeft} ${primaryOuter + tongueProjection * 0.45} L ${tongueLeft + Math.max(2, t)} ${primaryOuter + tongueProjection} L ${tongueRight - Math.max(2, t)} ${primaryOuter + tongueProjection} L ${tongueRight} ${primaryOuter + tongueProjection * 0.45} L ${neckRight} ${primaryOuter} L ${xs[1] - mainInset} ${primaryOuter} L ${xs[1]} ${primaryOuter - 4} L ${xs[1]} ${yBottom}`
+      `M ${xs[0]} ${yBottom} L ${xs[0]} ${primaryOuter - cornerRise} L ${xs[0] + cornerRun} ${primaryOuter} L ${neckLeft} ${primaryOuter} L ${tongueLeft} ${primaryOuter + tongueProjection * 0.45} L ${tongueLeft + tipInset} ${primaryOuter + tongueProjection} L ${tongueRight - tipInset} ${primaryOuter + tongueProjection} L ${tongueRight} ${primaryOuter + tongueProjection * 0.45} L ${neckRight} ${primaryOuter} L ${xs[1] - cornerRun} ${primaryOuter} L ${xs[1]} ${primaryOuter - cornerRise} L ${xs[1]} ${yBottom}`
     );
     creases.push(`M ${xs[0]} ${yBottom} L ${xs[1]} ${yBottom}`);
 
-    // Side dust flaps, shorter than the primary lock flap.
     for (const i of [1, 3]) {
       const xa = xs[i], xb = xs[i + 1];
       const inset = Math.min(6, Math.max(2, safeW * 0.07));
@@ -882,26 +887,23 @@ const createSnapLockBottomEngine = () => {
       creases.push(`M ${xa} ${yBottom} L ${xb} ${yBottom}`);
     }
 
-    // Opposing receiving flap with a closed, caliper-compensated slot.
     const receiveLeft = xs[2] + (safeL - slotLength) / 2;
     const receiveRight = receiveLeft + slotLength;
-    const receivingOuter = yBottom + lockDepth * 0.9;
     cuts.push(
-      `M ${xs[2]} ${yBottom} L ${xs[2]} ${receivingOuter - 3} L ${xs[2] + mainInset} ${receivingOuter} L ${receiveLeft - 3} ${receivingOuter} L ${receiveLeft} ${receivingOuter + slotWidth / 2} L ${receiveRight} ${receivingOuter + slotWidth / 2} L ${receiveRight + 3} ${receivingOuter} L ${xs[3] - mainInset} ${receivingOuter} L ${xs[3]} ${receivingOuter - 3} L ${xs[3]} ${yBottom}`
+      `M ${xs[2]} ${yBottom} L ${xs[2]} ${receivingOuter - cornerRise} L ${xs[2] + cornerRun} ${receivingOuter} L ${xs[3] - cornerRun} ${receivingOuter} L ${xs[3]} ${receivingOuter - cornerRise} L ${xs[3]} ${yBottom}`
     );
-    // Slot perimeter is an actual cut loop, not a decorative crease.
     cuts.push(`M ${receiveLeft} ${slotY} L ${receiveRight} ${slotY} L ${receiveRight} ${slotY + slotWidth} L ${receiveLeft} ${slotY + slotWidth} Z`);
     creases.push(`M ${xs[2]} ${yBottom} L ${xs[3]} ${yBottom}`);
 
-    labels.push({ x: (xs[0] + xs[1]) / 2, y: (yTop + yBottom) / 2, text: `بدنه L=${Math.round(safeL)}mm` });
-    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yTop + yBottom) / 2, text: `پهنا W=${Math.round(safeW)}mm` });
-    labels.push({ x: (xs[0] + xs[1]) / 2, y: primaryOuter + tongueProjection + 12, text: `زبانه قفل ${Math.round(tongueWidth)}mm` });
-    labels.push({ x: (xs[2] + xs[3]) / 2, y: receivingOuter + 14, text: `شیار قفل؛ خلاصی ${slotWidth.toFixed(1)}mm` });
-    labels.push({ x: (xs[0] + xs[4]) / 2, y: yBottom + lockDepth + tongueProjection + 30, text: 'قفل پارامتریک؛ پیش از ساخت تیغ، نمونه تاخورده و خلاصی ورق را تأیید کنید' });
+    labels.push({ x: tongueCenter, y: (yTop + yBottom) / 2, text: 'بدنه L=' + Math.round(safeL) + 'mm' });
+    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yTop + yBottom) / 2, text: 'پهنا W=' + Math.round(safeW) + 'mm' });
+    labels.push({ x: tongueCenter, y: primaryOuter + tongueProjection + 12, text: 'زبانه قفل ' + Math.round(tongueWidth) + 'mm · زاویه ' + Math.round(angleDeg) + '°' });
+    labels.push({ x: (xs[2] + xs[3]) / 2, y: receivingOuter + 14, text: 'شیار دریافت‌کننده · خلاصی ' + slotWidth.toFixed(1) + 'mm' });
+    labels.push({ x: (xs[0] + xs[4]) / 2, y: receivingOuter + 30, text: 'قفل پارامتریک؛ نمونه تاخورده و خلاصی واقعی ورق باید تأیید شود' });
 
     const xMin = x0;
     const yMin = yTop - maxTop;
-    const yMax = Math.max(primaryOuter + tongueProjection, slotY + slotWidth, yBottom + dustDepth) + 12;
+    const yMax = receivingOuter + 30;
     return {
       cuts, creases, labels,
       xMin, yMin, xMax: xs[4], yMax,
@@ -909,7 +911,6 @@ const createSnapLockBottomEngine = () => {
     };
   };
 };
-
 const fefco0215Engine = createSnapLockBottomEngine();
 
 const rscStandardEngine = createRscEngine(0.5, 0.5);
