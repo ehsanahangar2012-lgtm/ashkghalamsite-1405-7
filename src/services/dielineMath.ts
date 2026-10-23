@@ -460,7 +460,7 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       // The long-wall flap ends have the stepped central relief visible in
       // published 0713 outlines; this replaces the former triangular wedges
       // without inventing a manual tongue/slot lock for a pre-glued base.
-      const centerNotchWidth = Math.min(L * 0.36, Math.max(12, W * 0.32));
+      const centerNotchWidth = Math.max(8, Math.min(L * 0.28, W * 0.24, (L - 2 * mainRun) * 0.68));
       const centerNotchDepth = Math.min(mainFlapDepth * 0.28, Math.max(6, W * 0.16));
       const notchShoulder = Math.min(centerNotchWidth * 0.16, mainRun * 0.5);
       const longFlapPath = (left: number, right: number) => {
