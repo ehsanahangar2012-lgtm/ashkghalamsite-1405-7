@@ -37,6 +37,12 @@ Updated: 2026-10-23. This records technical guidance and licensing decisions; it
 - Keep canvas, geometry engine, and exporters independently testable.
 - Reference drawings and physical folded prototypes remain acceptance evidence for production claims; generic path checks are not industrial certification.
 
+## Intersection-audit coverage (2026-10-23)
+
+- The generated SVG path checker flags proper crossings, non-adjacent endpoint contacts, and collinear overlaps within each cut path. Normal adjacent corners are excluded, and the first/last segment pair is excluded only when the path is actually closed. Regression coverage includes an ordinary closed rectangle, an open path whose first and last segments cross, endpoint-on-segment contact, and collinear overlap.
+- To avoid quadratic checks causing preview stalls, pairwise intersection scanning is capped at 20,000 segment pairs per audit. If the cap is reached, a warning is shown that the intersection review was truncated; absence of a detected crossing after truncation is not proof that the whole path is clear.
+- The audit remains a structural screen. It does not infer polygon topology across separate SVG paths, identify all manufacturing collisions between independent cut and crease layers, or replace reference drawings and folded samples.
+
 ## Generated-geometry validation (2026-10-23)
 
 - The dieline studio now runs `runComprehensiveGeometryCheck` on the generated SVG cut/fold paths before enabling file export or saving a project. It reports estimated cut/fold lengths and structural warnings; a detected self-intersection or validator error disables export/save rather than presenting the output as ready for manufacturing.
