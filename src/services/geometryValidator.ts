@@ -51,12 +51,13 @@ const orientation = (a:Point,b:Point,c:Point) => (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(
 const onSegment = (a:Point,b:Point,p:Point) =>
   Math.min(a.x,b.x)-1e-8<=p.x&&p.x<=Math.max(a.x,b.x)+1e-8&&
   Math.min(a.y,b.y)-1e-8<=p.y&&p.y<=Math.max(a.y,b.y)+1e-8;
+// Only count strict interior crossings here. Shared endpoints and collinear
+// contacts are common at legitimate dieline corners and are not self-crossings.
 const intersects = (s1:Segment,s2:Segment) => {
   const {a,b}=s1,{a:c,b:d}=s2;
   const o1=orientation(a,b,c),o2=orientation(a,b,d),o3=orientation(c,d,a),o4=orientation(c,d,b);
-  if(((o1>1e-8&&o2< -1e-8)||(o1< -1e-8&&o2>1e-8))&&((o3>1e-8&&o4< -1e-8)||(o3< -1e-8&&o4>1e-8))) return true;
-  return (Math.abs(o1)<=1e-8&&onSegment(a,b,c))||(Math.abs(o2)<=1e-8&&onSegment(a,b,d))||
-    (Math.abs(o3)<=1e-8&&onSegment(c,d,a))||(Math.abs(o4)<=1e-8&&onSegment(c,d,b));
+  return ((o1>1e-8&&o2< -1e-8)||(o1< -1e-8&&o2>1e-8))&&
+    ((o3>1e-8&&o4< -1e-8)||(o3< -1e-8&&o4>1e-8));
 };
 
 export const validateDxfDieline = (entities: any[]): DxfValidationResult => {
