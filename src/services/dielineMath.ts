@@ -43,7 +43,9 @@ export const calculateDielineParameters = (
   const safeW = Number.isFinite(w) ? Math.max(1, w) : 1;
   const safeH = Number.isFinite(h) ? Math.max(1, h) : 1;
   const safeCaliper = Number.isFinite(caliper) ? Math.max(0.2, caliper) : 3;
-  const safeGlueTab = Number.isFinite(requestedGlueTab) ? Math.max(5, Math.min(200, requestedGlueTab as number)) : 35;
+  const safeGlueTab = Number.isFinite(requestedGlueTab)
+    ? Math.max(5, Math.min(200, requestedGlueTab as number))
+    : Math.max(15, Math.min(35, safeL * 0.18));
   const geometry = engine({
     L: safeL,
     W: safeW,
