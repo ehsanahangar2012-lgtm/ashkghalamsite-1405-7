@@ -391,7 +391,7 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       const bottomSlotWidth = Math.min(L * 0.22, L - 2 * bottomTuckInset);
       const bottomSlotDepth = Math.min(T * 0.18, 6);
       const bottomTuckCenter = (xP2 + xP3) / 2;
-      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP2} ${yBtmFlap} L ${xP2 + bottomTuckInset} ${yBtmTuck} L ${bottomTuckCenter + bottomSlotWidth / 2} ${yBtmTuck} L ${bottomTuckCenter + bottomSlotWidth / 2} ${yBtmTuck - bottomSlotDepth} L ${bottomTuckCenter - bottomSlotWidth / 2} ${yBtmTuck - bottomSlotDepth} L ${bottomTuckCenter - bottomSlotWidth / 2} ${yBtmTuck} L ${xP3 - bottomTuckInset} ${yBtmTuck} L ${xP3} ${yBtmFlap} L ${xP3} ${yBodyBtm}`);
+      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP2} ${yBtmFlap} L ${xP2 + bottomTuckInset} ${yBtmTuck} L ${bottomTuckCenter - bottomSlotWidth / 2} ${yBtmTuck} L ${bottomTuckCenter - bottomSlotWidth / 2} ${yBtmTuck - bottomSlotDepth} L ${bottomTuckCenter + bottomSlotWidth / 2} ${yBtmTuck - bottomSlotDepth} L ${bottomTuckCenter + bottomSlotWidth / 2} ${yBtmTuck} L ${xP3 - bottomTuckInset} ${yBtmTuck} L ${xP3} ${yBtmFlap} L ${xP3} ${yBodyBtm}`);
       creases.push(`M ${xP2} ${yBodyBtm} L ${xP3} ${yBodyBtm}`);
       creases.push(`M ${xP2} ${yBtmFlap} L ${xP3} ${yBtmFlap}`);
 
