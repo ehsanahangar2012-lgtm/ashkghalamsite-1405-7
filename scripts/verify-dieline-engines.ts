@@ -131,6 +131,15 @@ if (JSON.stringify(lockBottom.cuts) === JSON.stringify(thickBoardLock.cuts)) {
 // Metrics must use the selected engine geometry and consistent square-metre units.
 const rscMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'FEFCO 0201');
 const sleeveMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'ecma-b10');
+const openTopMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'fefco-0200');
+const fullFlapMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'fefco-0203');
+if (!(openTopMetrics.netArea < rscMetrics.netArea && rscMetrics.netArea < fullFlapMetrics.netArea)) {
+  fail('slotted-case blank-area estimate must reflect open-top, half-flap and full-overlap constructions');
+}
+if (!(rscMetrics.netArea < rscMetrics.grossArea && rscMetrics.wastePercentage >= 0 && rscMetrics.wastePercentage <= 100)) {
+  fail('estimated blank area must remain below the bounding sheet area and yield a bounded waste estimate');
+}
+
 if (!(rscMetrics.sheetWidth > 0 && rscMetrics.sheetHeight > 0)) {
   fail('calculated sheet dimensions must be positive');
 }
