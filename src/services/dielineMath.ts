@@ -354,164 +354,158 @@ const createMailerEngine = () => {
 };
 
 // 3. ECMA A20.20 (Tuck End Folding Carton) Engine
-const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
-  return ({ L, W, H, glueTab = 15, tuck = 20, dustFlap = 15, autoLockAngle = 45, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
-    const G = Math.max(12, glueTab || 15);
-    const T = Math.max(15, tuck || 20);
-    const DF = Math.max(12, dustFlap || 15);
+/**
+ * FEFCO 0713: hinged tuck lid with a pre-glued crash-lock base.
+ * Panel order and closure topology follow the checked Box Blanks FEFCO outline
+ * and the public Auto-Lock reference generator: side/front/side/back.
+ * Dimensions are inside sizes by default; caliper is applied to crease spans
+ * and the three-layer bottom wall allowance, not to the exterior cut envelope.
+ */
+const createAutoLockBottomEngine = () => {
+  return ({
+    L, W, H, glueTab = 15, tuck = 25, dustFlap = 43, bottomFlapDepth,
+    thickness = 0.45, dimensionConvention = 'inside', autoLockAngle = 45, x0 = 50,
+  }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 0.45);
+    const safeL = Math.max(20, Number.isFinite(L) ? L : 20);
+    const safeW = Math.max(20, Number.isFinite(W) ? W : 20);
+    const safeH = Math.max(10, Number.isFinite(H) ? H : 10);
+    const inside = dimensionConvention !== 'outside';
+    const panelL = safeL + (inside ? t : 0);
+    const panelW = safeW + (inside ? t : 0);
+    const panelH = safeH + (inside ? 3 * t : 0);
+    const G = Math.max(6, Math.min(Number.isFinite(glueTab) ? glueTab : 15, safeH * 0.8, 200));
+    const tuckDepth = Math.max(4, Math.min(Number.isFinite(tuck) ? tuck : 25, panelW * 0.8, 60));
+    const topDustDepth = Math.max(4, Math.min(Number.isFinite(dustFlap) ? dustFlap : 43, panelW * 0.48));
+    const requestedSideDepth = Number.isFinite(bottomFlapDepth)
+      ? bottomFlapDepth as number
+      : safeW * 0.45;
+    const sideDepth = Math.max(6, Math.min(requestedSideDepth, panelW * 0.48));
+    // The long base flaps overlap beyond half the footprint. Three calipers of
+    // relief keep the finished inside depth from being silently overfilled.
+    const mainDepth = Math.max(12, Math.min(panelW * 0.75 - 3 * t, panelL * 0.9));
+    const stepDepth = Math.max(4, Math.min(mainDepth * 0.2, panelW * 0.12, 12));
+    const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle : 45));
+    const angleRad = angleDeg * Math.PI / 180;
+    const mainRun = Math.max(4, Math.min(panelL * 0.28, stepDepth / Math.tan(angleRad)));
+    const sideRun = Math.max(4, Math.min(panelW * 0.35, sideDepth / Math.tan(angleRad)));
 
-    const y0 = 30;
-    const yTopTuck = y0;
-    const yTopFlap = yTopTuck + T;
-    const yBodyTop = yTopFlap + W;
-    const yBodyBtm = yBodyTop + H;
-    const crashLockMainDepth = Math.max(12, Math.min(W * 0.75, L * 0.9));
-    const crashLockSideDepth = Math.max(12, Math.min(L * 0.35, W * 0.9));
-    const yBtmFlap = yBodyBtm + (isCrashLock ? Math.max(crashLockMainDepth, crashLockSideDepth) : isStraightTuck ? T : W);
-    const yBtmTuck = isCrashLock || isStraightTuck ? yBtmFlap : yBtmFlap + T;
-
+    // Reference topology: W/L/W/L, with a glued side seam.
     const xG = x0 + G;
-    const xP1 = xG + L;
-    const xP2 = xP1 + W;
-    const xP3 = xP2 + L;
-    const xP4 = xP3 + W;
+    const xP1 = xG + panelW;
+    const xP2 = xP1 + panelL;
+    const xP3 = xP2 + panelW;
+    const xP4 = xP3 + panelL;
+    const y0 = 30;
+    const yBodyTop = y0 + panelW + tuckDepth;
+    const yBodyBottom = yBodyTop + panelH;
+    const lidFoldY = yBodyTop - panelW;
+    const tuckOuterY = lidFoldY - tuckDepth;
+    const bottomMainY = yBodyBottom + mainDepth;
+    const bottomSideY = yBodyBottom + sideDepth;
 
     const cuts: string[] = [];
     const creases: string[] = [];
     const labels: { x: number; y: number; text: string }[] = [];
+    const line = (x1: number, y1: number, x2: number, y2: number) =>
+      `M ${x1} ${y1} L ${x2} ${y2}`;
 
-    // Production-style corner relief for dust flaps and a locking notch in each tuck tongue.
-    const dustFlapPath = (left: number, right: number, hingeY: number, depth: number, direction: -1 | 1) => {
-      const shoulder = Math.min(depth, (right - left) / 2);
-      const outerY = hingeY + direction * depth;
-      // Angled shoulders start at the hinge endpoints; this prevents a short
-      // dust-flap side cut duplicating part of a neighbouring deeper flap slot.
-      return `M ${left} ${hingeY} L ${left + shoulder} ${outerY} L ${right - shoulder} ${outerY} L ${right} ${hingeY}`;
+    // Glue seam and the outside boundary of the four-wall strip.
+    cuts.push(`M ${x0 + 3} ${yBodyTop} L ${x0} ${yBodyTop + 3} L ${x0} ${yBodyBottom - 3} L ${x0 + 3} ${yBodyBottom}`);
+    cuts.push(line(x0 + 3, yBodyTop, xG, yBodyTop));
+    cuts.push(line(x0 + 3, yBodyBottom, xG, yBodyBottom));
+    cuts.push(line(xP4, yBodyTop, xP4, yBodyBottom));
+    creases.push(line(xG, yBodyTop, xG, yBodyBottom));
+    creases.push(line(xP1, yBodyTop, xP1, yBodyBottom));
+    creases.push(line(xP2, yBodyTop, xP2, yBodyBottom));
+    creases.push(line(xP3, yBodyTop, xP3, yBodyBottom));
+
+    // Front hinged tuck lid. Keep a clean tapered tongue and a separate slit;
+    // a notch cut into the free edge is not a substitute for a locking slit.
+    const tuckCenter = (xP1 + xP2) / 2;
+    const tuckInset = Math.min(panelL * 0.12, tuckDepth * 0.3);
+    cuts.push(
+      `M ${xP1} ${yBodyTop} L ${xP1} ${lidFoldY} L ${xP1 + tuckInset} ${tuckOuterY} L ${xP2 - tuckInset} ${tuckOuterY} L ${xP2} ${lidFoldY} L ${xP2} ${yBodyTop}`
+    );
+    const tuckSlitY = tuckOuterY + tuckDepth * 0.42;
+    const tuckSlitWidth = Math.max(4, Math.min(panelL * 0.26, 22));
+    cuts.push(line(tuckCenter - tuckSlitWidth / 2, tuckSlitY, tuckCenter + tuckSlitWidth / 2, tuckSlitY));
+    creases.push(line(xP1, yBodyTop, xP2, yBodyTop));
+    creases.push(line(xP1, lidFoldY, xP2, lidFoldY));
+
+    // Top dust flaps fold in from the two W-sized side panels.
+    const dustFlapPath = (left: number, right: number, hingeY: number, depth: number) => {
+      const inset = Math.min(8, depth * 0.28, panelW * 0.12);
+      const outerY = hingeY - depth;
+      return `M ${left} ${hingeY} L ${left + inset} ${outerY} L ${right - inset} ${outerY} L ${right} ${hingeY}`;
     };
-
-    // Glue tab
-    cuts.push(`M ${x0 + 3} ${yBodyTop} L ${x0} ${yBodyTop + 3} L ${x0} ${yBodyBtm - 3} L ${x0 + 3} ${yBodyBtm}`);
-    creases.push(`M ${xG} ${yBodyTop} L ${xG} ${yBodyBtm}`);
-
-    // Top Tuck End Flap (on panel 1)
-    cuts.push(`M ${x0 + 3} ${yBodyTop} L ${xG} ${yBodyTop}`);
-    const topTuckInset = Math.min(L * 0.12, T * 0.6);
-    const topSlotWidth = Math.min(L * 0.22, L - 2 * topTuckInset);
-    const topSlotDepth = Math.min(T * 0.18, 6);
-    const topTuckCenter = (xG + xP1) / 2;
-    cuts.push(`M ${xG} ${yBodyTop} L ${xG} ${yTopFlap} L ${xG + topTuckInset} ${yTopTuck} L ${topTuckCenter - topSlotWidth / 2} ${yTopTuck} L ${topTuckCenter - topSlotWidth / 2} ${yTopTuck + topSlotDepth} L ${topTuckCenter + topSlotWidth / 2} ${yTopTuck + topSlotDepth} L ${topTuckCenter + topSlotWidth / 2} ${yTopTuck} L ${xP1 - topTuckInset} ${yTopTuck} L ${xP1} ${yTopFlap} L ${xP1} ${yBodyTop}`);
-    creases.push(`M ${xG} ${yBodyTop} L ${xP1} ${yBodyTop}`);
-    creases.push(`M ${xG} ${yTopFlap} L ${xP1} ${yTopFlap}`);
-
-    // Dust flaps on Panel 2 and 4
-    cuts.push(dustFlapPath(xP1, xP2, yBodyTop, DF, -1));
-    creases.push(`M ${xP1} ${yBodyTop} L ${xP2} ${yBodyTop}`);
-
-    cuts.push(`M ${xP2} ${yBodyTop} L ${xP3} ${yBodyTop}`);
-
-    cuts.push(dustFlapPath(xP3, xP4, yBodyTop, DF, -1));
-    creases.push(`M ${xP3} ${yBodyTop} L ${xP4} ${yBodyTop}`);
-
-    // Bottom Flaps
-    if (isStraightTuck) {
-      // Straight-tuck variant: top and bottom tuck flaps are on the same main panel.
-      cuts.push(`M ${xG} ${yBodyBtm} L ${xG} ${yBtmFlap} L ${xP1} ${yBtmFlap} L ${xP1} ${yBodyBtm}`);
-      creases.push(`M ${xG} ${yBodyBtm} L ${xP1} ${yBodyBtm}`);
-      // yBtmFlap is the cut perimeter of the tuck tongue, not an additional score line.
-      cuts.push(dustFlapPath(xP1, xP2, yBodyBtm, DF, 1));
-      creases.push(`M ${xP1} ${yBodyBtm} L ${xP2} ${yBodyBtm}`);
-      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP3} ${yBodyBtm}`);
-      cuts.push(dustFlapPath(xP3, xP4, yBodyBtm, DF, 1));
-      creases.push(`M ${xP3} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
-    } else if (!isCrashLock) {
-      // Panel 3 bottom tuck flap
-      cuts.push(`M ${xG} ${yBodyBtm} L ${xG} ${yBodyBtm + DF} L ${xP1} ${yBodyBtm + DF} L ${xP1} ${yBodyBtm}`);
-      creases.push(`M ${xG} ${yBodyBtm} L ${xP1} ${yBodyBtm}`);
-
-      cuts.push(`M ${xP1} ${yBodyBtm} L ${xP2} ${yBodyBtm}`);
-
-      const bottomTuckInset = Math.min(L * 0.12, T * 0.6);
-      const bottomSlotWidth = Math.min(L * 0.22, L - 2 * bottomTuckInset);
-      const bottomSlotDepth = Math.min(T * 0.18, 6);
-      const bottomTuckCenter = (xP2 + xP3) / 2;
-      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP2} ${yBtmFlap} L ${xP2 + bottomTuckInset} ${yBtmTuck} L ${bottomTuckCenter - bottomSlotWidth / 2} ${yBtmTuck} L ${bottomTuckCenter - bottomSlotWidth / 2} ${yBtmTuck - bottomSlotDepth} L ${bottomTuckCenter + bottomSlotWidth / 2} ${yBtmTuck - bottomSlotDepth} L ${bottomTuckCenter + bottomSlotWidth / 2} ${yBtmTuck} L ${xP3 - bottomTuckInset} ${yBtmTuck} L ${xP3} ${yBtmFlap} L ${xP3} ${yBodyBtm}`);
-      creases.push(`M ${xP2} ${yBodyBtm} L ${xP3} ${yBodyBtm}`);
-      creases.push(`M ${xP2} ${yBtmFlap} L ${xP3} ${yBtmFlap}`);
-
-      cuts.push(dustFlapPath(xP3, xP4, yBodyBtm, DF, 1));
-      creases.push(`M ${xP3} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
-    } else {
-      // FEFCO 0713 uses a four-flap automatic base. The previous draft drew
-      // three of those flaps as open triangles and gave every flap the same
-      // depth (0.75 W), so the blank could not form a rectangular base.
-      // The long-wall flaps are deeper (about 0.75 W); short-wall base tabs
-      // are shallower (about 0.35 L), following the published 0713 outline.
-      // This is a parametric base outline; the two-point pre-glue pattern still
-      // needs production-board calibration before it can be called plate-verified.
-      const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45));
-      const angleRad = angleDeg * Math.PI / 180;
-      const mainFlapDepth = crashLockMainDepth;
-      const sideFlapDepth = crashLockSideDepth;
-      const mainOuterY = yBodyBtm + mainFlapDepth;
-      const sideOuterY = yBodyBtm + sideFlapDepth;
-      const mainRun = Math.min(L * 0.38, mainFlapDepth / Math.tan(angleRad));
-      const sideRun = Math.min(W * 0.38, sideFlapDepth / Math.tan(angleRad));
-
-      // The long-wall flap ends have the stepped central relief visible in
-      // published 0713 outlines; this replaces the former triangular wedges
-      // without inventing a manual tongue/slot lock for a pre-glued base.
-      const centerNotchWidth = Math.max(8, Math.min(L * 0.28, W * 0.24, (L - 2 * mainRun) * 0.68));
-      const centerNotchDepth = Math.min(mainFlapDepth * 0.28, Math.max(6, W * 0.16));
-      const notchShoulder = Math.min(centerNotchWidth * 0.16, mainRun * 0.5);
-      const longFlapPath = (left: number, right: number) => {
-        const center = (left + right) / 2;
-        const notchLeft = center - centerNotchWidth / 2;
-        const notchRight = center + centerNotchWidth / 2;
-        const notchY = mainOuterY - centerNotchDepth;
-        return `M ${left} ${yBodyBtm} L ${left + mainRun} ${mainOuterY} L ${notchLeft - notchShoulder} ${mainOuterY} L ${notchLeft} ${notchY} L ${notchRight} ${notchY} L ${notchRight + notchShoulder} ${mainOuterY} L ${right - mainRun} ${mainOuterY} L ${right} ${yBodyBtm}`;
-      };
-      cuts.push(longFlapPath(xG, xP1));
-      // Short-wall flaps remain wide trapezoids, not three-point triangles.
-      cuts.push(`M ${xP1} ${yBodyBtm} L ${xP1 + sideRun} ${sideOuterY} L ${xP2 - sideRun} ${sideOuterY} L ${xP2} ${yBodyBtm}`);
-      cuts.push(longFlapPath(xP2, xP3));
-      cuts.push(`M ${xP3} ${yBodyBtm} L ${xP3 + sideRun} ${sideOuterY} L ${xP4 - sideRun} ${sideOuterY} L ${xP4} ${yBodyBtm}`);
-
-      // The panel hinges are crease lines, not blade cuts. Keep the fold axis
-      // continuous across all four walls; avoid the former diagonal cut/crease
-      // that visually divided the base into a triangle.
-      creases.push(`M ${xG} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
-      labels.push({ x: (xG + xP1) / 2, y: mainOuterY - 5, text: `فلپ کف دیواره بلند · عمق ${Math.round(mainFlapDepth)}mm` });
-      labels.push({ x: (xP1 + xP2) / 2, y: sideOuterY - 5, text: `فلپ کف دیواره کوتاه · عمق ${Math.round(sideFlapDepth)}mm` });
+    for (const [left, right] of [[xG, xP1], [xP2, xP3]]) {
+      cuts.push(dustFlapPath(left, right, yBodyTop, topDustDepth));
+      creases.push(line(left, yBodyTop, right, yBodyTop));
     }
 
-    // Outer Right Wall Cut
-    cuts.push(`M ${xP4} ${yBodyTop} L ${xP4} ${yBodyBtm}`);
+    // The rear panel is cut with an open thumb notch; no crease is put through
+    // the notch and no straight line is drawn across the opening.
+    const backCenter = (xP3 + xP4) / 2;
+    const thumbWidth = Math.min(panelL * 0.28, 18);
+    const thumbDepth = Math.min(4, panelW * 0.06);
+    const thumbLeft = backCenter - thumbWidth / 2;
+    const thumbRight = backCenter + thumbWidth / 2;
+    const thumbArc = Array.from({ length: 5 }, (_, index) => {
+      const angle = Math.PI * (index + 1) / 6;
+      return [backCenter - Math.cos(angle) * thumbWidth / 2,
+        yBodyTop + Math.sin(angle) * thumbDepth] as const;
+    }).map(([x, y]) => `L ${x} ${y}`).join(' ');
+    cuts.push(
+      `M ${xP3} ${yBodyTop} L ${thumbLeft} ${yBodyTop} ${thumbArc} L ${thumbRight} ${yBodyTop} L ${xP4} ${yBodyTop}`
+    );
 
-    // Vertical panel creases
-    creases.push(`M ${xP1} ${yBodyTop} L ${xP1} ${yBodyBtm}`);
-    creases.push(`M ${xP2} ${yBodyTop} L ${xP2} ${yBodyBtm}`);
-    creases.push(`M ${xP3} ${yBodyTop} L ${xP3} ${yBodyBtm}`);
+    // Four bottom panels hinge on one uninterrupted score axis.
+    creases.push(line(xG, yBodyBottom, xP4, yBodyBottom));
 
-    // Dimension labels
-    const yMid = (yBodyTop + yBodyBtm) / 2;
-    labels.push({ x: (xG + xP1) / 2, y: yMid, text: `طول ${Math.round(L)}mm` });
-    labels.push({ x: (xP1 + xP2) / 2, y: yMid, text: `عرض ${Math.round(W)}mm` });
-    labels.push({ x: (xP2 + xP3) / 2, y: yMid, text: `ارتفاع ${Math.round(H)}mm` });
+    // Side flaps fold first. Their corner score lines define the 45-degree
+    // adhesive-fold areas rather than representing decorative cut edges.
+    for (const [left, right] of [[xG, xP1], [xP2, xP3]]) {
+      cuts.push(
+        `M ${left} ${yBodyBottom} L ${left + sideRun} ${bottomSideY} L ${right - sideRun} ${bottomSideY} L ${right} ${yBodyBottom}`
+      );
+      const glueScoreDepth = Math.max(1.2, Math.min(sideDepth * 0.22, panelW * 0.08, 8));
+      const glueScoreRun = glueScoreDepth / Math.tan(angleRad);
+      creases.push(line(left + sideRun, bottomSideY, left + sideRun + glueScoreRun, bottomSideY - glueScoreDepth));
+      creases.push(line(right - sideRun, bottomSideY, right - sideRun - glueScoreRun, bottomSideY - glueScoreDepth));
+    }
 
+    // The front/back locking edges use complementary half-width steps, not two
+    // identical central notches. The opposing edges overlap when the base closes.
+    const mainFlapPath = (left: number, right: number, deepOnLeft: boolean) => {
+      const center = (left + right) / 2;
+      const stepY = bottomMainY - stepDepth;
+      return deepOnLeft
+        ? `M ${left} ${yBodyBottom} L ${left + mainRun} ${bottomMainY} L ${center} ${bottomMainY} L ${center} ${stepY} L ${right - mainRun} ${stepY} L ${right} ${yBodyBottom}`
+        : `M ${left} ${yBodyBottom} L ${left + mainRun} ${stepY} L ${center} ${stepY} L ${center} ${bottomMainY} L ${right - mainRun} ${bottomMainY} L ${right} ${yBodyBottom}`;
+    };
+    cuts.push(mainFlapPath(xP1, xP2, true));
+    cuts.push(mainFlapPath(xP3, xP4, false));
+
+    // Labels stay on the matching W/L panels and identify the actual closure parts.
+    const yMid = (yBodyTop + yBodyBottom) / 2;
+    labels.push({ x: (xG + xP1) / 2, y: yMid, text: `پهنا W=${Math.round(safeW)}mm` });
+    labels.push({ x: (xP1 + xP2) / 2, y: yMid, text: `طول L=${Math.round(safeL)}mm` });
+    labels.push({ x: (xP2 + xP3) / 2, y: yMid, text: `پهنا W=${Math.round(safeW)}mm` });
+    labels.push({ x: (xP3 + xP4) / 2, y: yMid, text: `طول L=${Math.round(safeL)}mm` });
+    labels.push({ x: tuckCenter, y: (tuckOuterY + lidFoldY) / 2, text: `درب و زبانه ${Math.round(tuckDepth)}mm` });
+    labels.push({ x: (xG + xP1) / 2, y: yBodyTop - topDustDepth / 2, text: `گردگیر ${Math.round(topDustDepth)}mm` });
+    labels.push({ x: tuckCenter, y: yBodyBottom + mainDepth * 0.48, text: `کف قفل‌شونده ${Math.round(mainDepth)}mm` });
+    labels.push({ x: (xG + xP1) / 2, y: yBodyBottom + sideDepth * 0.55, text: `فلپ جانبی و ناحیه چسب ${Math.round(sideDepth)}mm` });
+
+    const yMax = Math.max(bottomMainY, bottomSideY);
     return {
-      cuts,
-      creases,
-      labels,
-      xMin: x0,
-      yMin: y0,
-      xMax: xP4,
-      yMax: yBtmTuck,
-      totalW: xP4 - x0,
-      totalH: yBtmTuck - y0,
+      cuts, creases, labels,
+      xMin: x0, yMin: y0, xMax: xP4, yMax,
+      totalW: xP4 - x0, totalH: yMax - y0,
     };
   };
 };
-
 // 4. FEFCO 0300 (Telescope / Tray) Engine
 /**
  * One-piece glued tray blank.
@@ -1055,7 +1049,7 @@ const folEngine = createRscEngine(1.0, 1.0);
 const mailerEngine = createMailerEngine();
 const tuckEndEngine = createRteEngine(false);
 const straightTuckEngine = createRteEngine(true);
-const crashLockEngine = createTuckEndEngine(true);
+const crashLockEngine = createAutoLockBottomEngine();
 const trayEngine = createTrayEngine();
 const telescopicTrayEngine = createTelescopicTrayEngine();
 const sleeveEngine = createSleeveEngine();
