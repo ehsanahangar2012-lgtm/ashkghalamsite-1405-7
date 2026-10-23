@@ -86,8 +86,9 @@ export const calculateDielineParameters = (
     const glue = Math.max(15, 35);
     const clearance = Math.max(1, Math.min(6, safeCaliper * 1.5));
     const sidePanelArea = (2 * safeL + 2 * safeW + glue) * safeH;
-    const halfFlapPerEdge = Math.max(0, 2 * safeL * safeW - 2 * clearance * (safeL + safeW));
-    const fullFlapPerEdge = Math.max(0, 4 * safeL * safeW - 2 * clearance * (safeL + safeW));
+    const totalPanelSpan = 2 * safeL + 2 * safeW;
+    const halfFlapPerEdge = totalPanelSpan * Math.max(0, safeW * 0.5 - clearance);
+    const fullFlapPerEdge = totalPanelSpan * Math.max(0, safeW - clearance);
     const topFlaps = engineId === 'fefco-0200' ? 0 : engineId === 'fefco-0203' ? fullFlapPerEdge : halfFlapPerEdge;
     const bottomFlaps = engineId === 'fefco-0203' ? fullFlapPerEdge : halfFlapPerEdge;
     blankAreaMm2 = sidePanelArea + topFlaps + bottomFlaps;
@@ -140,15 +141,14 @@ export interface DielineEngineResult {
 }
 
 // 1. FEFCO 0201 (RSC) and Standard Slotted Containers Engine
-// Panel-specific flap depths follow the parametric panel model used in PackBox Studio
-// (MIT; see THIRD_PARTY_NOTICES.md). Long walls fold over half the box width;
-// short walls fold over half the box length. A small opposing-flap clearance avoids
-// treating the two flaps as a single overlapping sheet.
-export const getRscFlapDepths = (L: number, W: number, topRatio = 0.5, bottomRatio = 0.5, clearance = 2) => {
-  const depth = (dimension: number, ratio: number) => ratio <= 0 ? 0 : Math.max(0, dimension * ratio - clearance);
+// FEFCO 0201 flap height is based on half the box width (W/2), with a
+// material/slot clearance. The same flap depth is used across all four panels;
+// panel width changes the flap's span, not its fold depth.
+export const getRscFlapDepths = (_L: number, W: number, topRatio = 0.5, bottomRatio = 0.5, clearance = 2) => {
+  const depth = (ratio: number) => ratio <= 0 ? 0 : Math.max(0, W * ratio - clearance);
   return {
-    top: [depth(W, topRatio), depth(L, topRatio), depth(W, topRatio), depth(L, topRatio)],
-    bottom: [depth(W, bottomRatio), depth(L, bottomRatio), depth(W, bottomRatio), depth(L, bottomRatio)],
+    top: [depth(topRatio), depth(topRatio), depth(topRatio), depth(topRatio)],
+    bottom: [depth(bottomRatio), depth(bottomRatio), depth(bottomRatio), depth(bottomRatio)],
   };
 };
 
