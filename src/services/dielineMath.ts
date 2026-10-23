@@ -365,7 +365,9 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
     const yTopFlap = yTopTuck + T;
     const yBodyTop = yTopFlap + W;
     const yBodyBtm = yBodyTop + H;
-    const yBtmFlap = yBodyBtm + (isCrashLock ? Math.max(W * 0.5, L * 0.5) : isStraightTuck ? T : W);
+    const crashLockMainDepth = Math.max(12, Math.min(W * 0.5, L * 0.9));
+    const crashLockSideDepth = Math.max(12, Math.min(L * 0.5, W * 0.9));
+    const yBtmFlap = yBodyBtm + (isCrashLock ? Math.max(crashLockMainDepth, crashLockSideDepth) : isStraightTuck ? T : W);
     const yBtmTuck = isCrashLock || isStraightTuck ? yBtmFlap : yBtmFlap + T;
 
     const xG = x0 + G;
@@ -447,8 +449,8 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       // needs production-board calibration before it can be called plate-verified.
       const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45));
       const angleRad = angleDeg * Math.PI / 180;
-      const mainFlapDepth = Math.max(12, Math.min(W * 0.5, L * 0.9));
-      const sideFlapDepth = Math.max(12, Math.min(L * 0.5, W * 0.9));
+      const mainFlapDepth = crashLockMainDepth;
+      const sideFlapDepth = crashLockSideDepth;
       const mainOuterY = yBodyBtm + mainFlapDepth;
       const sideOuterY = yBodyBtm + sideFlapDepth;
       const mainRun = Math.min(L * 0.2, mainFlapDepth / Math.tan(angleRad));
