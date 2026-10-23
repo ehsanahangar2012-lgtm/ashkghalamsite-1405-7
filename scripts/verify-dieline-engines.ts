@@ -191,7 +191,7 @@ const bulgedPolylineDxf = [
   '10','0','20','0','42','1',
   '10','100','20','0',
   '0','ENDSEC','0','EOF'
-].join('\\n');
+].join('\n');
 const bulgedEntities = parseDxfToEntities(bulgedPolylineDxf);
 if (bulgedEntities.length < 10 ||
     !bulgedEntities.every(entity => [entity.start?.x,entity.start?.y,entity.end?.x,entity.end?.y].every(Number.isFinite))) {
