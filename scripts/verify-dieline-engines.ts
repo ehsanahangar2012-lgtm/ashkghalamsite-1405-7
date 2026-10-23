@@ -57,15 +57,14 @@ for (const id of requiredEngines) {
   }
 }
 
-// Regression: FEFCO 0201 must use different flap depths for L- and W-wide panels.
-const rscDepths = getRscFlapDepths(240, 160, 0.5, 0.5);
-if (rscDepths.top[0] !== 78 || rscDepths.top[1] !== 118 || rscDepths.top[2] !== 78 || rscDepths.top[3] !== 118) {
-  fail(`RSC panel flap depths must follow the perpendicular box dimension, got ${JSON.stringify(rscDepths.top)}`);
+// Regression: FEFCO 0201 flap height is W/2 (with clearance) on all four panels.
+const rscDepths = getRscFlapDepths(240, 160, 0.5, 0.5, 2);
+if (rscDepths.top.some(depth => depth !== 78) || rscDepths.bottom.some(depth => depth !== 78)) {
+  fail(`FEFCO 0201 flaps must share the W/2 depth after clearance, got ${JSON.stringify(rscDepths)}`);
 }
-const rscGeometry = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, glueTab: 30, x0: 40 });
-if (!rscGeometry.cuts.some(path => path.includes('L 316.4 40 L 463.6 40')) ||
-    !rscGeometry.cuts.some(path => path.includes('L 76.4 80 L 303.6 80'))) {
-  fail('FEFCO 0201 must render visibly different side-flap and main-flap depths');
+const rscGeometry = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, x0: 40 });
+if (Math.abs(rscGeometry.totalH - (100 + 160 - 2 * 2.4)) > 1e-8) {
+  fail(`FEFCO 0201 sheet height must be H + W - two flap clearances, got ${rscGeometry.totalH}`);
 }
 
 // Regression: the default ECMA reverse-tuck-end pattern has tapered dust flaps and a real tuck notch.
@@ -319,7 +318,7 @@ for (const id of Object.keys(STANDARD_DIELINE_ENGINES)) {
 const rscThin = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, thickness: 0.45, glueTab: 35, x0: 0 });
 const rscThick = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, thickness: 4.8, glueTab: 35, x0: 0 });
 const expectedRscWidth = 35 + 2 * 240 + 2 * 160;
-const expectedRscHeightThin = 100 + Math.max(240, 160) - 2 * Math.max(1, Math.min(6, 0.45 * 1.5));
+const expectedRscHeightThin = 100 + 160 - 2 * Math.max(1, Math.min(6, 0.45 * 1.5));
 if (Math.abs(rscThin.totalW - expectedRscWidth) > 1e-8) {
   fail(`FEFCO 0201 strip width incorrect: expected ${expectedRscWidth}, got ${rscThin.totalW}`);
 }
