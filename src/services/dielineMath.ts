@@ -846,7 +846,7 @@ const fefco0204Engine = createSlottedCaseEngine('0204');
  */
 const createSnapLockBottomEngine = () => {
   return ({
-    L, W, H, glueTab = 15, thickness = 0.5, tuck = 25, dustFlap = 33,
+    L, W, H, glueTab = 15, thickness = 0.5, tuck, dustFlap,
     bottomFlapDepth, lockTongueDepth,
     x0 = 50, autoLockAngle = 45, autoLockGlueWidth, dimensionConvention = 'inside',
   }: DielineEngineParams): DielineEngineResult => {
@@ -863,10 +863,18 @@ const createSnapLockBottomEngine = () => {
     const panelW = safeW + (inside ? t : 0);
     const panelH = safeH;
     const G = Math.max(6, Math.min(Number.isFinite(glueTab) ? glueTab : 15, panelH * 0.8));
-    const tuckDepth = Math.max(4, Math.min(Number.isFinite(tuck) ? tuck : 25, panelW * 0.8));
-    const topDustDepth = Math.max(4, Math.min(Number.isFinite(dustFlap) ? dustFlap : 33, panelW * 0.48));
-    const bottomSideDepth = Math.max(6, Math.min(panelW * 0.48,
-      Number.isFinite(bottomFlapDepth) ? bottomFlapDepth as number : (Number.isFinite(dustFlap) ? dustFlap : 33)));
+    // Default closure dimensions scale from the known 70 × 70 × 80 mm reference.
+    // Explicit caller values still override these ratios; the preview must not pin
+    // every carton size to the reference's fixed 25/33/17.5 mm flap dimensions.
+    const referencePanelWidth = 70 + 0.45;
+    const requestedTuckDepth = Number.isFinite(tuck) ? tuck as number : panelW * (25 / referencePanelWidth);
+    const tuckDepth = Math.max(4, Math.min(requestedTuckDepth, panelW * 0.8));
+    const requestedDustDepth = Number.isFinite(dustFlap) ? dustFlap as number : panelW * (33 / referencePanelWidth);
+    const topDustDepth = Math.max(4, Math.min(requestedDustDepth, panelW * 0.48));
+    const requestedBottomSideDepth = Number.isFinite(bottomFlapDepth)
+      ? bottomFlapDepth as number
+      : Number.isFinite(dustFlap) ? dustFlap as number : panelW * (33 / referencePanelWidth);
+    const bottomSideDepth = Math.max(6, Math.min(panelW * 0.48, requestedBottomSideDepth));
     const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45));
     const angleRad = angleDeg * Math.PI / 180;
     const xs = [x0 + G, x0 + G + panelL, x0 + G + panelL + panelW,
@@ -884,7 +892,10 @@ const createSnapLockBottomEngine = () => {
     const requestedTongueWidth = Number.isFinite(autoLockGlueWidth) ? autoLockGlueWidth as number : panelL * 0.34;
     const tongueWidth = Math.max(8, Math.min(requestedTongueWidth, panelL * 0.42, panelW * 0.42));
     const tongueNeck = tongueWidth * 0.72;
-    const tongueProjection = Math.max(4, Math.min(Number.isFinite(lockTongueDepth) ? lockTongueDepth as number : 17.5, panelW * 0.35));
+    const tongueProjection = Math.max(4, Math.min(
+      Number.isFinite(lockTongueDepth) ? lockTongueDepth as number : panelW * (17.5 / referencePanelWidth),
+      panelW * 0.35
+    ));
     const tongueBaseY = yBodyBottom + bottomSideDepth;
     const tongueTipY = tongueBaseY + tongueProjection;
     const receiverY = yBodyBottom + lockDepth;
@@ -935,7 +946,9 @@ const createSnapLockBottomEngine = () => {
       cuts.push(`M ${xa} ${yBodyTop} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${yBodyTop}`);
       creases.push(line(xa, yBodyTop, xb, yBodyTop));
     }
-    cuts.push(line(xs[2], yBodyTop, xs[3], yBodyTop));
+    // The preceding contour already contains both edge segments and the open
+    // thumb notch. A straight line here would cut across the notch and duplicate
+    // portions of the perimeter, leaving the rear/top edge geometrically wrong.
 
     // Bottom tongue flap. The tongue is part of the flap contour, not a
     // decorative rectangle or a separate overlapping knife path.
@@ -977,7 +990,10 @@ const createSnapLockBottomEngine = () => {
 
     labels.push({ x: (xs[0] + xs[1]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `بدنه L=${Math.round(safeL)}mm` });
     labels.push({ x: (xs[1] + xs[2]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `پهنا W=${Math.round(safeW)}mm` });
-    labels.push({ x: tongueCenter, y: (yBodyBottom + tongueTipY) / 2, text: `زبانه قفل ${Math.round(tongueWidth)}mm` });
+    labels.push({ x: tuckCenter, y: yBodyTop - topTuckDepth / 2, text: `زبانه درب ${Math.round(tuckDepth)}mm` });
+    labels.push({ x: (xs[1] + xs[2]) / 2, y: yBodyTop - topDustDepth / 2, text: `گردگیر بالایی ${Math.round(topDustDepth)}mm` });
+    labels.push({ x: tongueCenter, y: (yBodyBottom + tongueTipY) / 2, text: `زبانه قفل ${Math.round(tongueWidth)}mm · بیرون‌زدگی ${Math.round(tongueProjection)}mm` });
+    labels.push({ x: (xs[1] + xs[2]) / 2, y: yBodyBottom + bottomSideDepth / 2, text: `فلپ کناری کف ${Math.round(bottomSideDepth)}mm` });
     labels.push({ x: receiverCenter, y: receiverY - notchDepth - 4, text: `دریچه نیم‌ماه قفل · عرض ${Math.round(notchWidth)} × عمق ${Math.round(notchDepth)}mm` });
 
     const xMin = x0;
