@@ -4,6 +4,7 @@ import { ThreeDPreview } from './ThreeDPreview';
 import { STANDARD_DIELINE_ENGINES } from '../services/dielineMath';
 import type { DielineEngineResult } from '../services/dielineMath';
 import type { Project } from '../types';
+import { runComprehensiveGeometryCheck } from '../services/geometryValidator';
 
 type TemplateOption = {
   id: string; name: string; code: string; category: string;
@@ -105,6 +106,17 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   }, [engine, length, width, height, thickness, glueTab, validInputs]);
 
   const geometry = geometryState.geometry;
+  const geometryAudit = useMemo(() => {
+    if (!geometry) return null;
+    // Validate the actual generated SVG paths. A generous sheet envelope avoids
+    // confusing geometry validity with a user's separate sheet/nesting choice.
+    return runComprehensiveGeometryCheck(
+      geometry.cuts, geometry.creases, length, width, height, templateId,
+      20, 15, geometry.totalW, geometry.totalH,
+      Math.max(100000, geometry.totalW + 1), Math.max(100000, geometry.totalH + 1), glueTab
+    );
+  }, [geometry, length, width, height, templateId, glueTab]);
+  const exportReady = Boolean(geometry && geometryAudit?.passed && !geometryAudit.hasSelfIntersection);
   const filteredTemplates = TEMPLATES.filter(t =>
     (category === 'همه قالب‌ها' || t.category === category) &&
     (t.name + ' ' + t.code + ' ' + t.description).toLocaleLowerCase('fa').includes(search.toLocaleLowerCase('fa'))
@@ -135,7 +147,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   };
 
   const saveProject = () => {
-    if (!geometry || !onSaveProject) return;
+    if (!exportReady || !geometry || !onSaveProject) return;
     const project: Project = {
       id: `dieline-${Date.now()}`, title: `${template.code} — ${length}×${width}×${height}mm`,
       type: 'dieline', status: 'saved_design', date: new Date().toISOString(),
@@ -187,10 +199,10 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             </div>
             {template.note && <p className="rounded-lg border border-amber-900/70 bg-amber-950/30 p-3 text-xs leading-6 text-amber-100"><AlertTriangle className="ml-1 inline h-4 w-4"/>{template.note}</p>}
             <div className="grid grid-cols-2 gap-2">
-              <button disabled={!geometry} onClick={() => geometry && download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className={buttonClass + ' bg-sky-600 hover:bg-sky-500'}><Download className="h-4 w-4"/>خروجی SVG</button>
-              <button disabled={!geometry} onClick={exportDxf} className={buttonClass + ' bg-indigo-600 hover:bg-indigo-500'}><Download className="h-4 w-4"/>خروجی DXF</button>
-              <button disabled={!geometry} onClick={() => geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height }, material: { thickness, glueTab }, geometry }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-700 hover:bg-slate-600'}><Download className="h-4 w-4"/>پروژه JSON</button>
-              <button disabled={!geometry || !onSaveProject} onClick={saveProject} className={buttonClass + ' border border-emerald-800 bg-emerald-950/50 text-emerald-200 hover:bg-emerald-900'}><Save className="h-4 w-4"/>ثبت پروژه</button>
+              <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className={buttonClass + ' bg-sky-600 hover:bg-sky-500'}><Download className="h-4 w-4"/>خروجی SVG</button>
+              <button disabled={!exportReady} onClick={exportDxf} className={buttonClass + ' bg-indigo-600 hover:bg-indigo-500'}><Download className="h-4 w-4"/>خروجی DXF</button>
+              <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height }, material: { thickness, glueTab }, geometry }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-700 hover:bg-slate-600'}><Download className="h-4 w-4"/>پروژه JSON</button>
+              <button disabled={!exportReady || !onSaveProject} onClick={saveProject} className={buttonClass + ' border border-emerald-800 bg-emerald-950/50 text-emerald-200 hover:bg-emerald-900'}><Save className="h-4 w-4"/>ثبت پروژه</button>
             </div>
             {saved && <p className="text-center text-xs text-emerald-300"><CheckCircle2 className="ml-1 inline h-4 w-4"/>پروژه به تابع ذخیره‌سازی تحویل شد.</p>}
           </aside>
@@ -201,6 +213,13 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{template.code} — {template.name}</h3><span className={`rounded-full px-2 py-1 text-[10px] ${geometry ? 'bg-emerald-950 text-emerald-300' : 'bg-red-950 text-red-200'}`}>{geometry ? 'هندسه تولید شد' : 'خطای تولید'}</span></div><p className="mt-1 text-xs leading-5 text-slate-400">قرمز: برش · آبی خط‌چین: خط‌تا · مقیاس مختصات: میلی‌متر</p></div>
                 <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"><Ruler className="ml-1 inline h-4 w-4 text-sky-300"/>{geometry ? `${(geometry.xMax - geometry.xMin).toFixed(1)} × ${(geometry.yMax - geometry.yMin).toFixed(1)} mm` : '—'}</span></div>
               </div>
+              {geometryAudit && <div className={`mb-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-900 bg-emerald-950/30 text-emerald-100' : 'border-amber-900 bg-amber-950/30 text-amber-100'}`}>
+                <div className="flex items-center gap-2 font-bold"><{ 'CheckCircle2' } className="h-4 w-4"/>{exportReady ? 'بررسی ساختاری مسیرها گذشت' : 'خروجی به بررسی بیشتر نیاز دارد'}</div>
+                <p className="mt-1">طول برش تقریبی: {geometryAudit.cutLength} mm · طول خط‌تا: {geometryAudit.creaseLength} mm · امتیاز بررسی ساختاری: {geometryAudit.score}/100</p>
+                {geometryAudit.errors.map((message, i) => <p key={`audit-error-${i}`} className="mt-1">• {message}</p>)}
+                {geometryAudit.warnings.map((message, i) => <p key={`audit-warning-${i}`} className="mt-1">• {message}</p>)}
+                {geometryAudit.hasSelfIntersection && <p className="mt-1 font-bold">به‌دلیل تقاطع مسیر برش در یک مسیر، خروجی فایل و ثبت پروژه موقتاً غیرفعال است.</p>}
+              </div>}
               {geometryState.error && <div role="alert" className="mb-3 flex gap-2 rounded-xl border border-red-800 bg-red-950/40 p-3 text-sm text-red-100"><XCircle className="mt-0.5 h-5 w-5 shrink-0"/><div><strong>تولید دایلاین متوقف شد.</strong><p className="mt-1 text-xs leading-5">{geometryState.error}</p></div></div>}
               {geometry && <div className="overflow-auto rounded-xl border border-slate-800 bg-white p-2">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
@@ -230,7 +249,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             </section>
             <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3 text-xs leading-6 text-slate-400 sm:p-4">
               <h4 className="mb-1 flex items-center gap-2 font-bold text-slate-200"><Scissors className="h-4 w-4 text-rose-300"/>یادداشت تولید</h4>
-              <p>نام یا شماره قالب به‌تنهایی تضمین‌کننده تطابق با نقشه رسمی نیست. در این نسخه، ضخامت ورق روی خلاصی فلپ‌ها اثر می‌گذارد، اما جبران کامل ابعاد داخل/خارج و اصلاحات هر خط تا هنوز برای همه قالب‌ها پیاده‌سازی نشده است؛ ابعاد را پیش از تولید با نقشه مرجع، جهت الیاف، تلرانس ماشین و نمونه تاخورده تطبیق دهید. این استودیو خطای آشکار در ابعاد یا مسیرهای خالی را متوقف می‌کند و خروجی را در صورت معتبر نبودن هندسه غیرفعال می‌سازد.</p>
+              <p>نام یا شماره قالب به‌تنهایی تضمین‌کننده تطابق با نقشه رسمی نیست. در این نسخه، ضخامت ورق روی خلاصی فلپ‌ها اثر می‌گذارد، اما جبران کامل ابعاد داخل/خارج و اصلاحات هر خط تا هنوز برای همه قالب‌ها پیاده‌سازی نشده است؛ ابعاد را پیش از تولید با نقشه مرجع، جهت الیاف، تلرانس ماشین و نمونه تاخورده تطبیق دهید. این استودیو علاوه بر کنترل ابعاد و مسیرهای خالی، مسیرهای SVG تولیدشده را از نظر ساختار و تقاطع‌های آشکار بررسی می‌کند؛ این بررسی جایگزین تأیید نقشه مرجع یا نمونه فیزیکی نیست.</p>
               <p className="mt-1">* برچسب ستاره‌دار یا «قالب سفارشی» به معنی هندسه پایه داخلی است، نه تأیید رسمی FEFCO/ECMA.</p>
             </section>
           </main>
