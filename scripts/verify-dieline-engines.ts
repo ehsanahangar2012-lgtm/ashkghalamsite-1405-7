@@ -183,6 +183,25 @@ if (inchEntities.length !== 1 ||
   fail(`DXF inch units should normalize to millimetres (10 x 5 in -> 254 x 127 mm), got ${JSON.stringify(inchEntities[0])}`);
 }
 
+// LWPOLYLINE group 42 is the bulge for the segment starting at that vertex.
+// A unit bulge between (0,0) and (100,0) is a semicircle and must be tessellated.
+const bulgedPolylineDxf = [
+  '0','SECTION','2','ENTITIES',
+  '0','LWPOLYLINE','8','CUT','90','2','70','0',
+  '10','0','20','0','42','1',
+  '10','100','20','0',
+  '0','ENDSEC','0','EOF'
+].join('\\n');
+const bulgedEntities = parseDxfToEntities(bulgedPolylineDxf);
+if (bulgedEntities.length < 10 ||
+    !bulgedEntities.every(entity => [entity.start?.x,entity.start?.y,entity.end?.x,entity.end?.y].every(Number.isFinite))) {
+  fail(`DXF bulge should produce finite tessellated arc segments, got ${bulgedEntities.length}`);
+}
+if (Math.abs((bulgedEntities[0].start?.x ?? NaN) - 0) > 1e-9 ||
+    Math.abs((bulgedEntities[bulgedEntities.length - 1].end?.x ?? NaN) - 100) > 1e-9) {
+  fail('DXF bulge tessellation must preserve the source segment endpoints');
+}
+
 // Legacy POLYLINE closure is encoded in header group 70; it must produce
 // the missing final edge exactly once, even if the last vertex repeats the first.
 const closedLegacyPolyline = [
