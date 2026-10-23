@@ -313,23 +313,35 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
     const creases: string[] = [];
     const labels: { x: number; y: number; text: string }[] = [];
 
+    // Production-style corner relief for dust flaps and a locking notch in each tuck tongue.
+    const dustFlapPath = (left: number, right: number, hingeY: number, depth: number, direction: -1 | 1) => {
+      const cut = Math.min(depth, (right - left) / 2);
+      const outerY = hingeY + direction * depth;
+      const innerY = outerY - direction * cut;
+      return `M ${left} ${hingeY} L ${left} ${innerY} L ${left + cut} ${outerY} L ${right - cut} ${outerY} L ${right} ${innerY} L ${right} ${hingeY}`;
+    };
+
     // Glue tab
     cuts.push(`M ${x0 + 3} ${yBodyTop} L ${x0} ${yBodyTop + 3} L ${x0} ${yBodyBtm - 3} L ${x0 + 3} ${yBodyBtm}`);
     creases.push(`M ${xG} ${yBodyTop} L ${xG} ${yBodyBtm}`);
 
     // Top Tuck End Flap (on panel 1)
     cuts.push(`M ${x0 + 3} ${yBodyTop} L ${xG} ${yBodyTop}`);
-    cuts.push(`M ${xG} ${yBodyTop} L ${xG} ${yTopFlap} L ${xG + 4} ${yTopTuck} L ${xP1 - 4} ${yTopTuck} L ${xP1} ${yTopFlap} L ${xP1} ${yBodyTop}`);
+    const topTuckInset = Math.min(L * 0.12, T * 0.6);
+    const topSlotWidth = Math.min(L * 0.22, L - 2 * topTuckInset);
+    const topSlotDepth = Math.min(T * 0.18, 6);
+    const topTuckCenter = (xG + xP1) / 2;
+    cuts.push(`M ${xG} ${yBodyTop} L ${xG} ${yTopFlap} L ${xG + topTuckInset} ${yTopTuck} L ${topTuckCenter - topSlotWidth / 2} ${yTopTuck} L ${topTuckCenter - topSlotWidth / 2} ${yTopTuck + topSlotDepth} L ${topTuckCenter + topSlotWidth / 2} ${yTopTuck + topSlotDepth} L ${topTuckCenter + topSlotWidth / 2} ${yTopTuck} L ${xP1 - topTuckInset} ${yTopTuck} L ${xP1} ${yTopFlap} L ${xP1} ${yBodyTop}`);
     creases.push(`M ${xG} ${yBodyTop} L ${xP1} ${yBodyTop}`);
     creases.push(`M ${xG} ${yTopFlap} L ${xP1} ${yTopFlap}`);
 
     // Dust flaps on Panel 2 and 4
-    cuts.push(`M ${xP1} ${yBodyTop} L ${xP1} ${yBodyTop - DF} L ${xP2} ${yBodyTop - DF} L ${xP2} ${yBodyTop}`);
+    cuts.push(dustFlapPath(xP1, xP2, yBodyTop, DF, -1));
     creases.push(`M ${xP1} ${yBodyTop} L ${xP2} ${yBodyTop}`);
 
     cuts.push(`M ${xP2} ${yBodyTop} L ${xP3} ${yBodyTop}`);
 
-    cuts.push(`M ${xP3} ${yBodyTop} L ${xP3} ${yBodyTop - DF} L ${xP4} ${yBodyTop - DF} L ${xP4} ${yBodyTop}`);
+    cuts.push(dustFlapPath(xP3, xP4, yBodyTop, DF, -1));
     creases.push(`M ${xP3} ${yBodyTop} L ${xP4} ${yBodyTop}`);
 
     // Bottom Flaps
@@ -338,10 +350,10 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       cuts.push(`M ${xG} ${yBodyBtm} L ${xG} ${yBtmFlap} L ${xP1} ${yBtmFlap} L ${xP1} ${yBodyBtm}`);
       creases.push(`M ${xG} ${yBodyBtm} L ${xP1} ${yBodyBtm}`);
       creases.push(`M ${xG} ${yBtmFlap} L ${xP1} ${yBtmFlap}`);
-      cuts.push(`M ${xP1} ${yBodyBtm} L ${xP1} ${yBodyBtm + DF} L ${xP2} ${yBodyBtm + DF} L ${xP2} ${yBodyBtm}`);
+      cuts.push(dustFlapPath(xP1, xP2, yBodyBtm, DF, 1));
       creases.push(`M ${xP1} ${yBodyBtm} L ${xP2} ${yBodyBtm}`);
       cuts.push(`M ${xP2} ${yBodyBtm} L ${xP3} ${yBodyBtm}`);
-      cuts.push(`M ${xP3} ${yBodyBtm} L ${xP3} ${yBodyBtm + DF} L ${xP4} ${yBodyBtm + DF} L ${xP4} ${yBodyBtm}`);
+      cuts.push(dustFlapPath(xP3, xP4, yBodyBtm, DF, 1));
       creases.push(`M ${xP3} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
     } else if (!isCrashLock) {
       // Panel 3 bottom tuck flap
@@ -350,7 +362,11 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
 
       cuts.push(`M ${xP1} ${yBodyBtm} L ${xP2} ${yBodyBtm}`);
 
-      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP2} ${yBtmFlap} L ${xP2 + 4} ${yBtmTuck} L ${xP3 - 4} ${yBtmTuck} L ${xP3} ${yBtmFlap} L ${xP3} ${yBodyBtm}`);
+      const bottomTuckInset = Math.min(L * 0.12, T * 0.6);
+      const bottomSlotWidth = Math.min(L * 0.22, L - 2 * bottomTuckInset);
+      const bottomSlotDepth = Math.min(T * 0.18, 6);
+      const bottomTuckCenter = (xP2 + xP3) / 2;
+      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP2} ${yBtmFlap} L ${xP2 + bottomTuckInset} ${yBtmTuck} L ${bottomTuckCenter + bottomSlotWidth / 2} ${yBtmTuck} L ${bottomTuckCenter + bottomSlotWidth / 2} ${yBtmTuck - bottomSlotDepth} L ${bottomTuckCenter - bottomSlotWidth / 2} ${yBtmTuck - bottomSlotDepth} L ${bottomTuckCenter - bottomSlotWidth / 2} ${yBtmTuck} L ${xP3 - bottomTuckInset} ${yBtmTuck} L ${xP3} ${yBtmFlap} L ${xP3} ${yBodyBtm}`);
       creases.push(`M ${xP2} ${yBodyBtm} L ${xP3} ${yBodyBtm}`);
       creases.push(`M ${xP2} ${yBtmFlap} L ${xP3} ${yBtmFlap}`);
 
