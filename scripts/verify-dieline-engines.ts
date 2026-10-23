@@ -196,7 +196,7 @@ const closedLegacyPolyline = [
 ].join('\n');
 const closedLegacyEntities = parseDxfToEntities(closedLegacyPolyline);
 if (closedLegacyEntities.length !== 3) {
-  fail(\`closed legacy DXF POLYLINE should yield three edges, got \${closedLegacyEntities.length}\`);
+  fail(`closed legacy DXF POLYLINE should yield three edges, got ${closedLegacyEntities.length}`);
 }
 const explicitlyClosedLegacyPolyline = [
   '0','SECTION','2','ENTITIES',
@@ -210,7 +210,7 @@ const explicitlyClosedLegacyPolyline = [
 ].join('\n');
 const explicitClosedEntities = parseDxfToEntities(explicitlyClosedLegacyPolyline);
 if (explicitClosedEntities.length !== 3) {
-  fail(\`legacy DXF POLYLINE with repeated first vertex must not duplicate closure, got \${explicitClosedEntities.length}\`);
+  fail(`legacy DXF POLYLINE with repeated first vertex must not duplicate closure, got ${explicitClosedEntities.length}`);
 }
 const parsedValidation = validateDxfDieline(parsedDxf);
 if (!parsedValidation.valid || parsedValidation.totalLength <= 0 || parsedValidation.totalLength === 1250) {
