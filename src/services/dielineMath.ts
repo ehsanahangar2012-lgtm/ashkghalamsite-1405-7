@@ -88,9 +88,11 @@ export const calculateDielineParameters = (
     const sidePanelArea = (2 * safeL + 2 * safeW + glue) * safeH;
     const totalPanelSpan = 2 * safeL + 2 * safeW;
     const halfFlapPerEdge = totalPanelSpan * Math.max(0, safeW * 0.5 - clearance);
+    const widthPanelsMeetArea = Math.max(0, 2 * safeL * safeW - 2 * clearance * (safeL + safeW));
     const fullFlapPerEdge = totalPanelSpan * Math.max(0, safeW - clearance);
-    const topFlaps = engineId === 'fefco-0200' ? 0 : engineId === 'fefco-0203' ? fullFlapPerEdge : halfFlapPerEdge;
-    const bottomFlaps = engineId === 'fefco-0203' ? fullFlapPerEdge : halfFlapPerEdge;
+    const flapArea = engineId === 'fefco-0204' ? widthPanelsMeetArea : halfFlapPerEdge;
+    const topFlaps = engineId === 'fefco-0200' ? 0 : engineId === 'fefco-0203' ? fullFlapPerEdge : flapArea;
+    const bottomFlaps = engineId === 'fefco-0203' ? fullFlapPerEdge : flapArea;
     blankAreaMm2 = sidePanelArea + topFlaps + bottomFlaps;
   } else {
     blankAreaMm2 = 2 * safeL * safeW + 2 * safeL * safeH + 2 * safeW * safeH;
@@ -647,11 +649,21 @@ const createSlottedCaseEngine = (style: SlottedStyle) => {
     const flapClearance = Math.max(1, Math.min(6, thickness * 1.5));
     const halfFlaps = getRscFlapDepths(L, W, 0.5, 0.5, flapClearance);
     const fullOverlapFlaps = getRscFlapDepths(L, W, 1, 1, flapClearance);
+    // FEFCO 0204 is the variant where the flaps attached to the width panels meet;
+    // those two flaps therefore extend by L/2, while the length-panel flaps use W/2.
+    const widthPanelsMeet = [
+      Math.max(0, W * 0.5 - flapClearance),
+      Math.max(0, L * 0.5 - flapClearance),
+      Math.max(0, W * 0.5 - flapClearance),
+      Math.max(0, L * 0.5 - flapClearance),
+    ];
     const topDepths = style === '0200'
       ? [0, 0, 0, 0]
       : style === '0203'
         ? fullOverlapFlaps.top
-        : halfFlaps.top;
+        : style === '0204'
+          ? widthPanelsMeet
+          : halfFlaps.top;
     // FEFCO 0200 is open at the top, but its bottom still needs the normal opposing flap geometry.
     const bottomDepths = style === '0200' ? halfFlaps.bottom : [...topDepths];
     const maxTop = Math.max(...topDepths);
