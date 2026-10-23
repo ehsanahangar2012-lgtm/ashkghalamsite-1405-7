@@ -241,11 +241,13 @@ export function BoxStudio() {
                   <g transform="translate(25 25)">
                     {geom.lines.map((s, i) => <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} stroke={s.kind === 'cut' ? '#e44747' : '#2878cf'} strokeWidth={s.kind === 'cut' ? 1.35 : 1.05} strokeDasharray={s.kind === 'fold' ? '5 3' : undefined} vectorEffect="non-scaling-stroke"/>)}
                     {showDimensions && <g data-ui-only="true" fill="#526176" fontSize="9" fontWeight="600">
-                      <text x={geom.xs[0] + L/2} y={geom.yTop + H/2} textAnchor="middle">{L} mm</text>
-                      <text x={geom.xs[1] + W/2} y={geom.yTop + H/2} textAnchor="middle">{W} mm</text>
-                      <text x={geom.xs[2] + L/2} y={geom.yTop + H/2} textAnchor="middle">{L} mm</text>
-                      <text x={geom.xs[3] + W/2} y={geom.yTop + H/2} textAnchor="middle">{W} mm</text>
-                      <text x={geom.totalW/2} y={geom.yBottom + geom.flap + 13} textAnchor="middle">گسترده تقریبی: {Math.round(geom.totalW)} × {Math.round(geom.totalH)} mm</text>
+                      {template === 'rsc' ? <>
+                        <text x={geom.xs[0] + L/2} y={geom.yTop + H/2} textAnchor="middle">{L} mm</text>
+                        <text x={geom.xs[1] + W/2} y={geom.yTop + H/2} textAnchor="middle">{W} mm</text>
+                        <text x={geom.xs[2] + L/2} y={geom.yTop + H/2} textAnchor="middle">{L} mm</text>
+                        <text x={geom.xs[3] + W/2} y={geom.yTop + H/2} textAnchor="middle">{W} mm</text>
+                      </> : <text x={(geom.xs[0] + geom.xs[1])/2} y={(geom.yTop + geom.yBottom)/2} textAnchor="middle">{L} × {W} mm</text>}
+                      <text x={geom.totalW/2} y={geom.totalH - 4} textAnchor="middle">گسترده تقریبی: {Math.round(geom.totalW)} × {Math.round(geom.totalH)} mm</text>
                     </g>}
                   </g>
                 </svg>
