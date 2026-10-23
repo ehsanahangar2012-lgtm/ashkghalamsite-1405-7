@@ -113,8 +113,16 @@ export function BoxStudio() {
   const geom = useMemo(() => makeGeometry(L, W, H, G, Number(allowance) || 0, template), [L, W, H, G, allowance, template]);
   const viewW = geom.totalW + 50;
   const viewH = geom.totalH + 50;
-  const sheetWidth = geom.totalW + 2 * thickness;
-  const sheetHeight = geom.totalH + 2 * thickness;
+  const bounds = useMemo(() => {
+    const xs = geom.lines.flatMap(line => [line.x1, line.x2]);
+    const ys = geom.lines.flatMap(line => [line.y1, line.y2]);
+    return {
+      minX: Math.min(...xs), maxX: Math.max(...xs),
+      minY: Math.min(...ys), maxY: Math.max(...ys),
+    };
+  }, [geom]);
+  const sheetWidth = Math.max(0, bounds.maxX - bounds.minX) + 2 * thickness;
+  const sheetHeight = Math.max(0, bounds.maxY - bounds.minY) + 2 * thickness;
   const warnings = [
     ...(L < 40 || W < 40 || H < 20 ? ['ابعاد انتخابی کوچک است؛ امکان ساخت را بررسی کنید.'] : []),
     ...(template === 'rsc' && W / 2 + Number(allowance) < thickness * 2 ? ['عمق فلپ نسبت به ضخامت ورق کم است.'] : []),
@@ -213,14 +221,14 @@ export function BoxStudio() {
               <button onClick={() => {setLength(240);setWidth(160);setHeight(100);setGlue(28);setAllowance(0);setBoard('E');setTemplate('rsc');}} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"><RotateCcw size={14}/> بازگشت به ابعاد نمونه</button>
             </section>
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-3 flex items-center gap-2"><Ruler size={18} className="text-indigo-600"/><h2 className="font-extrabold">برآورد گسترده</h2></div>
+              <div className="mb-3 flex items-center gap-2"><Ruler size={18} className="text-indigo-600"/><h2 className="font-extrabold">برآورد ابعاد گسترده</h2></div>
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between border-b border-slate-100 pb-2"><span className="text-slate-500">عرض گسترده تقریبی</span><strong>{sheetWidth.toFixed(1)} mm</strong></div>
                 <div className="flex justify-between border-b border-slate-100 pb-2"><span className="text-slate-500">ارتفاع گسترده تقریبی</span><strong>{sheetHeight.toFixed(1)} mm</strong></div>
-                <div className="flex justify-between border-b border-slate-100 pb-2"><span className="text-slate-500">مساحت یک گسترده</span><strong>{materialArea.toFixed(3)} m²</strong></div>
+                <div className="flex justify-between border-b border-slate-100 pb-2"><span className="text-slate-500">مساحت هندسی تقریبی</span><strong>{materialArea.toFixed(3)} m²</strong></div>
                 <div className="flex justify-between"><span className="text-slate-500">ضخامت اسمی ورق</span><strong>{thickness} mm</strong></div>
               </div>
-              <p className="mt-3 rounded-xl bg-amber-50 p-3 text-[11px] leading-5 text-amber-800">این اعداد برآورد هندسی اولیه‌اند؛ جبران ضخامت، جهت فلوت، شیارزنی و تلرانس دستگاه باید با مشخصات خط تولید تنظیم شود.</p>
+              <p className="mt-3 rounded-xl bg-amber-50 p-3 text-[11px] leading-5 text-amber-800">مساحت از محدوده هندسی خطوط محاسبه می‌شود و پرت ورق، جهت فلوت، شیارزنی و تلرانس دستگاه را شامل نمی‌شود.</p>
             </section>
           </aside>
 
