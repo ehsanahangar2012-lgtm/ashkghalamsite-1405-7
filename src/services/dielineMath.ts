@@ -78,9 +78,25 @@ export const calculateDielineParameters = (
   };
 
   const grossArea = (geometry.totalW * geometry.totalH) / 1_000_000;
-  const netArea = (2 * safeL * safeW + 2 * safeL * safeH + 2 * safeW * safeH) / 1_000_000;
+  // Estimate blank area from the actual panel/flap construction for the FEFCO 0200 slotted family.
+  // Other engines use a conservative box-surface proxy until their individual panel maps are modeled.
+  const isSlottedCase = ['default-rsc', 'fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204'].includes(engineId);
+  let blankAreaMm2: number;
+  if (isSlottedCase) {
+    const glue = Math.max(15, 35);
+    const clearance = Math.max(1, Math.min(6, safeCaliper * 1.5));
+    const sidePanelArea = (2 * safeL + 2 * safeW + glue) * safeH;
+    const halfFlapPerEdge = Math.max(0, safeL * safeW - clearance * (safeL + safeW));
+    const fullFlapPerEdge = Math.max(0, 2 * safeL * safeW - clearance * (safeL + safeW));
+    const topFlaps = engineId === 'fefco-0200' ? 0 : engineId === 'fefco-0203' ? fullFlapPerEdge : halfFlapPerEdge;
+    const bottomFlaps = engineId === 'fefco-0203' ? fullFlapPerEdge : halfFlapPerEdge;
+    blankAreaMm2 = sidePanelArea + topFlaps + bottomFlaps;
+  } else {
+    blankAreaMm2 = 2 * safeL * safeW + 2 * safeL * safeH + 2 * safeW * safeH;
+  }
+  const netArea = Math.max(0, blankAreaMm2 / 1_000_000);
   const wastePercentage = grossArea > 0
-    ? Math.max(0, Math.min(100, Math.round(((grossArea - netArea) / grossArea) * 100)))
+    ? Math.max(0, Math.min(100, Math.round(((grossArea - Math.min(grossArea, netArea)) / grossArea) * 100)))
     : 0;
 
   return {
