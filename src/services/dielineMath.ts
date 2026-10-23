@@ -445,12 +445,14 @@ const createPizzaBoxEngine = () => {
     // One continuous blank: front tuck + lid + back wall + base + front wall,
     // with side walls attached to the base. Side locking details are simplified.
     cuts.push(
-      `M ${xB + 3} ${yTuck} L ${xR - 3} ${yTuck} L ${xR} ${yLidTop} L ${xR} ${yBackBottom} L ${xR + wall} ${yBackBottom} L ${xR + wall} ${yBaseBottom} L ${xR} ${yBaseBottom} L ${xR} ${yFrontBottom} L ${xB} ${yFrontBottom} L ${xB} ${yBaseBottom} L ${xB - wall} ${yBaseBottom} L ${xB - wall} ${yBackBottom} L ${xB} ${yBackBottom} L ${xB} ${yLidTop} Z`
+      `M ${xB + 3} ${yTuck} L ${xR - 3} ${yTuck} L ${xR} ${yLidTop} L ${xR} ${yBackBottom - sideTab} L ${xR + wall} ${yBackBottom - sideTab} L ${xR + wall} ${yBackBottom} L ${xR + wall} ${yBaseBottom} L ${xR + wall} ${yBaseBottom + sideTab} L ${xR} ${yBaseBottom + sideTab} L ${xR} ${yBaseBottom} L ${xR} ${yFrontBottom} L ${xB} ${yFrontBottom} L ${xB} ${yBaseBottom} L ${xB} ${yBaseBottom + sideTab} L ${xB - wall} ${yBaseBottom + sideTab} L ${xB - wall} ${yBaseBottom} L ${xB - wall} ${yBackBottom} L ${xB - wall} ${yBackBottom - sideTab} L ${xB} ${yBackBottom - sideTab} L ${xB} ${yBackBottom} L ${xB} ${yLidTop} Z`
     );
 
-    // Cut reliefs at lid corners and simple tuck ears; dimensions remain parametric.
-    cuts.push(`M ${xB} ${yLidTop} L ${xB + sideTab} ${yLidTop + Math.min(wall, 12)} L ${xB + sideTab} ${yLidBottom - 8}`);
-    cuts.push(`M ${xR} ${yLidTop} L ${xR - sideTab} ${yLidTop + Math.min(wall, 12)} L ${xR - sideTab} ${yLidBottom - 8}`);
+    // Side tabs fold inward against the front/back walls to close the corners.
+    creases.push(`M ${xB - wall} ${yBackBottom} L ${xB} ${yBackBottom}`);
+    creases.push(`M ${xB - wall} ${yBaseBottom} L ${xB} ${yBaseBottom}`);
+    creases.push(`M ${xR} ${yBackBottom} L ${xR + wall} ${yBackBottom}`);
+    creases.push(`M ${xR} ${yBaseBottom} L ${xR + wall} ${yBaseBottom}`);
 
     // Creases: tuck/lid, lid/back, back/base, base/front and side-wall hinges.
     creases.push(`M ${xB} ${yLidTop} L ${xR} ${yLidTop}`);
