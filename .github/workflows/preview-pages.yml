@@ -1,0 +1,41 @@
+name: Preview box studio on GitHub Pages
+on:
+  push:
+    branches:
+      - upgrade/review-and-improvements
+    paths:
+      - 'public/**'
+      - '.github/workflows/preview-pages.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages-preview
+  cancel-in-progress: true
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout isolated preview branch
+        uses: actions/checkout@v4
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Package static offline preview
+        run: |
+          test -f public/index.html
+          test -f public/box-studio/index.html
+          mkdir -p _site
+          cp -R public/. _site/
+          touch _site/.nojekyll
+      - name: Upload static preview
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy preview
+        id: deployment
+        uses: actions/deploy-pages@v4
