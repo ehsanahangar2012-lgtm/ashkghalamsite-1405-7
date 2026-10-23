@@ -53,7 +53,7 @@ function makeGeometry(L: number, W: number, H: number, glue: number, allowance: 
   line(0, yTop + 8, glue, yTop, 'cut');
   line(0, yBottom - 8, glue, yBottom, 'cut');
   line(glue, yTop, glue, yBottom, 'fold');
-  line(xs[0], yTop, xs[4], yTop, 'fold');
+  line(xs[0], yTop, xs[4], yTop, topFlaps ? 'fold' : 'cut');
   line(xs[0], yBottom, xs[4], yBottom, 'fold');
   line(xs[4], yTop, xs[4], yBottom, 'cut');
   [xs[1], xs[2], xs[3]].forEach(x => line(x, yTop, x, yBottom, 'fold'));
@@ -93,7 +93,7 @@ export function BoxStudio() {
   const [glue, setGlue] = useState(28);
   const [allowance, setAllowance] = useState(0);
   const [board, setBoard] = useState('E');
-  const [template, setTemplate] = useState<BoxTemplate>('rsc');
+  const [template, setTemplate] = useState<BoxTemplate>('0201');
   const [showDimensions, setShowDimensions] = useState(true);
   const [saved, setSaved] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -186,7 +186,7 @@ export function BoxStudio() {
             </div>
           </div>
           <div className="mt-6 grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[['ساختار', 'FEFCO 02-series'], ['واحد طراحی', 'میلی‌متر'], ['محاسبه', 'محلی و لحظه‌ای'], ['خروجی', 'SVG · DXF · JSON']].map(([k,v]) => <div key={k} className="rounded-xl border border-white/10 bg-white/5 p-3"><div className="text-[10px] text-slate-400">{k}</div><div className="mt-1 text-xs font-bold text-white">{v}</div></div>)}
+            {[['ساختار', `FEFCO ${template}`], ['واحد طراحی', 'میلی‌متر'], ['محاسبه', 'محلی و لحظه‌ای'], ['خروجی', 'SVG · DXF · JSON']].map(([k,v]) => <div key={k} className="rounded-xl border border-white/10 bg-white/5 p-3"><div className="text-[10px] text-slate-400">{k}</div><div className="mt-1 text-xs font-bold text-white">{v}</div></div>)}
           </div>
         </header>
 
