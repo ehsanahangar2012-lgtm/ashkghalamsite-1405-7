@@ -6,10 +6,12 @@ import type { DielineEngineParams, DielineEngineResult } from './dielineMath';
  * major panels. This is a parametric baseline, not a certified vendor die.
  */
 export const createRteEngine = (straightTuck = false) => {
-  return ({ L, W, H, glueTab = 15, tuck = 20, dustFlap, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
-    const l = Math.max(20, Number.isFinite(L) ? L : 20);
-    const w = Math.max(12, Number.isFinite(W) ? W : 12);
-    const h = Math.max(10, Number.isFinite(H) ? H : 10);
+  return ({ L, W, H, glueTab = 15, tuck = 20, dustFlap, thickness = 0.45, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 0.45);
+    // Inside-size inputs: basic caliper allowance on each crease-to-crease body panel.
+    const l = Math.max(20, (Number.isFinite(L) ? L : 20) + t);
+    const w = Math.max(12, (Number.isFinite(W) ? W : 12) + t);
+    const h = Math.max(10, (Number.isFinite(H) ? H : 10) + t);
     const g = Math.max(8, Math.min(200, Number.isFinite(glueTab) ? glueTab as number : 15));
     const tongue = Math.max(8, Math.min(Number.isFinite(tuck) ? tuck as number : 20, w * 0.75));
     const dust = Math.max(8, Math.min(Number.isFinite(dustFlap) ? dustFlap as number : w * 0.45, w * 0.48));
