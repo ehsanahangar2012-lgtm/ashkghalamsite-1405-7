@@ -6658,7 +6658,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                         </div>
                         <div className="flex items-center gap-1">
                           <span className="px-2 py-0.5 rounded-lg bg-sky-500/15 border border-sky-500/40 text-cyan-300 font-mono text-[9.5px] font-bold">
-                            {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110 / FEFCO 0711' : selectedModel.id === 'fefco-0215' ? 'FEFCO 0215' : selectedModel.id === 'fefco-0201' ? 'FEFCO 0201' : selectedModel.id === 'fefco-0427' ? 'FEFCO 0427' : 'ECMA Standard'}
+                            {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110' : selectedModel.id === 'fefco-0215' ? 'FEFCO 0215' : selectedModel.id === 'fefco-0201' ? 'FEFCO 0201' : selectedModel.id === 'fefco-0427' ? 'FEFCO 0427' : 'ECMA Standard'}
                           </span>
                           <button
                             onClick={() => setIsStandardHudCollapsed(true)}
