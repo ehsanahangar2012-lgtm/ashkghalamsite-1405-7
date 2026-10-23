@@ -227,6 +227,25 @@ if (Math.abs((inserted.start?.x ?? NaN) - 100) > 1e-8 ||
   fail(`DXF INSERT transform incorrect: ${JSON.stringify(inserted)}`);
 }
 
+// A quadratic rational B-spline with clamped knots should be tessellated into
+// finite line segments and preserve its curve bounds.
+const splineDxf = [
+  '0','SECTION','2','ENTITIES',
+  '0','SPLINE','8','CUT','70','0','71','2','72','6','73','3','74','0',
+  '40','0','40','0','40','0','40','1','40','1','40','1',
+  '10','0','20','0','10','50','20','100','10','100','20','0',
+  '0','ENDSEC','0','EOF'
+].join('\\n');
+const splineEntities = parseDxfToEntities(splineDxf);
+if (splineEntities.length < 16 ||
+    !splineEntities.every(entity => [entity.start?.x,entity.start?.y,entity.end?.x,entity.end?.y].every(Number.isFinite))) {
+  fail(`DXF SPLINE should yield finite tessellated segments, got ${splineEntities.length}`);
+}
+const splineMaxY = Math.max(...splineEntities.flatMap(entity => [entity.start?.y ?? -Infinity, entity.end?.y ?? -Infinity]));
+if (splineMaxY < 45 || splineMaxY > 55) {
+  fail(`DXF quadratic SPLINE bounds incorrect; expected peak near 50, got ${splineMaxY}`);
+}
+
 // Legacy POLYLINE closure is encoded in header group 70; it must produce
 // the missing final edge exactly once, even if the last vertex repeats the first.
 const closedLegacyPolyline = [
