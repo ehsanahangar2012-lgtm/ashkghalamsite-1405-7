@@ -235,7 +235,7 @@ const splineDxf = [
   '40','0','40','0','40','0','40','1','40','1','40','1',
   '10','0','20','0','10','50','20','100','10','100','20','0',
   '0','ENDSEC','0','EOF'
-].join('\\n');
+].join('\n');
 const splineEntities = parseDxfToEntities(splineDxf);
 if (splineEntities.length < 16 ||
     !splineEntities.every(entity => [entity.start?.x,entity.start?.y,entity.end?.x,entity.end?.y].every(Number.isFinite))) {
