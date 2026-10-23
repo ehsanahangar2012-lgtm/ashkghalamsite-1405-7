@@ -81,6 +81,9 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [thickness, setThickness] = useState(1.5);
   const [slotGap, setSlotGap] = useState(2.25);
   const [autoLockAngle, setAutoLockAngle] = useState(45);
+  const [autoLockTuckDepth, setAutoLockTuckDepth] = useState(25);
+  const [autoLockDustDepth, setAutoLockDustDepth] = useState(43);
+  const [autoLockSideDepth, setAutoLockSideDepth] = useState(40.5);
   const [dimensionConvention, setDimensionConvention] = useState<'inside' | 'outside'>('inside');
   const [materialPreset, setMaterialPreset] = useState('corrugated-e');
   const [glueTab, setGlueTab] = useState(30);
@@ -93,16 +96,22 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
   const supportsLockAngle = ['snap-lock-123', 'fefco-0713'].includes(templateId);
   const supportsLidHeight = ['fefco-0300', 'fefco-0301', 'fefco-0320'].includes(templateId);
+  const supportsAutoLockDimensions = templateId === 'fefco-0713';
   const validInputs = numeric(length, 10, 2000) && numeric(width, 10, 2000) && numeric(height, 10, 2000) &&
     numeric(thickness, 0.2, 10) && numeric(glueTab, 5, 200) && numeric(slotGap, 1, 10) && numeric(lidHeight, 5, 2000) &&
-    (!supportsLockAngle || numeric(autoLockAngle, 25, 65)) && (!supportsLidHeight || numeric(lidClearance, 0.1, 12));
+    (!supportsLockAngle || numeric(autoLockAngle, 25, 65)) &&
+    (!supportsAutoLockDimensions || (numeric(autoLockTuckDepth, 4, 60) && numeric(autoLockDustDepth, 4, 43) && numeric(autoLockSideDepth, 6, 43))) &&
+    (!supportsLidHeight || numeric(lidClearance, 0.1, 12));
   const engine = STANDARD_DIELINE_ENGINES[templateId];
   const supportsDimensionConvention = ['fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'default-rsc', 'fefco-0713'].includes(templateId);
   const supportsSlotGap = ['fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'default-rsc'].includes(templateId);
   const geometryState = useMemo(() => {
     if (!validInputs || typeof engine !== 'function') return { geometry: null as DielineEngineResult | null, error: 'ابعاد باید عدد معتبر باشند و در محدوده مجاز قرار گیرند.' };
     try {
-      const g = engine({ L: length, W: width, H: height, lidHeight, lidClearance, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, x0: 40 });
+      const g = engine({
+        L: length, W: width, H: height, lidHeight, lidClearance, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, x0: 40,
+        ...(supportsAutoLockDimensions ? { tuck: autoLockTuckDepth, dustFlap: autoLockDustDepth, bottomFlapDepth: autoLockSideDepth } : {}),
+      });
       const allValues = [g.xMin, g.yMin, g.xMax, g.yMax, g.totalW, g.totalH];
       const pathsValid = Array.isArray(g.cuts) && g.cuts.length > 0 &&
         Array.isArray(g.creases) && g.creases.length > 0 &&
@@ -115,7 +124,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     } catch (error) {
       return { geometry: null, error: error instanceof Error ? error.message : 'خطای ناشناخته در موتور تولید قالب.' };
     }
-  }, [engine, length, width, height, lidHeight, lidClearance, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, validInputs]);
+  }, [engine, length, width, height, lidHeight, lidClearance, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, autoLockTuckDepth, autoLockDustDepth, autoLockSideDepth, supportsAutoLockDimensions, validInputs]);
 
   const geometry = geometryState.geometry;
   const geometryAudit = useMemo(() => {
@@ -210,6 +219,9 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                   setGlueTab(15); setDimensionConvention('inside');
                 } else if (nextId === 'fefco-0215') {
                   setMaterialPreset('corrugated-e'); setThickness(1.5);
+                } else if (nextId === 'fefco-0713') {
+                  setAutoLockTuckDepth(25); setAutoLockDustDepth(43); setAutoLockSideDepth(40.5);
+                  setGlueTab(15); setDimensionConvention('inside');
                 }
               }} className={inputClass}>
                 {TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
@@ -244,8 +256,17 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 {supportsSlotGap && <label className="text-[11px] font-bold text-slate-700">فاصله شیار (mm)<input type="number" min={1} max={10} step={0.1} value={Number.isFinite(slotGap) ? slotGap : ''} onChange={e => setSlotGap(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>}
                 {supportsLockAngle && <label className="text-[11px] font-bold text-slate-700">زاویه شانه قفل (درجه)<input type="number" min={25} max={65} step={1} value={Number.isFinite(autoLockAngle) ? autoLockAngle : ''} onChange={e => setAutoLockAngle(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>}
               </div>
-              <p className="mt-2 text-[10px] leading-5 text-slate-600">{supportsDimensionConvention ? 'برای خانواده FEFCO 0200، ابعاد داخلی پیش‌فرض است؛ کالیپر به ابعاد پنل و بدنه افزوده می‌شود و فاصله شیار بین فلپ‌ها جداگانه تنظیم می‌شود. اصلاح دقیق خطوط تا باید با روش قالب‌ساز کالیبره شود.' : supportsLockAngle ? 'زاویه شانه در هندسه برش اعمال می‌شود؛ اما این‌ها الگوهای پارامتریک/آزمایشی‌اند، نه نقشهٔ رسمی تأییدشده. جای‌گیری قفل، خلاصی ورق و مونتاژ باید با نمونه تاخورده و مشخصات قالب‌ساز تأیید شود.' : 'برای این ساختار پارامتریک، تفسیر دقیق ابعاد داخل/خارج و جبران کامل خطوط تا هنوز تأیید نشده است.'}</p>
-              {!validInputs && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm · فاصله شیار: ۱ تا ۱۰ mm · خلاصی درب (در صورت نمایش): ۰٫۱ تا ۱۲ mm · زاویه قفل: ۲۵ تا ۶۵ درجه. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
+              {supportsAutoLockDimensions && <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <h5 className="mb-2 text-xs font-bold text-slate-800">۳. تنظیمات درب و فلپ‌های کف Auto-Lock (mm)</h5>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="text-[11px] font-bold text-slate-700">عمق زبانه درب<input type="number" min={4} max={60} step={0.5} value={Number.isFinite(autoLockTuckDepth) ? autoLockTuckDepth : ''} onChange={e => setAutoLockTuckDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+                  <label className="text-[11px] font-bold text-slate-700">عمق گردگیر بالا<input type="number" min={4} max={43} step={0.5} value={Number.isFinite(autoLockDustDepth) ? autoLockDustDepth : ''} onChange={e => setAutoLockDustDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+                  <label className="text-[11px] font-bold text-slate-700">عمق فلپ جانبی کف<input type="number" min={6} max={43} step={0.5} value={Number.isFinite(autoLockSideDepth) ? autoLockSideDepth : ''} onChange={e => setAutoLockSideDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+                </div>
+                <p className="mt-2 text-[10px] leading-5 text-slate-600">پیش‌فرض‌های مرجع: ۲۵، ۴۳ و ۴۰٫۵ میلی‌متر. عمق مؤثر بعضی فلپ‌ها بر اساس عرض جعبه محدود می‌شود تا خطوط برش از هم عبور نکنند.</p>
+              </div>}
+              <p className="mt-2 text-[10px] leading-5 text-slate-600">{supportsAutoLockDimensions ? 'ابعاد داخل/خارج، ضخامت ورق و عمق فلپ‌ها بر گسترده اثر می‌گذارند. الگوی این بخش با مرجع عمومی Auto-Lock تطبیق داده شده؛ ساخت تیغ منوط به تطبیق با نقشه رسمی FEFCO و تست تا با ورق واقعی است.' : supportsDimensionConvention ? 'برای خانواده FEFCO 0200، ابعاد داخلی پیش‌فرض است؛ کالیپر به ابعاد پنل و بدنه افزوده می‌شود و فاصله شیار بین فلپ‌ها جداگانه تنظیم می‌شود. اصلاح دقیق خطوط تا باید با روش قالب‌ساز کالیبره شود.' : supportsLockAngle ? 'زاویه شانه در هندسه برش اعمال می‌شود؛ اما این‌ها الگوهای پارامتریک/آزمایشی‌اند، نه نقشهٔ رسمی تأییدشده. جای‌گیری قفل، خلاصی ورق و مونتاژ باید با نمونه تاخورده و مشخصات قالب‌ساز تأیید شود.' : 'برای این ساختار پارامتریک، تفسیر دقیق ابعاد داخل/خارج و جبران کامل خطوط تا هنوز تأیید نشده است.'}</p>
+              {!validInputs && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm · فاصله شیار: ۱ تا ۱۰ mm · عمق درب Auto-Lock: ۴ تا ۶۰ mm · گردگیر: ۴ تا ۴۳ mm · فلپ جانبی: ۶ تا ۴۳ mm · خلاصی درب: ۰٫۱ تا ۱۲ mm · زاویه قفل: ۲۵ تا ۶۵ درجه. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
             </div>
             <details className="rounded-xl border border-slate-200 bg-slate-50 p-2">
               <summary className="cursor-pointer px-2 py-1 text-xs font-bold text-slate-700">مرور همه قالب‌ها و توضیحات</summary>
