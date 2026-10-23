@@ -6,19 +6,25 @@ export interface DielineCalculationResult {
   wastePercentage: number;
   cutLength: number;
   creaseLength: number;
+  glueTab: number;
+  tuck: number;
+  dustFlap: number;
 }
 
 /**
- * Calculates manufacturing metrics from the selected engine's actual geometry.
- * Dimensions and line lengths are millimetres; areas are square metres.
- * This is an estimate of flat-blank bounds/waste, not a nesting or sheet-yield solver.
+ * Calculates metrics using the selected dieline engine's paths and bounds.
+ * Dimensions and path lengths are millimetres; areas are square metres.
+ * Waste is only a rough bounding-box estimate, not a nesting/yield result.
+ *
+ * Argument order is intentionally compatible with existing UI callers:
+ * (length, width, height, boardCaliper, templateId).
  */
 export const calculateDielineParameters = (
-  fefcoCode: string,
   l: number,
   w: number,
   h: number,
-  caliper: number = 3
+  caliper: number = 3,
+  fefcoCode: string = 'fefco-0201'
 ): DielineCalculationResult => {
   const normalizedCode = fefcoCode.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const aliases: Record<string, string> = {
@@ -32,11 +38,15 @@ export const calculateDielineParameters = (
     : `fefco-${normalizedCode.replace(/^fefco-/, '')}`;
   const engineId = aliases[candidateId] || candidateId;
   const engine = STANDARD_DIELINE_ENGINES[engineId] || STANDARD_DIELINE_ENGINES['default-rsc'];
+  const safeL = Number.isFinite(l) ? Math.max(1, l) : 1;
+  const safeW = Number.isFinite(w) ? Math.max(1, w) : 1;
+  const safeH = Number.isFinite(h) ? Math.max(1, h) : 1;
+  const safeCaliper = Number.isFinite(caliper) ? Math.max(0.2, caliper) : 3;
   const geometry = engine({
-    L: Math.max(1, l),
-    W: Math.max(1, w),
-    H: Math.max(1, h),
-    thickness: Math.max(0.2, caliper),
+    L: safeL,
+    W: safeW,
+    H: safeH,
+    thickness: safeCaliper,
     x0: 0,
   });
 
@@ -68,7 +78,7 @@ export const calculateDielineParameters = (
   };
 
   const grossArea = (geometry.totalW * geometry.totalH) / 1_000_000;
-  const netArea = (2 * l * w + 2 * l * h + 2 * w * h) / 1_000_000;
+  const netArea = (2 * safeL * safeW + 2 * safeL * safeH + 2 * safeW * safeH) / 1_000_000;
   const wastePercentage = grossArea > 0
     ? Math.max(0, Math.min(100, Math.round(((grossArea - netArea) / grossArea) * 100)))
     : 0;
@@ -81,6 +91,9 @@ export const calculateDielineParameters = (
     wastePercentage,
     cutLength: Math.round(geometry.cuts.reduce((sum, path) => sum + pathLength(path), 0)),
     creaseLength: Math.round(geometry.creases.reduce((sum, path) => sum + pathLength(path), 0)),
+    glueTab: Math.max(15, Math.min(35, safeL * 0.18)),
+    tuck: Math.max(15, Math.min(30, safeL * 0.18)),
+    dustFlap: Math.max(12, Math.min(50, safeW * 0.42)),
   };
 };
 
