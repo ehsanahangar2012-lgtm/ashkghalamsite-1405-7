@@ -531,7 +531,7 @@ const createSleeveEngine = () => {
     const xP4 = xP3 + W;
 
     const cuts: string[] = [
-      `M ${x0} ${y0 + 3} L ${xP4} ${y0} L ${xP4} ${yBtm} L ${x0} ${yBtm - 3} Z`
+      `M ${x0} ${y0} L ${xP4} ${y0} L ${xP4} ${yBtm} L ${x0} ${yBtm} Z`
     ];
 
     const creases: string[] = [
