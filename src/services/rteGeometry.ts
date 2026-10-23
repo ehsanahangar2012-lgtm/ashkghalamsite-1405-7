@@ -43,7 +43,10 @@ export const createRteEngine = (straightTuck = false) => {
       const tipL = center - tipWidth / 2, tipR = center + tipWidth / 2;
       const tongueY = outerY + direction * tongue;
       const shoulderY = outerY + direction * tongue * 0.55;
-      cuts.push('M ' + xa + ' ' + outerY + ' L ' + baseL + ' ' + outerY + ' L ' + neckL + ' ' + shoulderY + ' L ' + tipL + ' ' + tongueY + ' L ' + tipR + ' ' + tongueY + ' L ' + neckR + ' ' + shoulderY + ' L ' + baseR + ' ' + outerY + ' L ' + xb + ' ' + outerY);
+      const notchWidth = Math.min(5, tipWidth * 0.15);
+      const notchDepth = Math.min(3.6, tongue * 0.18);
+      const notchY = tongueY - direction * notchDepth;
+      cuts.push('M ' + xa + ' ' + outerY + ' L ' + baseL + ' ' + outerY + ' L ' + neckL + ' ' + shoulderY + ' L ' + tipL + ' ' + tongueY + ' L ' + (center - notchWidth / 2) + ' ' + tongueY + ' L ' + (center - notchWidth / 2) + ' ' + notchY + ' L ' + (center + notchWidth / 2) + ' ' + notchY + ' L ' + (center + notchWidth / 2) + ' ' + tongueY + ' L ' + tipR + ' ' + tongueY + ' L ' + neckR + ' ' + shoulderY + ' L ' + baseR + ' ' + outerY + ' L ' + xb + ' ' + outerY);
       creases.push(line(baseL, outerY, baseR, outerY)); // Tongue hinge: fold line, not a cut.
     };
 
@@ -52,7 +55,11 @@ export const createRteEngine = (straightTuck = false) => {
         const xa = xs[i], xb = xs[i + 1], depth = depths[i];
         if (depth <= 0) continue;
         if ((i === 0 || i === 2) && depth === mainDepth) addMainTuckOuterEdge(xa, xb, edgeY, direction);
-        else cuts.push(line(xa, edgeY + direction * depth, xb, edgeY + direction * depth));
+        else {
+          const outerY = edgeY + direction * depth;
+          const inset = Math.min(8, depth * 0.35, (xb - xa) * 0.12);
+          cuts.push('M ' + xa + ' ' + edgeY + ' L ' + (xa + inset) + ' ' + outerY + ' L ' + (xb - inset) + ' ' + outerY + ' L ' + xb + ' ' + edgeY);
+        }
         creases.push(line(xa, edgeY, xb, edgeY));
       }
       // One shared slit per seam. Only the centre tuck tongue projects beyond the main flap edge.
