@@ -101,7 +101,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const geometryState = useMemo(() => {
     if (!validInputs || typeof engine !== 'function') return { geometry: null as DielineEngineResult | null, error: 'ابعاد باید عدد معتبر باشند و در محدوده مجاز قرار گیرند.' };
     try {
-      const g = engine({ L: length, W: width, H: height, lidHeight, lidClearance, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, tuck: templateId === 'snap-lock-123' ? 25 : undefined, dustFlap: templateId === 'snap-lock-123' ? 33 : undefined, bottomFlapDepth: templateId === 'snap-lock-123' ? 33 : undefined, lockTongueDepth: templateId === 'snap-lock-123' ? 17.5 : undefined, x0: 40 });
+      const g = engine({ L: length, W: width, H: height, lidHeight, lidClearance, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, x0: 40 });
       const allValues = [g.xMin, g.yMin, g.xMax, g.yMax, g.totalW, g.totalH];
       const pathsValid = Array.isArray(g.cuts) && g.cuts.length > 0 &&
         Array.isArray(g.creases) && g.creases.length > 0 &&
