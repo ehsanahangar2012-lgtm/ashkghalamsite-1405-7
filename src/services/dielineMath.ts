@@ -961,7 +961,7 @@ const createSnapLockBottomEngine = () => {
     const lidOuterY = yBodyTop - panelW;
     const tuckOuterY = yBodyTop - topTuckDepth;
     cuts.push(
-      `M ${xs[0]} ${yBodyTop} L ${xs[0]} ${lidOuterY} L ${xs[0] + tuckInset} ${tuckOuterY} L ${xs[1] - tuckInset} ${tuckOuterY} L ${xs[1]} ${lidOuterY} L ${xs[1]} ${yBodyTop}`
+      `M ${xs[1]} ${yBodyTop} L ${xs[1]} ${lidOuterY} L ${xs[1] + tuckInset} ${tuckOuterY} L ${xs[2] - tuckInset} ${tuckOuterY} L ${xs[2]} ${lidOuterY} L ${xs[2]} ${yBodyTop}`
     );
     // A separate slit cut locks the tuck tongue; the back panel receives its
     // own open thumb notch at the exposed top edge, matching the reference layout.
