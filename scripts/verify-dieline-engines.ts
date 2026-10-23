@@ -81,8 +81,8 @@ if (JSON.stringify(lockBottom.cuts) === JSON.stringify(thickBoardLock.cuts)) {
 
 
 // Metrics must use the selected engine geometry and consistent square-metre units.
-const rscMetrics = calculateDielineParameters('FEFCO 0201', 240, 160, 100, 1.6);
-const sleeveMetrics = calculateDielineParameters('ecma-b10', 240, 160, 100, 1.6);
+const rscMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'FEFCO 0201');
+const sleeveMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'ecma-b10');
 if (!(rscMetrics.sheetWidth > 0 && rscMetrics.sheetHeight > 0)) {
   fail('calculated sheet dimensions must be positive');
 }
@@ -95,14 +95,14 @@ if (!(rscMetrics.cutLength > 0 && rscMetrics.creaseLength > 0)) {
 if (rscMetrics.sheetWidth === sleeveMetrics.sheetWidth && rscMetrics.sheetHeight === sleeveMetrics.sheetHeight) {
   fail('metrics must use the requested dieline engine instead of one generic formula');
 }
-const ecmaDisplayMetrics = calculateDielineParameters('ECMA A20.20', 240, 160, 100, 1.6);
-const ecmaEngineMetrics = calculateDielineParameters('ecma-a2020', 240, 160, 100, 1.6);
+const ecmaDisplayMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'ECMA A20.20');
+const ecmaEngineMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'ecma-a2020');
 if (ecmaDisplayMetrics.sheetWidth !== ecmaEngineMetrics.sheetWidth ||
     ecmaDisplayMetrics.sheetHeight !== ecmaEngineMetrics.sheetHeight) {
   fail('human-readable ECMA A20.20 code must resolve to its specific engine');
 }
-const thinMetrics = calculateDielineParameters('snap-lock-123', 120, 90, 100, 0.45);
-const thickMetrics = calculateDielineParameters('snap-lock-123', 120, 90, 100, 2.5);
+const thinMetrics = calculateDielineParameters(120, 90, 100, 0.45, 'snap-lock-123');
+const thickMetrics = calculateDielineParameters(120, 90, 100, 2.5, 'snap-lock-123');
 if (thinMetrics.cutLength === thickMetrics.cutLength && thinMetrics.sheetHeight === thickMetrics.sheetHeight) {
   fail('caliper must be passed through to geometry-derived manufacturing metrics');
 }
