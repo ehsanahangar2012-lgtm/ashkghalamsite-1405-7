@@ -176,7 +176,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
               <h4 className="mb-3 text-sm font-bold">ابعاد و متریال</h4>
               <div className="grid grid-cols-3 gap-2">
-                {([['طول', length, setLength], ['عرض', width, setWidth], ['ارتفاع', height, setHeight]] as const).map(([label, value, setter]) => <label key={label} className="text-[11px] font-bold text-slate-300">{label}<input type="number" min={10} max={2000} value={value} onChange={e => setter(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>)}
+                {([['طول', length, setLength], ['عرض', width, setWidth], ['ارتفاع', height, setHeight]] as const).map(([label, value, setter]) => <label key={label} className="text-[11px] font-bold text-slate-300">{label}<input type="number" min={10} max={2000} value={Number.isFinite(value) ? value : ''} onChange={e => setter(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>)}
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <label className="text-[11px] font-bold text-slate-300">ضخامت ورق (mm)<input type="number" min={0.2} max={10} step={0.1} value={Number.isFinite(thickness) ? thickness : ''} onChange={e => setThickness(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
