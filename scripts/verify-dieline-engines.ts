@@ -26,6 +26,42 @@ for (const id of requiredEngines) {
 
   for (const dims of dimensions) {
     const result = engine(dims);
+    if (id === 'fefco-0713') {
+      const x0 = dims.x0 ?? 50;
+      const glue = Math.max(12, dims.glueTab || 15);
+      const bodyBottomY = 30 + Math.max(15, 20) + dims.W + dims.H;
+      const panelXs = [
+        x0 + glue,
+        x0 + glue + dims.L,
+        x0 + glue + dims.L + dims.W,
+        x0 + glue + 2 * dims.L + dims.W,
+      ];
+      const mainDepth = Math.max(12, Math.min(dims.W * 0.5, dims.L * 0.9));
+      const sideDepth = Math.max(12, Math.min(dims.L * 0.5, dims.W * 0.9));
+      const expectedOuterYs = [
+        bodyBottomY + mainDepth,
+        bodyBottomY + sideDepth,
+        bodyBottomY + mainDepth,
+        bodyBottomY + sideDepth,
+      ];
+      const bottomContours = panelXs.map((x) =>
+        result.cuts.find(path => path.startsWith(`M ${x} ${bodyBottomY} L `))
+      );
+      if (bottomContours.some(path => !path)) {
+        fail(`fefco-0713: expected four bottom-flap contours at the body crease for ${JSON.stringify(dims)}`);
+      }
+      bottomContours.forEach((path, index) => {
+        const contour = path as string;
+        const numbers = contour.match(/-?\\d+(?:\\.\\d+)?/g)?.map(Number) || [];
+        const vertices = (contour.match(/\\bL\\b/g) || []).length + 1;
+        if (vertices < 4) {
+          fail(`fefco-0713: bottom flap ${index + 1} is triangular; at least four contour vertices are required: ${contour}`);
+        }
+        if (numbers.length < 8 || numbers[3] !== expectedOuterYs[index] || numbers[5] !== expectedOuterYs[index]) {
+          fail(`fefco-0713: bottom flap ${index + 1} must use its axis-specific depth; expected outer Y=${expectedOuterYs[index]}, got ${contour}`);
+        }
+      });
+    }
     if (!Array.isArray(result.cuts) || result.cuts.length === 0) fail(`${id}: no cut paths`);
     if (!Array.isArray(result.creases) || result.creases.length === 0) fail(`${id}: no crease paths`);
     if (![result.xMin, result.yMin, result.xMax, result.yMax, result.totalW, result.totalH].every(Number.isFinite)) {
