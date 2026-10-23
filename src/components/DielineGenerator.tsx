@@ -69,7 +69,8 @@ const STANDARDS_LIBRARY: PackagingModel[] = [
   { id: 'fefco-0713', name: 'کارتن آماده نیمه اتومات پله‌ای', code: 'FEFCO 0713', category: 'FEFCO 0700', icon: '🧳', defaultDims: { L: 220, W: 140, H: 110 }, description: 'تا شدن به ثانیه بدون هیچ تایر گسستنی صنعتی.' },
 
   // ECMA A Series
-  { id: 'ecma-a2020', name: 'جعبه دارویی زبانه دار (Tuck End)', code: 'ECMA A20.20', category: 'ECMA A', icon: '💊', defaultDims: { L: 60, W: 40, H: 100 }, description: 'فرم استاندارد دارو، آرایشی و عطر با زبانه‌های قفل‌شونده متقابل یا زیگزاک.' },
+  { id: 'ecma-a2020', name: 'جعبه دارویی Reverse Tuck End (RTE)', code: 'ECMA A20.20', category: 'ECMA A', icon: '💊', defaultDims: { L: 60, W: 40, H: 100 }, description: 'کارتن مقوایی لوله‌ای با زبانه‌های بالا و پایین روی دو پنل اصلی مقابل؛ ابعاد داخلی و ضخامت مقوا در تولید باید جبران شوند.' },
+  { id: 'ecma-ste', name: 'جعبه Straight Tuck End (STE)', code: 'ECMA STE — الگوی پایه', category: 'ECMA A', icon: '📦', defaultDims: { L: 70, W: 45, H: 120 }, description: 'زبانه‌های بالا و پایین روی یک پنل اصلی قرار دارند؛ این شناسه توصیفی است و جایگزین شماره کد رسمی ECMA نیست.' },
   { id: 'snap-lock-123', name: 'جعبه لاک باتم ته قفلی (1-2-3 Lock-Bottom)', code: 'ECMA A2110', category: 'ECMA A', icon: '📥', defaultDims: { L: 60, W: 40, H: 100 }, description: 'جعبه پرکاربرد بهداشتی و دارویی با درپوش زبانه‌دار بالا و ته قفلی دستی مستحکم بدون نیاز به چسب پایینی.' },
   { id: 'ecma-a30', name: 'جعبه با زبانه قفل اصطکاکی آویز', code: 'ECMA A30', category: 'ECMA A', icon: '🧴', defaultDims: { L: 50, W: 40, H: 140 }, description: 'قفسه آویز سوپرمارکتی با پله چشمی یورو در بالا.' },
 
@@ -527,7 +528,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     }
 
     if (key === 'tuck') {
-      const hasNoTuck = id === 'fefco-0201' || id === 'fefco-0200' || id === 'fefco-0203' || id === 'fefco-0300';
+      const hasNoTuck = id === 'fefco-0201' || id === 'fefco-0200' || id === 'fefco-0203' || id === 'fefco-0204' || id === 'fefco-0300' || id === 'fefco-0320';
       if (hasNoTuck && val > 0) {
         showCustomAlert(
           'تداخل مدل کارتنی استاندارد RSC',
