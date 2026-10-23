@@ -161,7 +161,7 @@ export const runComprehensiveGeometryCheck = (
     }
   }
   if(checked>20000)warnings.push('برای جلوگیری از کندشدن پیش‌نمایش، بررسی تقاطع پس از ۲۰۰۰۰ جفت قطعه متوقف شد؛ این نقشه به بررسی کامل‌تر نیاز دارد.');
-  if(hasSelfIntersection)warnings.push(`تقاطع، تماس غیرمجاور یا هم‌پوشانی بین قطعات یک مسیر برش شناسایی شد؛ مسیر را بازبینی کنید. (${selfIntersectionDetail})`);
+  if(hasSelfIntersection)errors.push(`تقاطع، تماس غیرمجاور یا هم‌پوشانی بین قطعات یک مسیر برش شناسایی شد؛ مسیر را بازبینی کنید. (${selfIntersectionDetail})`);
 
   const closedCutPaths=parsed.slice(0,cuts.length).filter(p=>!p.malformed&&p.segments.length>0);
   // Engines may legitimately represent a perimeter as several open SVG subpaths;
