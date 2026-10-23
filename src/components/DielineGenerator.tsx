@@ -5246,6 +5246,28 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
           }
         }
 
+        /* Light drafting surface: keep cut/crease colors, change only canvas surfaces. */
+        .dieline-generator-container .bg-\\[\\#030508\\],
+        .dieline-generator-container .bg-\\[\\#070b13\\],
+        .dieline-generator-container .bg-\\[\\#0a0f1d\\],
+        .dieline-generator-container .bg-\\[\\#0b0f15\\] {
+          background-color: #f8fafc !important;
+          background-image: none !important;
+          border-color: #d8e1ec !important;
+        }
+        .dieline-generator-container svg rect[fill="#070b13"],
+        .dieline-generator-container svg rect[fill="#0a0f1d"] {
+          fill: #f8fafc !important;
+          stroke: #cbd5e1 !important;
+        }
+        .dieline-generator-container svg text[fill="#94a3b8"],
+        .dieline-generator-container svg text[fill="#cbd5e1"] {
+          fill: #475569 !important;
+        }
+        .dieline-generator-container .bg-\\[\\#030508\\] svg,
+        .dieline-generator-container .bg-\\[\\#070b13\\] svg {
+          background: #f8fafc;
+        }
         /* Calm, light application chrome. Keep the actual CAD/SVG drawing colors intact. */
         .dieline-generator-container {
           background: #f4f7fb !important;
