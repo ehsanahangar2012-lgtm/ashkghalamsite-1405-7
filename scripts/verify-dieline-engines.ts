@@ -70,8 +70,8 @@ if (!(widthPanelsMeetGeometry.totalH > rscGeometry.totalH)) {
   fail('FEFCO 0204 width-panel flaps should extend farther than the standard 0201 flap depth when L > W');
 }
 
-if (Math.abs(rscGeometry.totalH - (100 + 160 - 2 * 2.4)) > 1e-8) {
-  fail(`FEFCO 0201 sheet height must be H + W - two flap clearances, got ${rscGeometry.totalH}`);
+if (Math.abs(rscGeometry.totalH - (100 + 160 + 2 * 1.6 - 2.4)) > 1e-8) {
+  fail(`FEFCO 0201 inside-size blank height must include board caliper and the opposing-flap slot gap, got ${rscGeometry.totalH}`);
 }
 
 // Regression: the default ECMA reverse-tuck-end pattern has tapered dust flaps and a real tuck notch.
@@ -378,16 +378,62 @@ for (const id of requiredEngines) {
 // FEFCO 0201 bounds must follow its four-panel strip and opposing half-depth flaps.
 const rscThin = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, thickness: 0.45, glueTab: 35, x0: 0 });
 const rscThick = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, thickness: 4.8, glueTab: 35, x0: 0 });
-const expectedRscWidth = 35 + 2 * 240 + 2 * 160;
-const expectedRscHeightThin = 100 + 160 - 2 * Math.max(1, Math.min(6, 0.45 * 1.5));
+const expectedRscWidth = 35 + 2 * 240 + 2 * 160 + 4 * 0.45;
+const expectedRscHeightThin = 100 + 160 + 2 * 0.45 - Math.max(1, Math.min(6, 0.45 * 1.5));
 if (Math.abs(rscThin.totalW - expectedRscWidth) > 1e-8) {
   fail(`FEFCO 0201 strip width incorrect: expected ${expectedRscWidth}, got ${rscThin.totalW}`);
 }
 if (Math.abs(rscThin.totalH - expectedRscHeightThin) > 1e-8) {
   fail(`FEFCO 0201 half-flap bounds incorrect: expected ${expectedRscHeightThin}, got ${rscThin.totalH}`);
 }
-if (!(rscThick.totalH < rscThin.totalH)) {
-  fail('thicker-board clearance should shorten opposing FEFCO 0201 flaps');
+if (!(rscThick.totalH > rscThin.totalH)) {
+  fail('FEFCO 0201 blank height should increase with board caliper when input dimensions are inside dimensions');
+}
+
+const rscOutside = STANDARD_DIELINE_ENGINES['fefco-0201']({
+  L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, slotGap: 2.4,
+  dimensionConvention: 'outside', x0: 40,
+});
+const rscInside = STANDARD_DIELINE_ENGINES['fefco-0201']({
+  L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, slotGap: 2.4,
+  dimensionConvention: 'inside', x0: 40,
+});
+if (Math.abs((rscInside.totalW - rscOutside.totalW) - 4 * 1.6) > 1e-8 ||
+    Math.abs((rscInside.totalH - rscOutside.totalH) - 2 * 1.6) > 1e-8) {
+  fail('FEFCO 0201 inside/outside conventions must produce predictable caliper compensation');
+}
+const rscLargeGap = STANDARD_DIELINE_ENGINES['fefco-0201']({
+  L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, slotGap: 6, x0: 40,
+});
+if (Math.abs((rscInside.totalH - rscLargeGap.totalH) - (6 - 2.4)) > 1e-8) {
+  fail('FEFCO 0201 slot-gap adjustment must change the overall blank height predictably');
+}
+
+// On the slotted case baseline, glue-tab corner relief is the only diagonal cut;
+// flap edges and shared slots must be orthogonal and each exact cut segment unique.
+const extractSimpleSegments = (path: string) => {
+  const points = [...path.matchAll(/[ML]\\s*(-?\\d+(?:\\.\\d+)?)\\s+(-?\\d+(?:\\.\\d+)?)/g)]
+    .map(match => [Number(match[1]), Number(match[2])] as const);
+  return points.slice(1).map((point, i) => [points[i][0], points[i][1], point[0], point[1]] as const);
+};
+const nonGlueSegments = rscGeometry.cuts.slice(4).flatMap(extractSimpleSegments);
+if (nonGlueSegments.some(([x1, y1, x2, y2]) => Math.abs(x2 - x1) > 1e-8 && Math.abs(y2 - y1) > 1e-8)) {
+  fail('FEFCO 0201 flap outlines must not use decorative diagonal shoulders');
+}
+const normalizedCutSegment = (segment: readonly number[]) => {
+  const a = [segment[0], segment[1]], b = [segment[2], segment[3]];
+  const points = [a, b].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  return points.flat().map(n => n.toFixed(5)).join(',');
+};
+const segmentCounts = new Map<string, number>();
+for (const path of rscGeometry.cuts) {
+  for (const segment of extractSimpleSegments(path)) {
+    const key = normalizedCutSegment(segment);
+    segmentCounts.set(key, (segmentCounts.get(key) ?? 0) + 1);
+  }
+}
+if ([...segmentCounts.values()].some(count => count > 1)) {
+  fail('FEFCO 0201 output must not emit duplicate coincident cut segments');
 }
 
 // Board caliper must influence opposing-flap clearance for slotted-case templates.
