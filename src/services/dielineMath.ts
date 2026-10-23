@@ -850,11 +850,13 @@ const createSnapLockBottomEngine = () => {
     const safeW = Math.max(20, Number.isFinite(W) ? W : 20);
     const safeH = Math.max(10, Number.isFinite(H) ? H : 10);
     const inside = dimensionConvention !== 'outside';
-    // Match the reference generator's inside-size convention: each crease-to-crease
-    // panel receives a caliper allowance, and the stacked bottom receives 3 calipers.
+    // Reference benchmark: 70 × 70 × 80 mm, t=0.45 mm, glue=15 mm,
+    // tuck=25 mm and dust=33 mm produces a 296.8 × 226 mm flat blank.
+    // Apply caliper to each crease-to-crease panel span; closure extensions are
+    // modeled separately so the tongue is not mistaken for the whole top flap.
     const panelL = safeL + (inside ? t : 0);
     const panelW = safeW + (inside ? t : 0);
-    const panelH = safeH + (inside ? 3 * t : 0);
+    const panelH = safeH;
     const G = Math.max(6, Math.min(Number.isFinite(glueTab) ? glueTab : 15, panelH * 0.8));
     const tuckDepth = Math.max(4, Math.min(Number.isFinite(tuck) ? tuck : 25, panelW * 0.8));
     const topDustDepth = Math.max(4, Math.min(Number.isFinite(dustFlap) ? dustFlap : 33, panelW * 0.48));
@@ -863,7 +865,8 @@ const createSnapLockBottomEngine = () => {
     const angleRad = angleDeg * Math.PI / 180;
     const xs = [x0 + G, x0 + G + panelL, x0 + G + panelL + panelW,
       x0 + G + 2 * panelL + panelW, x0 + G + 2 * panelL + 2 * panelW];
-    const topDepths = [tuckDepth, topDustDepth, 0, topDustDepth];
+    const topTuckDepth = panelW + tuckDepth;
+    const topDepths = [topTuckDepth, topDustDepth, 0, topDustDepth];
     const topMax = Math.max(...topDepths);
     const yBodyTop = 40 + topMax;
     const yBodyBottom = yBodyTop + panelH;
@@ -900,9 +903,10 @@ const createSnapLockBottomEngine = () => {
     const tuckInset = Math.min(panelL * 0.12, tuckDepth * 0.3);
     const thumbW = Math.min(panelL * 0.2, 18);
     const thumbD = Math.min(4, tuckDepth * 0.16);
-    const tuckOuterY = yBodyTop - tuckDepth;
+    const lidOuterY = yBodyTop - panelW;
+    const tuckOuterY = yBodyTop - topTuckDepth;
     cuts.push(
-      `M ${xs[0]} ${yBodyTop} L ${xs[0] + tuckInset} ${tuckOuterY} L ${tuckCenter - thumbW / 2} ${tuckOuterY} L ${tuckCenter - thumbW / 2} ${tuckOuterY + thumbD} L ${tuckCenter + thumbW / 2} ${tuckOuterY + thumbD} L ${tuckCenter + thumbW / 2} ${tuckOuterY} L ${xs[1] - tuckInset} ${tuckOuterY} L ${xs[1]} ${yBodyTop}`
+      `M ${xs[0]} ${yBodyTop} L ${xs[0]} ${lidOuterY} L ${xs[0] + tuckInset} ${tuckOuterY} L ${tuckCenter - thumbW / 2} ${tuckOuterY} L ${tuckCenter - thumbW / 2} ${tuckOuterY + thumbD} L ${tuckCenter + thumbW / 2} ${tuckOuterY + thumbD} L ${tuckCenter + thumbW / 2} ${tuckOuterY} L ${xs[1] - tuckInset} ${tuckOuterY} L ${xs[1]} ${lidOuterY} L ${xs[1]} ${yBodyTop}`
     );
     creases.push(line(xs[0], yBodyTop, xs[1], yBodyTop));
     for (const i of [1, 3]) {
@@ -958,7 +962,7 @@ const createSnapLockBottomEngine = () => {
 
     const xMin = x0;
     const yMin = yBodyTop - topMax;
-    const yMax = Math.max(tongueTipY, receiverY) + 4;
+    const yMax = Math.max(tongueTipY, receiverY);
     return {
       cuts, creases, labels, xMin, yMin, xMax: xs[4], yMax,
       totalW: xs[4] - xMin, totalH: yMax - yMin,
