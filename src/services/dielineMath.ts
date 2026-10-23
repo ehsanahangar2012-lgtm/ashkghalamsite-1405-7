@@ -355,10 +355,11 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
 
     // Production-style corner relief for dust flaps and a locking notch in each tuck tongue.
     const dustFlapPath = (left: number, right: number, hingeY: number, depth: number, direction: -1 | 1) => {
-      const cut = Math.min(depth, (right - left) / 2);
+      const shoulder = Math.min(depth, (right - left) / 2);
       const outerY = hingeY + direction * depth;
-      const innerY = outerY - direction * cut;
-      return `M ${left} ${hingeY} L ${left} ${innerY} L ${left + cut} ${outerY} L ${right - cut} ${outerY} L ${right} ${innerY} L ${right} ${hingeY}`;
+      // Angled shoulders start at the hinge endpoints; this prevents a short
+      // dust-flap side cut duplicating part of a neighbouring deeper flap slot.
+      return `M ${left} ${hingeY} L ${left + shoulder} ${outerY} L ${right - shoulder} ${outerY} L ${right} ${hingeY}`;
     };
 
     // Glue tab
