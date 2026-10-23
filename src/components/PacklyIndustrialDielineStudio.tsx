@@ -198,7 +198,19 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             <label className="block text-xs font-bold text-slate-700">دسته‌بندی<select value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
 
             <label className="block text-xs font-bold text-slate-700">نوع قالب / جعبه
-              <select value={templateId} onChange={e => setTemplateId(e.target.value)} className={inputClass}>
+              <select value={templateId} onChange={e => {
+                const nextId = e.target.value;
+                setTemplateId(nextId);
+                if (nextId === 'snap-lock-123') {
+                  // Load the public reference generator's reproducible benchmark
+                  // when this carton is selected, so the geometry can be compared 1:1.
+                  setLength(70); setWidth(70); setHeight(80);
+                  setThickness(0.45); setMaterialPreset('folding-carton');
+                  setGlueTab(15); setDimensionConvention('inside');
+                } else if (nextId === 'fefco-0215') {
+                  setMaterialPreset('corrugated-e'); setThickness(1.5);
+                }
+              }} className={inputClass}>
                 {TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
               </select>
             </label>
