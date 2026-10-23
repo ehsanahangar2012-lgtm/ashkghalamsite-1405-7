@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { ThreeDPreview } from './ThreeDPreview';
 import { Download, FileDown, Ruler, RotateCcw, Save, Settings2, ShieldCheck, Box, Layers3, Info } from 'lucide-react';
 
 type Segment = { x1: number; y1: number; x2: number; y2: number; kind: 'cut' | 'fold' };
@@ -99,6 +100,7 @@ export function BoxStudio() {
   const [glue, setGlue] = useState(28);
   const [allowance, setAllowance] = useState(0);
   const [board, setBoard] = useState('E');
+  const [template, setTemplate] = useState<BoxTemplate>('rsc');
   const [showDimensions, setShowDimensions] = useState(true);
   const [saved, setSaved] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -108,11 +110,17 @@ export function BoxStudio() {
   const W = clamp(Number(width) || 1, 20, 2000);
   const H = clamp(Number(height) || 1, 20, 2000);
   const G = clamp(Number(glue) || 1, 10, 120);
-  const geom = useMemo(() => makeGeometry(L, W, H, G, Number(allowance) || 0), [L, W, H, G, allowance]);
+  const geom = useMemo(() => makeGeometry(L, W, H, G, Number(allowance) || 0, template), [L, W, H, G, allowance, template]);
   const viewW = geom.totalW + 50;
   const viewH = geom.totalH + 50;
-  const sheetWidth = 2 * L + 2 * W + G + 2 * thickness;
-  const sheetHeight = H + 2 * (W / 2 + Number(allowance)) + 36 + 2 * thickness;
+  const sheetWidth = geom.totalW + 2 * thickness;
+  const sheetHeight = geom.totalH + 2 * thickness;
+  const warnings = [
+    ...(L < 40 || W < 40 || H < 20 ? ['ابعاد انتخابی کوچک است؛ امکان ساخت را بررسی کنید.'] : []),
+    ...(template === 'rsc' && W / 2 + Number(allowance) < thickness * 2 ? ['عمق فلپ نسبت به ضخامت ورق کم است.'] : []),
+    ...(template === 'rsc' && G < Math.max(15, thickness * 8) ? ['لبه چسب انتخابی ممکن است برای خط تولید شما باریک باشد.'] : []),
+    'الگوهای Mailer و Tray در این نسخه مفهومی هستند؛ پیش از قالب‌سازی باید توسط طراح بسته‌بندی بازبینی شوند.'
+  ];
   const materialArea = (sheetWidth * sheetHeight) / 1_000_000;
 
   const exportSvg = () => {
@@ -124,7 +132,7 @@ export function BoxStudio() {
     clone.setAttribute('viewBox', `0 0 ${viewW} ${viewH}`);
     const textNodes = clone.querySelectorAll('[data-ui-only="true"]');
     textNodes.forEach(n => n.remove());
-    downloadFile('ashkghalam-rsc-dieline.svg', new XMLSerializer().serializeToString(clone), 'image/svg+xml;charset=utf-8');
+    downloadFile(`ashkghalam-${template}-dieline.svg`, new XMLSerializer().serializeToString(clone), 'image/svg+xml;charset=utf-8');
   };
 
   const exportDxf = () => {
@@ -133,7 +141,7 @@ export function BoxStudio() {
       return `0\nLINE\n8\n${layer}\n10\n${(s.x1).toFixed(3)}\n20\n${(geom.totalH - s.y1).toFixed(3)}\n30\n0\n11\n${(s.x2).toFixed(3)}\n21\n${(geom.totalH - s.y2).toFixed(3)}\n31\n0\n`;
     }).join('');
     const dxf = `0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n2\n0\nLAYER\n2\nCUT\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nCREASE\n70\n0\n62\n5\n6\nCONTINUOUS\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities}0\nENDSEC\n0\nEOF\n`;
-    downloadFile('ashkghalam-rsc-dieline.dxf', dxf, 'application/dxf');
+    downloadFile(`ashkghalam-${template}-dieline.dxf`, dxf, 'application/dxf');
   };
 
   const saveProject = () => {
@@ -141,8 +149,9 @@ export function BoxStudio() {
       schema: 'ashkghalam.box-studio.v1',
       savedAt: new Date().toISOString(),
       units: 'mm',
-      template: 'RSC / FEFCO 0201 (parametric preview)',
+      template: template === 'rsc' ? 'RSC / FEFCO 0201 (conceptual parametric preview)' : template === 'mailer' ? 'One-piece mailer (conceptual preview)' : 'Open tray (conceptual preview)',
       dimensions: { length: L, width: W, height: H, glueFlap: G, flapAllowance: Number(allowance) || 0 },
+      geometry: { segmentCount: geom.lines.length, cutSegments: geom.lines.filter(line => line.kind === 'cut').length, foldSegments: geom.lines.filter(line => line.kind === 'fold').length },
       board: { grade: board, nominalThicknessMm: thickness },
       note: 'Validate board caliper, grain direction, slot/crease rules and manufacturer tolerances before production.'
     };
@@ -184,6 +193,7 @@ export function BoxStudio() {
           <aside className="space-y-4">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center gap-2"><Settings2 size={18} className="text-indigo-600" /><h2 className="font-extrabold">پارامترهای جعبه</h2></div>
+              <label className="mb-4 block"><span className="mb-1.5 block text-xs font-bold text-slate-600">نوع ساختار</span><select value={template} onChange={e => setTemplate(e.target.value as BoxTemplate)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500"><option value="rsc">کارتن چهارلَت (RSC / FEFCO 0201)</option><option value="mailer">جعبه پستی یک‌تکه (Mailer — مفهومی)</option><option value="tray">سینی چهارلبه (Tray — مفهومی)</option></select></label>
               <div className="grid grid-cols-2 gap-3">
                 {field('طول', length, setLength, 20, 2000)}
                 {field('عرض', width, setWidth, 20, 2000)}
@@ -200,7 +210,7 @@ export function BoxStudio() {
                 <span className="mt-1 flex justify-between text-[10px] text-slate-400"><span>۵- mm</span><span>۱۵+ mm</span></span>
               </label>
               <label className="mt-4 flex items-center gap-2 text-xs font-semibold text-slate-600"><input type="checkbox" checked={showDimensions} onChange={e => setShowDimensions(e.target.checked)} className="accent-indigo-600" /> نمایش اندازه‌گذاری روی نقشه</label>
-              <button onClick={() => {setLength(240);setWidth(160);setHeight(100);setGlue(28);setAllowance(0);setBoard('E');}} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"><RotateCcw size={14}/> بازگشت به ابعاد نمونه</button>
+              <button onClick={() => {setLength(240);setWidth(160);setHeight(100);setGlue(28);setAllowance(0);setBoard('E');setTemplate('rsc');}} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"><RotateCcw size={14}/> بازگشت به ابعاد نمونه</button>
             </section>
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="mb-3 flex items-center gap-2"><Ruler size={18} className="text-indigo-600"/><h2 className="font-extrabold">برآورد گسترده</h2></div>
@@ -217,7 +227,7 @@ export function BoxStudio() {
           <main className="min-w-0 space-y-4">
             <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
-                <div><h2 className="font-extrabold">پیش‌نمایش دایلاین دوبعدی</h2><p className="mt-1 text-[11px] text-slate-500">خط قرمز: برش · خط آبی: خط تا / crease</p></div>
+                <div><h2 className="font-extrabold">پیش‌نمایش دایلاین دوبعدی</h2><p className="mt-1 text-[11px] text-slate-500">خط قرمز: برش · خط آبی: خط تا / crease · هندسه متناسب با ساختار انتخابی</p></div>
                 <div className="flex flex-wrap gap-2">
                   <button onClick={exportSvg} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-3.5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-700"><Download size={15}/> خروجی SVG</button>
                   <button onClick={exportDxf} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2.5 text-xs font-bold text-white hover:bg-slate-800"><FileDown size={15}/> خروجی DXF</button>
