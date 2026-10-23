@@ -86,8 +86,8 @@ export const calculateDielineParameters = (
     const glue = Math.max(15, 35);
     const clearance = Math.max(1, Math.min(6, safeCaliper * 1.5));
     const sidePanelArea = (2 * safeL + 2 * safeW + glue) * safeH;
-    const halfFlapPerEdge = Math.max(0, safeL * safeW - clearance * (safeL + safeW));
-    const fullFlapPerEdge = Math.max(0, 2 * safeL * safeW - clearance * (safeL + safeW));
+    const halfFlapPerEdge = Math.max(0, 2 * safeL * safeW - 2 * clearance * (safeL + safeW));
+    const fullFlapPerEdge = Math.max(0, 4 * safeL * safeW - 2 * clearance * (safeL + safeW));
     const topFlaps = engineId === 'fefco-0200' ? 0 : engineId === 'fefco-0203' ? fullFlapPerEdge : halfFlapPerEdge;
     const bottomFlaps = engineId === 'fefco-0203' ? fullFlapPerEdge : halfFlapPerEdge;
     blankAreaMm2 = sidePanelArea + topFlaps + bottomFlaps;
