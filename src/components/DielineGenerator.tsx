@@ -5260,23 +5260,49 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
         }
         .dieline-generator-container > header h1 { color: #172033 !important; }
         .dieline-generator-container > header p { color: #64748b !important; }
-        .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] {
-          background: #eef2f7 !important;
+        /* Consistent light controls and panels; leave SVG/CAD artwork untouched. */
+        .dieline-generator-container .responsive-sidebar-wrapper,
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-slate-950"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-slate-900"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-slate-800"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#070"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#080"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#090"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#0a"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#0b"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#0c"] {
+          background-color: #ffffff !important;
+          background-image: none;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-white"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-100"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-200"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-300"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-400"] {
+          color: #334155 !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-800"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-900"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-700"] {
           border-color: #dbe3ee !important;
         }
-        .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] > div {
+        .dieline-generator-container .responsive-sidebar-wrapper input,
+        .dieline-generator-container .responsive-sidebar-wrapper select,
+        .dieline-generator-container .responsive-sidebar-wrapper textarea {
           background: #fff !important;
-          border: 1px solid #e1e7ef !important;
-          box-shadow: 0 1px 2px rgba(15,23,42,.025) !important;
-        }
-        .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] > div > div:first-child {
-          color: #52637a !important;
-        }
-        .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] > div > div:nth-child(2) {
           color: #172033 !important;
+          border-color: #cbd5e1 !important;
         }
-        .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] > div > div:nth-child(3) {
-          color: #64748b !important;
+        .dieline-generator-container .responsive-sidebar-wrapper input::placeholder,
+        .dieline-generator-container .responsive-sidebar-wrapper textarea::placeholder {
+          color: #94a3b8 !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper button {
+          text-shadow: none;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="rounded-xl"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="rounded-lg"] {
+          box-shadow: none;
         }
         .dieline-generator-container .responsive-sidebar-wrapper {
           background: #fff !important;
@@ -5474,42 +5500,6 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
           </button>
         </div>
       </header>
-
-      {/* LIVE WORKSPACE SUMMARY — presentation only; all existing controls and calculations remain unchanged */}
-      <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 px-3 md:px-5 py-2.5 bg-[#0a111d]/95 border-b border-slate-800/80 shrink-0" aria-label="خلاصه زنده پروژه">
-        <div className="rounded-xl border border-sky-500/20 bg-gradient-to-br from-sky-950/45 to-slate-950/80 px-3 py-2 shadow-inner">
-          <div className="flex items-center gap-2 text-sky-300"><Shapes className="w-4 h-4" /><span className="text-[10px] font-bold">قالب فعال</span></div>
-          <div className="mt-1 text-xs md:text-sm font-black text-white truncate">{selectedModel.code || selectedModel.name}</div>
-          <div className="mt-0.5 text-[10px] text-slate-400 truncate">{selectedModel.name}</div>
-        </div>
-        <div className="rounded-xl border border-slate-700/80 bg-slate-900/65 px-3 py-2">
-          <div className="flex items-center gap-2 text-indigo-300"><Ruler className="w-4 h-4" /><span className="text-[10px] font-bold">ابعاد محصول (mm)</span></div>
-          <div className="mt-1 text-sm font-black text-white font-mono" dir="ltr">{dims.L} × {dims.W} × {dims.H}</div>
-          <div className="mt-0.5 text-[10px] text-slate-400">طول × عرض × ارتفاع</div>
-        </div>
-        <div className="rounded-xl border border-slate-700/80 bg-slate-900/65 px-3 py-2">
-          <div className="flex items-center gap-2 text-amber-300"><Layers className="w-4 h-4" /><span className="text-[10px] font-bold">جنس و ضخامت</span></div>
-          <div className="mt-1 text-sm font-black text-white truncate">{material.name}</div>
-          <div className="mt-0.5 text-[10px] text-slate-400">{material.thickness} mm · {material.weight} gsm</div>
-        </div>
-        <div className="rounded-xl border border-rose-500/15 bg-slate-900/65 px-3 py-2">
-          <div className="flex items-center gap-2 text-rose-300"><Scissors className="w-4 h-4" /><span className="text-[10px] font-bold">مسیرهای برش</span></div>
-          <div className="mt-1 text-lg font-black text-white font-mono">{(dieline.cuts || []).length}</div>
-          <div className="mt-0.5 text-[10px] text-slate-400">Cut paths</div>
-        </div>
-        <div className="rounded-xl border border-indigo-500/15 bg-slate-900/65 px-3 py-2">
-          <div className="flex items-center gap-2 text-indigo-300"><Activity className="w-4 h-4" /><span className="text-[10px] font-bold">مسیرهای خط تا</span></div>
-          <div className="mt-1 text-lg font-black text-white font-mono">{(dieline.creases || []).length}</div>
-          <div className="mt-0.5 text-[10px] text-slate-400">Crease paths</div>
-        </div>
-        <div className={validatorIssues.some(issue => issue.type === "error") ? "rounded-xl border border-rose-500/30 bg-rose-950/20 px-3 py-2" : validatorIssues.some(issue => issue.type === "warning") ? "rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2" : "rounded-xl border border-emerald-500/25 bg-emerald-950/20 px-3 py-2"}>
-          <div className="flex items-center gap-2 text-slate-300"><ShieldCheck className="w-4 h-4" /><span className="text-[10px] font-bold">وضعیت بررسی</span></div>
-          <div className={validatorIssues.some(issue => issue.type === "error") ? "mt-1 text-sm font-black text-rose-300" : validatorIssues.some(issue => issue.type === "warning") ? "mt-1 text-sm font-black text-amber-300" : "mt-1 text-sm font-black text-emerald-300"}>
-            {validatorIssues.some(issue => issue.type === "error") ? "نیازمند اصلاح" : validatorIssues.some(issue => issue.type === "warning") ? "نیازمند بازبینی" : "بدون هشدار ثبت‌شده"}
-          </div>
-          <div className="mt-0.5 text-[10px] text-slate-400">امتیاز گزارش هندسی: {geometryReport.score}%</div>
-        </div>
-      </section>
 
       {/* SECONDARY CAD TOOLBOX RIBBON BAR REMOVED -> REPLACED BY FLOATING ACTION BUTTONS */}
 
