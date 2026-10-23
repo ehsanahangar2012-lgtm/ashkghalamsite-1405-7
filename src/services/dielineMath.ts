@@ -514,6 +514,72 @@ const createTelescopicEngine = () => {
   };
 };
 
+
+type SlottedStyle = '0200' | '0201' | '0203' | '0204';
+
+/** Parametric slotted-case family with panel-specific flap depths. */
+const createSlottedCaseEngine = (style: SlottedStyle) => {
+  return ({ L, W, H, glueTab = 35, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const G = Math.max(15, glueTab || 35);
+    const xs = [x0 + G, x0 + G + L, x0 + G + L + W, x0 + G + 2 * L + W, x0 + G + 2 * L + 2 * W];
+    const topDepths = style === '0200'
+      ? [0, 0, 0, 0]
+      : style === '0203'
+        ? [W, W / 2, W, W / 2]
+        : style === '0204'
+          ? [W / 2, L / 2, W / 2, L / 2]
+          : [W / 2, W / 2, W / 2, W / 2];
+    const bottomDepths = style === '0200' ? [W / 2, W / 2, W / 2, W / 2] : [...topDepths];
+    const maxTop = Math.max(...topDepths);
+    const maxBottom = Math.max(...bottomDepths);
+    const yTop = 40 + maxTop;
+    const yBottom = yTop + H;
+    const cuts: string[] = [];
+    const creases: string[] = [];
+    const labels: { x: number; y: number; text: string }[] = [];
+    const bevel = Math.min(8, Math.max(2, W * 0.04));
+
+    // Manufacturer's joint, body perimeter and four vertical panel scores.
+    cuts.push(`M ${x0 + 4} ${yTop} L ${x0} ${yTop + 4} L ${x0} ${yBottom - 4} L ${x0 + 4} ${yBottom}`);
+    cuts.push(`M ${xs[4]} ${yTop} L ${xs[4]} ${yBottom}`);
+    creases.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`);
+    creases.push(`M ${xs[0]} ${yBottom} L ${xs[4]} ${yBottom}`);
+    creases.push(`M ${xs[0]} ${yTop} L ${xs[0]} ${yBottom}`);
+    for (let i = 1; i < 4; i++) creases.push(`M ${xs[i]} ${yTop} L ${xs[i]} ${yBottom}`);
+
+    const addFlap = (i: number, edgeY: number, depth: number, direction: -1 | 1) => {
+      const xa = xs[i], xb = xs[i + 1];
+      if (depth <= 0) return;
+      const outerY = edgeY + direction * depth;
+      const inset = Math.min(bevel, Math.max(1, (xb - xa) * 0.08));
+      const shoulderY = outerY - direction * Math.min(bevel, depth * 0.35);
+      cuts.push(`M ${xa} ${edgeY} L ${xa} ${shoulderY} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${shoulderY} L ${xb} ${edgeY}`);
+      labels.push({ x: (xa + xb) / 2, y: (edgeY + outerY) / 2, text: `فلپ ${Math.round(depth)}mm` });
+    };
+    for (let i = 0; i < 4; i++) {
+      addFlap(i, yTop, topDepths[i], -1);
+      addFlap(i, yBottom, bottomDepths[i], 1);
+    }
+    if (style === '0200') cuts.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`);
+
+    labels.push({ x: (xs[0] + xs[1]) / 2, y: (yTop + yBottom) / 2, text: `L ${Math.round(L)}mm` });
+    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yTop + yBottom) / 2, text: `W ${Math.round(W)}mm` });
+    labels.push({ x: (xs[2] + xs[3]) / 2, y: (yTop + yBottom) / 2, text: `L ${Math.round(L)}mm` });
+    labels.push({ x: (xs[3] + xs[4]) / 2, y: (yTop + yBottom) / 2, text: `W ${Math.round(W)}mm` });
+
+    return {
+      cuts, creases, labels,
+      xMin: x0, yMin: yTop - maxTop, xMax: xs[4], yMax: yBottom + maxBottom,
+      totalW: xs[4] - x0, totalH: H + maxTop + maxBottom
+    };
+  };
+};
+
+const fefco0200Engine = createSlottedCaseEngine('0200');
+const fefco0201Engine = createSlottedCaseEngine('0201');
+const fefco0203Engine = createSlottedCaseEngine('0203');
+const fefco0204Engine = createSlottedCaseEngine('0204');
+
 const rscStandardEngine = createRscEngine(0.5, 0.5);
 const openTopEngine = createRscEngine(0, 0.5);
 const folEngine = createRscEngine(1.0, 1.0);
@@ -528,10 +594,11 @@ const telescopicEngine = createTelescopicEngine();
 // The Master Registry of Parametric Dieline CAD Engines
 export const STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEngineParams) => DielineEngineResult> = {
   // FEFCO 0200 Series
-  'default-rsc': rscStandardEngine,
-  'fefco-0201': rscStandardEngine,
-  'fefco-0200': openTopEngine,
-  'fefco-0203': folEngine,
+  'default-rsc': fefco0201Engine,
+  'fefco-0201': fefco0201Engine,
+  'fefco-0200': fefco0200Engine,
+  'fefco-0203': fefco0203Engine,
+  'fefco-0204': fefco0204Engine,
   'fefco-0215': crashLockEngine,
 
   // FEFCO 0300 Series (Telescope & Tray)
