@@ -101,7 +101,7 @@ const deeper0320Lid = STANDARD_DIELINE_ENGINES['fefco-0320']({
 if (JSON.stringify(telescope.cuts) === JSON.stringify(deeper0320Lid.cuts)) {
   fail('FEFCO 0320 lid wall depth must change the second blank geometry');
 }
-if (telescope.cuts.filter(path => /\\bZ\\s*$/.test(path)).length !== 0) {
+if (telescope.cuts.filter(path => /\bZ\s*$/.test(path)).length !== 0) {
   fail('FEFCO 0320 half-slotted blank paths should use their own separate segment contours, not a fictitious closed tray contour');
 }
 
@@ -110,7 +110,7 @@ const trayLid = STANDARD_DIELINE_ENGINES['fefco-0301']({
 });
 if (!trayLid.labels.some(label => label.text.includes('زیره')) ||
     !trayLid.labels.some(label => label.text.includes('درب')) ||
-    trayLid.cuts.filter(path => /\\bZ\\s*$/.test(path)).length !== 2) {
+    trayLid.cuts.filter(path => /\bZ\s*$/.test(path)).length !== 2) {
   fail('FEFCO 0301 baseline must draw and identify two separate tray-shaped blanks');
 }
 if (Math.abs(trayLid.totalW - 787.6) > 0.11 || Math.abs(trayLid.totalH - 364.8) > 0.11) {
