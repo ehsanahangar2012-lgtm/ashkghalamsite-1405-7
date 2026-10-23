@@ -457,11 +457,23 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       const mainRun = Math.min(L * 0.38, mainFlapDepth / Math.tan(angleRad));
       const sideRun = Math.min(W * 0.38, sideFlapDepth / Math.tan(angleRad));
 
-      // Two full-width long-wall flaps; neither is reduced to a triangular wedge.
-      cuts.push(`M ${xG} ${yBodyBtm} L ${xG + mainRun} ${mainOuterY} L ${xP1 - mainRun} ${mainOuterY} L ${xP1} ${yBodyBtm}`);
-      // Short-wall flaps reach across L/2, with a trapezoidal perimeter.
+      // The long-wall flap ends have the stepped central relief visible in
+      // published 0713 outlines; this replaces the former triangular wedges
+      // without inventing a manual tongue/slot lock for a pre-glued base.
+      const centerNotchWidth = Math.min(L * 0.36, Math.max(12, W * 0.32));
+      const centerNotchDepth = Math.min(mainFlapDepth * 0.28, Math.max(6, W * 0.16));
+      const notchShoulder = Math.min(centerNotchWidth * 0.16, mainRun * 0.5);
+      const longFlapPath = (left: number, right: number) => {
+        const center = (left + right) / 2;
+        const notchLeft = center - centerNotchWidth / 2;
+        const notchRight = center + centerNotchWidth / 2;
+        const notchY = mainOuterY - centerNotchDepth;
+        return `M ${left} ${yBodyBtm} L ${left + mainRun} ${mainOuterY} L ${notchLeft - notchShoulder} ${mainOuterY} L ${notchLeft} ${notchY} L ${notchRight} ${notchY} L ${notchRight + notchShoulder} ${mainOuterY} L ${right - mainRun} ${mainOuterY} L ${right} ${yBodyBtm}`;
+      };
+      cuts.push(longFlapPath(xG, xP1));
+      // Short-wall flaps remain wide trapezoids, not three-point triangles.
       cuts.push(`M ${xP1} ${yBodyBtm} L ${xP1 + sideRun} ${sideOuterY} L ${xP2 - sideRun} ${sideOuterY} L ${xP2} ${yBodyBtm}`);
-      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP2 + mainRun} ${mainOuterY} L ${xP3 - mainRun} ${mainOuterY} L ${xP3} ${yBodyBtm}`);
+      cuts.push(longFlapPath(xP2, xP3));
       cuts.push(`M ${xP3} ${yBodyBtm} L ${xP3 + sideRun} ${sideOuterY} L ${xP4 - sideRun} ${sideOuterY} L ${xP4} ${yBodyBtm}`);
 
       // The panel hinges are crease lines, not blade cuts. Keep the fold axis
