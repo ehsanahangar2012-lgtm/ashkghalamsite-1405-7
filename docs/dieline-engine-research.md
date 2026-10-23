@@ -39,9 +39,12 @@ Updated: 2026-10-23. This records technical guidance and licensing decisions; it
 
 ## Intersection-audit coverage (2026-10-23)
 
-- The generated SVG path checker treats proper crossings, non-adjacent endpoint contacts, and collinear overlaps within each cut path as hard validation errors. Normal adjacent corners are excluded, and the first/last segment pair is excluded only when the path is actually closed. Regression coverage includes an ordinary closed rectangle, an open path whose first and last segments cross, endpoint-on-segment contact, and collinear overlap.
-- To avoid quadratic checks causing preview stalls, pairwise intersection scanning is capped at 20,000 segment pairs per audit. If the cap is reached, a warning is shown that the intersection review was truncated; absence of a detected crossing after truncation is not proof that the whole path is clear.
-- The audit remains a structural screen. It does not infer polygon topology across separate SVG paths, identify all manufacturing collisions between independent cut and crease layers, or replace reference drawings and folded samples.
+- Same-path cut validation rejects non-adjacent crossings, contacts, and collinear overlaps; ordinary adjacent corners are excluded, and the first/last segment pair is treated as adjacent only for a genuinely closed path.
+- A separate cross-path audit now compares different cut paths and cut paths against crease paths. Proper cut/cut crossings, duplicate cut segments, cut/crease crossings, and cut/crease overlap are hard errors. Shared endpoint contacts are allowed. T-junctions among separate cut paths are warnings because they can be intentional where a slit reaches the edge of a shorter neighboring flap; these warnings require a visual check.
+- When exact bounds are supplied by the generator, every parsed cut and crease segment is checked against the declared `xMin/yMin/xMax/yMax` envelope, and the declared width/height must agree with those bounds within 0.1 mm. Out-of-bounds geometry or inconsistent bounds blocks export/save.
+- To keep preview work bounded, same-path checks cap at 20,000 candidate pairs and cross-path checks cap at 50,000 overlapping bounding-box pairs. Reaching either cap produces a warning; no result after a truncated scan is proof of complete geometric validity.
+- Regression fixtures cover separate cut-path crossing, a cut crossing through a crease, a legal crease endpoint terminating at the blank edge, and a path extending outside its stated bounds. The whole registered engine suite also feeds actual generated path bounds into the audit for three different dimension/material test sets.
+- This audit still does not perform a true folded 3D collision simulation, infer exact material deformation or crease-matrix compensation, or certify a physical sample. It is a stronger defensive check, not manufacturing certification.
 
 ## Active dieline page and FEFCO 0200-family correction (2026-10-23)
 
@@ -63,3 +66,13 @@ Updated: 2026-10-23. This records technical guidance and licensing decisions; it
 
 - The dieline studio now runs `runComprehensiveGeometryCheck` on the generated SVG cut/fold paths before enabling file export or saving a project. It reports estimated cut/fold lengths and structural warnings; a detected self-intersection, non-adjacent contact, collinear overlap, or other validation error makes the audit fail and blocks export/save rather than presenting the output as ready for manufacturing.
 - This is a defensive path-structure check, not a complete topology, fold simulation, dimension-convention, die-maker, or physical-sample validation. A passing status must not be described as manufacturing certification.
+
+## Cross-path geometry corrections (2026-10-23)
+
+- The stricter audit exposed duplicated knife paths at adjacent lock-flap seams. Snap-lock shoulder outlines now use angled entry/exit edges rather than overlapping vertical side cuts; one diagonal mark duplicated on a lock cut edge was removed from the crease layer.
+- Tuck-end dust flaps now use a single tapered outline at shared seams. This removes duplicate cut segments where a deep tuck flap meets a shorter adjacent dust flap. The straight-tuck outer tongue edge is treated as cut perimeter, not as a second crease.
+- The generic sleeve outline is now rectangular so its vertical panel scores terminate on the true top/bottom cut edges rather than crossing a skewed outline. The pizza-box baseline no longer places crease segments directly on outer cut edges.
+- The preview shows counts for cut/cut crossings, cut/crease crossings, overlaps, T-junction warnings and out-of-bounds segments. It also displays diagnostic path IDs/coordinates when available, and blocks SVG/DXF export plus project saving on hard validation errors.
+- Reference drawings were checked against the official FEFCO 12th-edition design-style library: https://www.fefco.org/technical-information/fefco-code and https://www.fefco.org/sites/default/files/documents/2022-10-17_FEFCO%20Code_BOOKLET_single_A5_HR.pdf. FEFCO's code labels define structural families; a family number alone does not guarantee the generated blank matches a converter's exact tooling.
+- Process notes on fold geometry, board caliper, crease channel and glued-tab sizing were also compared with Packmage's folding-carton die-board design article: https://www.packmage.com/about/article/296-B_Folding_carton_die-board_design. These are manufacturing variables rather than universal fixed constants, so the engine keeps its fit rules labelled as starting assumptions.
+- GitHub Actions regression run for commit `2680ed11363a99a19eb3fecddd5e24dc0248f858` passed the 21-engine, three-dimension geometry suite, test fixtures and both branch/main builds. UI diagnostic-detail changes followed in commit `a24c02153883b398c0ef6b25a72252126ca38881`; their final build/deploy must be verified separately before declaring that newer commit published.
