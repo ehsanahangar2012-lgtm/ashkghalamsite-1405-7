@@ -25,10 +25,39 @@ const dxfPairs = (source: string): Array<{ code: number; value: string }> => {
 const groupByCode = (pairs: Array<{ code: number; value: string }>, code: number) =>
   pairs.filter(pair => pair.code === code).map(pair => Number(pair.value)).filter(Number.isFinite);
 
-/** Parse common 2D DXF entities from the ENTITIES section. Coordinates remain in source units. */
+/** Parse common 2D DXF entities and normalize recognized $INSUNITS coordinates to millimetres. Unitless/unknown files preserve source coordinates. */
 export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
   if (typeof dxfContent !== 'string' || !dxfContent.trim()) return [];
   const pairs = dxfPairs(dxfContent);
+  // DXF $INSUNITS (header group 9 followed by group 70) is optional.
+  // Normalize common engineering units to mm so downstream geometry agrees
+  // with the app's dimension fields. Unitless/unknown files are not guessed.
+  let unitCode: number | null = null;
+  for (let i = 0; i < pairs.length; i++) {
+    if (pairs[i].code === 9 && pairs[i].value.toUpperCase() === '$INSUNITS') {
+      for (let j = i + 1; j < pairs.length && pairs[j].code !== 9 && pairs[j].code !== 0; j++) {
+        if (pairs[j].code === 70) {
+          const value = Number(pairs[j].value);
+          if (Number.isInteger(value)) unitCode = value;
+          break;
+        }
+      }
+      break;
+    }
+  }
+  const unitScaleToMm: Record<number, number> = {
+    1: 25.4,       // inches
+    2: 304.8,      // feet
+    3: 1609344,    // miles
+    4: 1,          // millimetres
+    5: 10,         // centimetres
+    6: 1000,       // metres
+    7: 1000000,    // kilometres
+    8: 0.0000254,  // microinches
+    9: 0.0254,     // mils
+    10: 914.4,     // yards
+  };
+  const coordinateScale = unitCode === null ? 1 : (unitScaleToMm[unitCode] ?? 1);
   let inEntities = false;
   const sections: Array<{ type: string; pairs: Array<{ code: number; value: string }> }> = [];
   let current: { type: string; pairs: Array<{ code: number; value: string }> } | null = null;
@@ -59,7 +88,9 @@ export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
   const result: DxfEntity[] = [];
   const addLine = (a: Point, b: Point, layer: string) => {
     if (![a.x, a.y, b.x, b.y].every(Number.isFinite) || (Math.abs(a.x-b.x) < 1e-9 && Math.abs(a.y-b.y) < 1e-9)) return;
-    result.push({ type: 'LINE', start: a, end: b, layer, isCrease: layerIsCrease(layer) });
+    const scaledStart = { x: a.x * coordinateScale, y: a.y * coordinateScale };
+    const scaledEnd = { x: b.x * coordinateScale, y: b.y * coordinateScale };
+    result.push({ type: 'LINE', start: scaledStart, end: scaledEnd, layer, isCrease: layerIsCrease(layer) });
   };
 
   let polylineLayer = '0';
