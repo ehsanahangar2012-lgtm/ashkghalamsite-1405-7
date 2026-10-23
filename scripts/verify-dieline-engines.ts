@@ -77,7 +77,7 @@ if (JSON.stringify(lockBottom.cuts) === JSON.stringify(thickBoardLock.cuts)) {
   fail('snap-lock geometry must respond to board caliper');
 }
 
-console.log(`Dieline geometry checks passed: ${requiredEngines.length} engines × ${dimensions.length} dimension sets.`);
+
 
 
 // Metrics must use the selected engine geometry and consistent square-metre units.
@@ -106,3 +106,5 @@ const thickMetrics = calculateDielineParameters('snap-lock-123', 120, 90, 100, 2
 if (thinMetrics.cutLength === thickMetrics.cutLength && thinMetrics.sheetHeight === thickMetrics.sheetHeight) {
   fail('caliper must be passed through to geometry-derived manufacturing metrics');
 }
+
+console.log(`Dieline geometry checks passed: ${requiredEngines.length} engines × ${dimensions.length} dimension sets.`);
