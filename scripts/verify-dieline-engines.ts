@@ -28,43 +28,52 @@ for (const id of requiredEngines) {
     const result = engine(dims);
     if (id === 'fefco-0713') {
       const x0 = dims.x0 ?? 50;
-      const glue = Math.max(12, dims.glueTab || 15);
-      const bodyBottomY = 30 + Math.max(15, 20) + dims.W + dims.H;
+      const t = Math.max(0.2, Number.isFinite(dims.thickness) ? dims.thickness : 0.45);
+      const inside = dims.dimensionConvention !== 'outside';
+      const panelL = dims.L + (inside ? t : 0);
+      const panelW = dims.W + (inside ? t : 0);
+      const panelH = dims.H + (inside ? 3 * t : 0);
+      const glue = Math.max(6, Math.min(Number.isFinite(dims.glueTab) ? dims.glueTab : 15, dims.H * 0.8, 200));
+      const tuck = Math.max(4, Math.min(25, panelW * 0.8, 60));
+      const bodyBottomY = 30 + panelW + tuck + panelH;
+      const xG = x0 + glue;
       const panelXs = [
-        x0 + glue,
-        x0 + glue + dims.L,
-        x0 + glue + dims.L + dims.W,
-        x0 + glue + 2 * dims.L + dims.W,
+        xG,
+        xG + panelW,
+        xG + panelW + panelL,
+        xG + 2 * panelW + panelL,
       ];
-      const mainDepth = Math.max(12, Math.min(dims.W * 0.75, dims.L * 0.9));
-      const sideDepth = Math.max(12, Math.min(dims.L * 0.35, dims.W * 0.9));
-      const expectedOuterYs = [
-        bodyBottomY + mainDepth,
-        bodyBottomY + sideDepth,
-        bodyBottomY + mainDepth,
-        bodyBottomY + sideDepth,
-      ];
+      const mainDepth = Math.max(12, Math.min(panelW * 0.75 - 3 * t, panelL * 0.9));
+      const sideDepth = Math.max(6, Math.min(dims.W * 0.45, panelW * 0.48));
+      const expectedDepths = [sideDepth, mainDepth, sideDepth, mainDepth];
       const bottomContours = panelXs.map((x) =>
         result.cuts.find(path => path.startsWith(`M ${x} ${bodyBottomY} L `))
       );
       if (bottomContours.some(path => !path)) {
-        fail(`fefco-0713: expected four bottom-flap contours at the body crease for ${JSON.stringify(dims)}`);
+        fail(`fefco-0713: expected side/front/side/back bottom contours at the body crease for ${JSON.stringify(dims)}`);
       }
       bottomContours.forEach((path, index) => {
         const contour = path as string;
-        const numbers = contour.match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
-        const vertices = (contour.match(/\bL\b/g) || []).length + 1;
-        if (vertices < 4) {
-          fail(`fefco-0713: bottom flap ${index + 1} is triangular; at least four contour vertices are required: ${contour}`);
-        }
-        if (numbers.length < 8 || numbers[3] !== expectedOuterYs[index] || numbers[5] !== expectedOuterYs[index]) {
-          fail(`fefco-0713: bottom flap ${index + 1} must use its axis-specific depth; expected outer Y=${expectedOuterYs[index]}, got ${contour}`);
-        }
-        if ((index === 0 || index === 2) &&
-            (numbers.length < 16 || numbers[7] >= expectedOuterYs[index] || numbers[9] !== numbers[7])) {
-          fail(`fefco-0713: long-wall bottom flap ${index + 1} must have the stepped central edge relief from the reference outline: ${contour}`);
+        const nums = contour.match(/-?\\d+(?:\\.\\d+)?/g)?.map(Number) || [];
+        const points: Array<[number, number]> = [];
+        for (let n = 0; n + 1 < nums.length; n += 2) points.push([nums[n], nums[n + 1]]);
+        if (points.length < 4) fail(`fefco-0713: bottom flap ${index + 1} must not be a triangular wedge: ${contour}`);
+        const actualMaxY = Math.max(...points.map(point => point[1]));
+        if (Math.abs(actualMaxY - (bodyBottomY + expectedDepths[index])) > 1e-7) {
+          fail(`fefco-0713: bottom flap ${index + 1} depth mismatch; expected outer Y=${bodyBottomY + expectedDepths[index]}, got ${actualMaxY}`);
         }
       });
+      const firstMain = bottomContours[1] as string;
+      const secondMain = bottomContours[3] as string;
+      const firstCenter = panelXs[1] + panelL / 2;
+      const secondCenter = panelXs[3] + panelL / 2;
+      const stepDepth = Math.max(4, Math.min(mainDepth * 0.2, panelW * 0.12, 12));
+      const outerY = bodyBottomY + mainDepth;
+      const stepY = outerY - stepDepth;
+      if (!firstMain.includes(`L ${firstCenter} ${outerY} L ${firstCenter} ${stepY}`) ||
+          !secondMain.includes(`L ${secondCenter} ${stepY} L ${secondCenter} ${outerY}`)) {
+        fail(`fefco-0713: front/back bottom edges must use complementary half-width locking steps`);
+      }
     }
     if (!Array.isArray(result.cuts) || result.cuts.length === 0) fail(`${id}: no cut paths`);
     if (!Array.isArray(result.creases) || result.creases.length === 0) fail(`${id}: no crease paths`);
@@ -98,6 +107,36 @@ for (const id of requiredEngines) {
   }
 }
 
+
+// Exact benchmark from the public Auto-Lock reference page (90 × 90 × 320 mm,
+// 0.45 mm board, 15 mm glue tab, 25 mm tuck, 43 mm top dust flap).
+const autoLockReference = STANDARD_DIELINE_ENGINES['fefco-0713']({
+  L: 90, W: 90, H: 320, thickness: 0.45, glueTab: 15, tuck: 25,
+  dustFlap: 43, bottomFlapDepth: 40.5, dimensionConvention: 'inside', autoLockAngle: 45, x0: 40,
+});
+if (Math.abs(autoLockReference.totalW - 376.8) > 1e-6 ||
+    Math.abs(autoLockReference.totalH - 503) > 0.5) {
+  fail(`FEFCO 0713 reference envelope must match 376.8 × 503 mm; got ${autoLockReference.totalW.toFixed(3)} × ${autoLockReference.totalH.toFixed(3)} mm`);
+}
+const autoLockRectangular = STANDARD_DIELINE_ENGINES['fefco-0713']({
+  L: 90, W: 60, H: 80, thickness: 0.45, glueTab: 15, tuck: 25,
+  dustFlap: 28.5, dimensionConvention: 'inside', autoLockAngle: 45, x0: 40,
+});
+const rectG = 55, rectPanelW = 60.45, rectPanelL = 90.45;
+const rectBottomY = 30 + rectPanelW + 25 + (80 + 1.35);
+const rectPanelStarts = [rectG, rectG + rectPanelW, rectG + rectPanelW + rectPanelL,
+  rectG + 2 * rectPanelW + rectPanelL];
+const rectBottomPaths = rectPanelStarts.map(x =>
+  autoLockRectangular.cuts.find(path => path.startsWith(`M ${x} ${rectBottomY} L `))
+);
+if (rectBottomPaths.some(path => !path) ||
+    Math.abs(autoLockRectangular.totalW - (15 + 2 * rectPanelW + 2 * rectPanelL)) > 1e-8) {
+  fail('FEFCO 0713 rectangular blank must preserve the W/L/W/L body topology and expected width');
+}
+if (!autoLockRectangular.cuts.some(path => path.startsWith(`M ${rectG + rectPanelW} ${30 + rectPanelW + 25} L `)) ||
+    !autoLockRectangular.cuts.some(path => path.startsWith(`M ${rectG + rectPanelW + rectPanelL} ${30 + rectPanelW + 25} L `))) {
+  fail('FEFCO 0713 rectangular template must put the tuck flap on the L panel and dust flaps on W panels');
+}
 
 // Cross-path topology regressions: each case deliberately isolates one failure mode.
 const crossCutReport = runComprehensiveGeometryCheck(
