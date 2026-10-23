@@ -1,10 +1,15 @@
-name: Preview box studio on GitHub Pages
+name: Build and preview full Ashk Ghalam site
 on:
   push:
     branches:
       - upgrade/review-and-improvements
     paths:
+      - 'src/**'
       - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'bun.lock'
+      - 'vite.config.ts'
       - '.github/workflows/preview-pages.yml'
   workflow_dispatch:
 permissions:
@@ -23,19 +28,23 @@ jobs:
     steps:
       - name: Checkout isolated preview branch
         uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install project dependencies
+        run: bun install --frozen-lockfile
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Package static offline preview
+      - name: Build the actual React/Vite application
+        run: bunx vite build --base=/ashkghalamsite-1405-7/
+      - name: Prepare static Pages output and SPA fallback
         run: |
-          test -f public/index.html
-          test -f public/box-studio/index.html
-          mkdir -p _site
-          cp -R public/. _site/
-          touch _site/.nojekyll
-      - name: Upload static preview
+          test -f dist/index.html
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
+      - name: Upload full site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: dist
       - name: Deploy preview
         id: deployment
         uses: actions/deploy-pages@v4
