@@ -2078,8 +2078,10 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       cuts: snappedCuts,
       creases: snappedCreases,
       labels: finalLabels,
-      totalW: Math.max(100, totalW),
-      totalH: Math.max(100, totalH),
+      // Preserve the engine's real physical bounds; minimum-size padding here
+      // used to distort nesting, measurements and viewport scale for small boxes.
+      totalW,
+      totalH,
       xMin,
       yMin,
       xMax,
@@ -2216,28 +2218,21 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     let bestCount = Math.max(countNormal, countRotated);
     let rotationNeeded = countRotated > countNormal;
 
-    // AI Nesting Mode boosts up yield with interlaced nesting layout if enabled
-    if (nestingMode === 'ai' || nestingMode === 'max_efficiency') {
-      // simulate complex nested interlocking (Boosts layout efficiency by 15-20%)
-      const interlockingFactor = 1.15;
-      const interlockingCount = Math.floor(bestCount * interlockingFactor);
-      if (interlockingCount > bestCount) {
-        bestCount = interlockingCount;
-      }
-    }
-
-    if (bestCount === 0) bestCount = 1; // Safely draw at least one template
-
+    // Never fabricate extra yield: this is a rectangular row/column estimate,
+    // not a true interlocking nesting solver. AI modes do not alter the count
+    // until a geometry-aware nesting algorithm is implemented.
     const itemArea = dieline.totalW * dieline.totalH;
     const sheetArea = sheetW * sheetH;
-    const efficiencyPercentage = Math.round(((bestCount * itemArea) / sheetArea) * 100);
-    const wastePercentage = 100 - efficiencyPercentage;
+    const efficiencyPercentage = bestCount > 0 && sheetArea > 0
+      ? Math.max(0, Math.min(100, Math.round((bestCount * itemArea / sheetArea) * 100)))
+      : 0;
+    const wastePercentage = Math.max(0, Math.min(100, 100 - efficiencyPercentage));
 
     return {
       yieldCount: bestCount,
       rotated: rotationNeeded,
-      efficiency: Math.min(98, efficiencyPercentage),
-      waste: Math.max(2, wastePercentage),
+      efficiency: efficiencyPercentage,
+      waste: wastePercentage,
       sheetAreaSqCm: Math.round(sheetArea / 100),
     };
 
@@ -2317,8 +2312,12 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       reports.push({ type: 'warning', msg: '⚠️ هشدار متخلخل: اعمال طلاکوب منسجم روی جنس کارتن کنگره‌دار فاقد لمینت ریسک دفرمه شدن دارد.' });
     }
 
+    if (nestingResult.yieldCount === 0) {
+      reports.push({ type: 'error', msg: 'ابعاد گسترده قالب در هیچ‌یک از دو جهت داخل ورق انتخابی جا نمی‌شود؛ اندازه ورق، فاصله چیدمان یا قالب را تغییر دهید.' });
+    }
+
     if (reports.length === 0) {
-      reports.push({ type: 'info', msg: '✅ ایمن برای تولید: قالب فاقد خطا کارگاهی است و آماده ورود به خط برش می‌باشد.' });
+      reports.push({ type: 'info', msg: 'در بررسی‌های خودکار فعلی خطای آشکاری پیدا نشد؛ این نتیجه جایگزین تأیید نقشه مرجع، تلرانس دستگاه و نمونه تاخورده نیست.' });
     }
 
     return reports;
