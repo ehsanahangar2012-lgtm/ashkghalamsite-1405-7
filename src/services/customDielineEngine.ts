@@ -136,7 +136,7 @@ export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
     const pairsCopy = record.pairs.map(pair => ({ ...pair }));
     const uniformScale = Math.abs(Math.abs(sx) - Math.abs(sy)) < 1e-8;
     if ((record.type === 'ARC' || record.type === 'CIRCLE') && !uniformScale) return null;
-    if (record.type !== 'LINE' && record.type !== 'LWPOLYLINE' && record.type !== 'ARC' && record.type !== 'CIRCLE') return null;
+    if (!['LINE', 'LWPOLYLINE', 'POLYLINE', 'VERTEX', 'SEQEND', 'ARC', 'CIRCLE'].includes(record.type)) return null;
     const layerPair = pairsCopy.find(pair => pair.code === 8);
     if (layerPair?.value === '0') layerPair.value = insertLayer;
     // Transform each coordinate pair (10,20) and (11,21); preserve all other groups.
