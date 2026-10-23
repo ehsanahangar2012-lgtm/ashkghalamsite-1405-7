@@ -317,6 +317,30 @@ if (!badGeometry.hasSelfIntersection) fail('geometry validator must detect non-a
 const emptyValidation = validateDxfDieline([]);
 if (emptyValidation.valid || emptyValidation.errors.length === 0) fail('empty DXF geometry must fail validation');
 
+// The self-intersection audit must detect open-path first/last crossings,
+// non-adjacent endpoint-on-segment contacts, and collinear overlap, without
+// flagging ordinary adjacent corners on a closed carton perimeter.
+const geometryAudit = (path: string) => runComprehensiveGeometryCheck(
+  [path], ['M 0 15 L 30 15'], 30, 20, 10, 'geometry-regression',
+  10, 5, 30, 30, 100, 100, 15
+);
+const validRectangleAudit = geometryAudit('M 0 0 L 30 0 L 30 30 L 0 30 Z');
+if (validRectangleAudit.hasSelfIntersection) {
+  fail('valid closed rectangle must not be flagged for its adjacent corners');
+}
+const openFirstLastCrossingAudit = geometryAudit('M 0 0 L 20 20 L 0 20 L 20 0');
+if (!openFirstLastCrossingAudit.hasSelfIntersection) {
+  fail('open path first/last segment crossing must be detected');
+}
+const endpointTouchAudit = geometryAudit('M 0 0 L 20 0 L 20 20 L 10 0 L 0 20');
+if (!endpointTouchAudit.hasSelfIntersection) {
+  fail('non-adjacent endpoint-on-segment contact must be detected');
+}
+const collinearOverlapAudit = geometryAudit('M 0 0 L 20 0 L 20 20 L 5 0 L 15 0');
+if (!collinearOverlapAudit.hasSelfIntersection) {
+  fail('non-adjacent collinear overlap must be detected');
+}
+
 
 // All registered IDs, including compatibility aliases, must remain callable.
 // The registry currently has 21 keys; some intentionally share an implementation.
