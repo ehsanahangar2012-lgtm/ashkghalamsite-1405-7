@@ -68,6 +68,15 @@ if (!rscGeometry.cuts.some(path => path.includes('M 310 158 L 310 40 L 470 40 L 
   fail('FEFCO 0201 must render visibly different side-flap and main-flap depths');
 }
 
+// Regression: the default ECMA reverse-tuck-end pattern has tapered dust flaps and a real tuck notch.
+const rteGeometry = STANDARD_DIELINE_ENGINES['ecma-a2020']({
+  L: 240, W: 160, H: 100, thickness: 0.45, glueTab: 30, tuck: 20, dustFlap: 15, x0: 40,
+});
+if (!rteGeometry.cuts.some(path => path.includes('L 163.6 30 L 163.6 33.6')) ||
+    !rteGeometry.cuts.some(path => path.includes('L 325 195 L 455 195'))) {
+  fail('ECMA reverse-tuck-end must include a locking notch and angled dust-flap corners');
+}
+
 const telescope = STANDARD_DIELINE_ENGINES['fefco-0320']({
   L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, x0: 40,
 });
