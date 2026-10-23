@@ -77,7 +77,7 @@ const STANDARDS_LIBRARY: PackagingModel[] = [
   { id: 'ecma-b10', name: 'کاور قلاف کشویی آزاد (Sleeve)', code: 'ECMA B10.10', category: 'ECMA B', icon: '🗂️', defaultDims: { L: 120, W: 125, H: 35 }, description: 'باندرول یا غلاف دور جعبه نگهدارنده، ایجاد هویت بصری روی جعبه خام مایکروویو.' },
 
   // ECMA C Series
-  { id: 'ecma-c1020', name: 'کارتن کشویی ریلی (Drawer Box)', code: 'ECMA C10.20', category: 'ECMA C', icon: '🗄️', defaultDims: { L: 130, W: 90, H: 45 }, description: 'جعبه دو تکه کشویی لوکس کبریتی، بسیار گران‌قیمت بصری و مستحکم.' },
+  { id: 'ecma-c1020', name: 'جعبه کشویی ریلی دو تکه (الگوی پایه سفارشی)', code: 'CUSTOM-DRAWER-01', category: 'Custom Drawer', icon: '🗄️', defaultDims: { L: 130, W: 90, H: 45 }, description: 'هندسه پارامتریک پایه با سینی و غلاف جداگانه؛ انطباق رسمی ECMA C10.20، خلاصی صنعتی و تلرانس ورق تأیید نشده است.' },
 
   // ECMA D Series
   { id: 'ecma-d50', name: 'استند رومیزی نمایش محصول (الگوی پایه سفارشی)', code: 'CUSTOM-DISPLAY-01', category: 'Custom Display', icon: '📊', defaultDims: { L: 160, W: 160, H: 180 }, description: 'الگوی پایه سفارشی با پایه، لبه جلویی، دیواره‌های جانبی و دیواره پشتی؛ کد ECMA D50 یا انطباق صنعتی این هندسه تأیید نشده است.' }
