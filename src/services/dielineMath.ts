@@ -871,7 +871,7 @@ const createSnapLockBottomEngine = () => {
       }
       const inset = Math.min(7, Math.max(2, (xb - xa) * 0.06));
       const outerY = yTop - depth;
-      cuts.push(`M ${xa} ${yTop} L ${xa} ${outerY + 3} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${outerY + 3} L ${xb} ${yTop}`);
+      cuts.push(`M ${xa} ${yTop} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${yTop}`);
       creases.push(`M ${xa} ${yTop} L ${xb} ${yTop}`);
     }
 
@@ -890,7 +890,7 @@ const createSnapLockBottomEngine = () => {
       const xa = xs[i], xb = xs[i + 1];
       const inset = Math.min(6, Math.max(2, safeW * 0.07));
       const outerY = yBottom + dustDepth;
-      cuts.push(`M ${xa} ${yBottom} L ${xa} ${outerY - 3} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${outerY - 3} L ${xb} ${yBottom}`);
+      cuts.push(`M ${xa} ${yBottom} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${yBottom}`);
       creases.push(`M ${xa} ${yBottom} L ${xb} ${yBottom}`);
     }
 
