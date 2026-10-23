@@ -171,6 +171,16 @@ if (!pizza.cuts.length || !pizza.creases.some(path => path.includes('L'))) {
 }
 
 
+const crashLock30 = STANDARD_DIELINE_ENGINES['fefco-0713']({
+  L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, autoLockAngle: 30, x0: 40,
+});
+const crashLock60 = STANDARD_DIELINE_ENGINES['fefco-0713']({
+  L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, autoLockAngle: 60, x0: 40,
+});
+if (JSON.stringify(crashLock30.cuts) === JSON.stringify(crashLock60.cuts)) {
+  fail('FEFCO 0713 baseline lock shoulders must respond to selected angle instead of a fixed 10 mm shoulder');
+}
+
 const lockBottom = STANDARD_DIELINE_ENGINES['snap-lock-123']({
   L: 120, W: 90, H: 100, thickness: 0.45, glueTab: 22, x0: 40,
 });
