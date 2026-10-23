@@ -390,7 +390,7 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       // Straight-tuck variant: top and bottom tuck flaps are on the same main panel.
       cuts.push(`M ${xG} ${yBodyBtm} L ${xG} ${yBtmFlap} L ${xP1} ${yBtmFlap} L ${xP1} ${yBodyBtm}`);
       creases.push(`M ${xG} ${yBodyBtm} L ${xP1} ${yBodyBtm}`);
-      creases.push(`M ${xG} ${yBtmFlap} L ${xP1} ${yBtmFlap}`);
+      // yBtmFlap is the cut perimeter of the tuck tongue, not an additional score line.
       cuts.push(dustFlapPath(xP1, xP2, yBodyBtm, DF, 1));
       creases.push(`M ${xP1} ${yBodyBtm} L ${xP2} ${yBodyBtm}`);
       cuts.push(`M ${xP2} ${yBodyBtm} L ${xP3} ${yBodyBtm}`);
