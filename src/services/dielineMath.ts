@@ -449,49 +449,63 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
 };
 
 // 4. FEFCO 0300 (Telescope / Tray) Engine
+/**
+ * One-piece glued tray blank.
+ * L/W/H are inside dimensions by default; panel dimensions include a basic
+ * caliper allowance. Four rectangular corner tabs fold against the adjacent
+ * side walls. This is a generic tray construction, not a claim of a certified
+ * ECMA/FEFCO glued-tray code.
+ */
 const createTrayEngine = () => {
-  return ({ L, W, H, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+  return ({
+    L, W, H, x0 = 50, thickness = 0.45, glueTab = 25,
+    dimensionConvention = 'inside', variant = '',
+  }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 0.45);
+    const l = dimensionConvention === 'outside' ? Math.max(1, L - t) : L;
+    const w = dimensionConvention === 'outside' ? Math.max(1, W - t) : W;
+    const h = dimensionConvention === 'outside' ? Math.max(1, H - t) : H;
+    const panelL = l + t;
+    const panelW = w + t;
+    const wall = h + t;
+    const requestedTab = Number.isFinite(glueTab) ? glueTab : wall * 0.65;
+    const tab = Math.max(4, Math.min(requestedTab, wall * 0.9, panelL * 0.2, panelW * 0.45));
+    const xL = x0 + wall;
+    const xR = xL + panelL;
     const y0 = 40;
-    const xLeft = x0;
-    const xFlapL = xLeft + H;
-    const xBaseL = xFlapL + H;
-    const xBaseR = xBaseL + L;
-    const xFlapR = xBaseR + H;
-    const xRight = xFlapR + H;
+    const yT = y0 + wall;
+    const yB = yT + panelW;
+    const xMin = xL - wall;
+    const xMax = xR + wall;
+    const yMin = yT - wall;
+    const yMax = yB + wall;
 
-    const yTop = y0;
-    const yFlapT = yTop + H;
-    const yBaseT = yFlapT + H;
-    const yBaseB = yBaseT + W;
-    const yFlapB = yBaseB + H;
-    const yBtm = yFlapB + H;
-
-    const cuts: string[] = [
-      `M ${xBaseL} ${yTop} L ${xBaseR} ${yTop} L ${xBaseR} ${yBaseT} L ${xRight} ${yBaseT} L ${xRight} ${yBaseB} L ${xBaseR} ${yBaseB} L ${xBaseR} ${yBtm} L ${xBaseL} ${yBtm} L ${xBaseL} ${yBaseB} L ${xLeft} ${yBaseB} L ${xLeft} ${yBaseT} L ${xBaseL} ${yBaseT} Z`
+    // Single non-self-crossing outer contour. Corner tabs occupy the blank
+    // quadrants outside the base and do not overlap the four wall panels.
+    const cuts = [
+      `M ${xL} ${yT} L ${xL - tab} ${yT} L ${xL - tab} ${yMin} L ${xR + tab} ${yMin} L ${xR + tab} ${yT} L ${xMax} ${yT} L ${xMax} ${yB} L ${xR + tab} ${yB} L ${xR + tab} ${yMax} L ${xL - tab} ${yMax} L ${xL - tab} ${yB} L ${xMin} ${yB} L ${xMin} ${yT} Z`,
     ];
-
-    const creases: string[] = [
-      `M ${xBaseL} ${yBaseT} L ${xBaseR} ${yBaseT}`,
-      `M ${xBaseL} ${yBaseB} L ${xBaseR} ${yBaseB}`,
-      `M ${xBaseL} ${yBaseT} L ${xBaseL} ${yBaseB}`,
-      `M ${xBaseR} ${yBaseT} L ${xBaseR} ${yBaseB}`,
+    const creases = [
+      `M ${xL} ${yT} L ${xR} ${yT}`,
+      `M ${xL} ${yB} L ${xR} ${yB}`,
+      `M ${xL} ${yT} L ${xL} ${yB}`,
+      `M ${xR} ${yT} L ${xR} ${yB}`,
+      // Corner tabs hinge on the ends of the top/bottom walls.
+      `M ${xL} ${yMin} L ${xL} ${yT}`,
+      `M ${xR} ${yMin} L ${xR} ${yT}`,
+      `M ${xL} ${yB} L ${xL} ${yMax}`,
+      `M ${xR} ${yB} L ${xR} ${yMax}`,
     ];
-
-    const labels = [
-      { x: (xBaseL + xBaseR) / 2, y: (yBaseT + yBaseB) / 2, text: `کفه تلسکوپی: ${Math.round(L)} × ${Math.round(W)}mm` },
-      { x: (xBaseL + xBaseR) / 2, y: (yTop + yBaseT) / 2, text: `دیواره: ${Math.round(H)}mm` },
-    ];
-
+    const labels = [{
+      x: (xL + xR) / 2,
+      y: (yT + yB) / 2,
+      text: `${variant ? variant + ' · ' : ''}${Math.round(L)} × ${Math.round(W)}mm · دیواره ${Math.round(H)}mm`,
+    }];
     return {
-      cuts,
-      creases,
-      labels,
-      xMin: x0,
-      yMin: y0,
-      xMax: xRight,
-      yMax: yBtm,
-      totalW: xRight - x0,
-      totalH: yBtm - y0,
+      cuts, creases, labels,
+      xMin, yMin, xMax, yMax,
+      totalW: xMax - xMin,
+      totalH: yMax - yMin,
     };
   };
 };
@@ -598,61 +612,93 @@ const createPizzaBoxEngine = () => {
  * H is the assembled total depth; it is split between base and lid. Lid clearance
  * uses the supplied board caliper as a starting point and must be calibrated.
  */
+/**
+ * FEFCO 0320-style telescope: two independent half-slotted blanks.
+ * H is the main body inside height; lidHeight controls the over-sleeve wall
+ * depth and defaults to half H. Lid plan dimensions allow for board caliper
+ * and a small adjustable-by-calibration fit allowance.
+ */
 const createTelescopicEngine = () => {
-  return ({ L, W, H, thickness = 1.5, glueTab = 30, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
-    const t = Math.max(0.2, thickness || 1.5);
-    const G = Math.max(15, glueTab || 30);
-    // FEFCO 0320 is a lid/base set based on two 0200-style pieces.
-    // The editor's three-dimension input splits H as a default; production
-    // drawings should expose lid height as an explicit fourth parameter.
-    const baseH = Math.max(8, H * 0.65);
-    const lidH = Math.max(8, H - baseH);
-    const lidL = L + 2 * t + 0.8;
-    const lidW = W + 2 * t + 0.8;
-    const gap = Math.max(24, t * 10);
-    const cuts: string[] = [];
-    const creases: string[] = [];
-    const labels: { x: number; y: number; text: string }[] = [];
-
-    const addHalfSlottedPiece = (xStart: number, yStart: number, l: number, w: number, h: number, label: string) => {
-      const xs = [xStart + G, xStart + G + l, xStart + G + l + w, xStart + G + 2 * l + w, xStart + G + 2 * l + 2 * w];
-      const flap = w / 2;
-      const yTop = yStart + flap;
-      const yBottom = yTop + h;
-      cuts.push(`M ${xStart + 4} ${yTop} L ${xStart} ${yTop + 4} L ${xStart} ${yBottom - 4} L ${xStart + 4} ${yBottom}`);
-      cuts.push(`M ${xs[4]} ${yTop} L ${xs[4]} ${yBottom}`);
-      cuts.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`); // open end of the 0200-style piece
-      creases.push(`M ${xStart + G} ${yTop} L ${xStart + G} ${yBottom}`); // glue seam
-      creases.push(`M ${xs[0]} ${yBottom} L ${xs[4]} ${yBottom}`);
-      for (let i = 1; i < 4; i++) creases.push(`M ${xs[i]} ${yTop} L ${xs[i]} ${yBottom}`);
-
-      for (let i = 0; i < 4; i++) {
-        const xa = xs[i], xb = xs[i + 1];
-        const inset = Math.min(6, Math.max(1, (xb - xa) * 0.05));
-        const outerY = yBottom + flap;
-        cuts.push(`M ${xa} ${yBottom} L ${xa} ${outerY - 3} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${outerY - 3} L ${xb} ${yBottom}`);
-      }
-      labels.push({ x: (xs[0] + xs[4]) / 2, y: (yTop + yBottom) / 2, text: `${label}: ${Math.round(l)} × ${Math.round(w)} × ${Math.round(h)}mm` });
-      return { minX: xStart, minY: yTop - flap, maxX: xs[4], maxY: yBottom + flap };
-    };
-
-    const base = addHalfSlottedPiece(x0, 40, L, W, baseH, 'زیره');
-    const lidX = base.maxX + gap;
-    const lid = addHalfSlottedPiece(lidX, 40, lidL, lidW, lidH, 'درب');
-    labels.push({ x: (base.minX + base.maxX) / 2, y: base.maxY + 14, text: 'قطعه ۱: زیره' });
-    labels.push({ x: (lid.minX + lid.maxX) / 2, y: lid.maxY + 14, text: 'قطعه ۲: درب تلسکوپی' });
-    labels.push({ x: (lid.minX + lid.maxX) / 2, y: lid.maxY + 30, text: 'ارتفاع درب پیش‌فرض است؛ برای تولید باید جداگانه تعیین شود' });
-
+  return ({
+    L, W, H, lidHeight, thickness = 1.5, glueTab = 30,
+    slotGap, x0 = 50,
+  }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 1.5);
+    const G = Math.max(5, Math.min(200, Number.isFinite(glueTab) ? glueTab : 30));
+    const lidH = Math.max(5, Number.isFinite(lidHeight) ? lidHeight as number : H * 0.5);
+    const fit = Math.max(0.8, t * 0.5);
+    const layoutGap = Math.max(24, t * 10);
+    const base = fefco0200Engine({
+      L, W, H, thickness: t, glueTab: G, slotGap,
+      dimensionConvention: 'inside', x0,
+    });
+    const lidL = L + 2 * t + fit;
+    const lidW = W + 2 * t + fit;
+    const lidX = base.xMax + layoutGap;
+    const lid = fefco0200Engine({
+      L: lidL, W: lidW, H: lidH, thickness: t, glueTab: G, slotGap,
+      dimensionConvention: 'inside', x0: lidX,
+    });
+    const baseCenterX = (x0 + G + x0 + G + 2 * L + 2 * W + 4 * t) / 2;
+    const baseCenterY = 40 + (H + t) / 2;
+    const lidCenterX = (lidX + G + lidX + G + 2 * lidL + 2 * lidW + 4 * t) / 2;
+    const lidCenterY = 40 + (lidH + t) / 2;
+    const xMin = Math.min(base.xMin, lid.xMin);
+    const yMin = Math.min(base.yMin, lid.yMin);
+    const xMax = Math.max(base.xMax, lid.xMax);
+    const yMax = Math.max(base.yMax, lid.yMax);
     return {
-      cuts, creases, labels,
-      xMin: base.minX, yMin: 40,
-      xMax: lid.maxX, yMax: Math.max(base.maxY, lid.maxY) + 32,
-      totalW: lid.maxX - base.minX,
-      totalH: Math.max(base.maxY, lid.maxY) + 32 - 40
+      cuts: [...base.cuts, ...lid.cuts],
+      creases: [...base.creases, ...lid.creases],
+      labels: [
+        ...base.labels,
+        ...lid.labels,
+        { x: baseCenterX, y: baseCenterY, text: `قطعه ۱: زیره · ارتفاع بدنه ${Math.round(H)}mm` },
+        { x: lidCenterX, y: lidCenterY, text: `قطعه ۲: درب · عمق دیواره ${Math.round(lidH)}mm` },
+      ],
+      xMin, yMin, xMax, yMax,
+      totalW: xMax - xMin,
+      totalH: yMax - yMin,
     };
   };
 };
 
+/** FEFCO 0300/0301-family baseline: separate tray-shaped base and lid. */
+const createTelescopicTrayEngine = () => {
+  return ({
+    L, W, H, lidHeight, thickness = 1.5, glueTab = 30,
+    x0 = 50, dimensionConvention = 'inside',
+  }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 1.5);
+    const fit = Math.max(0.8, t * 0.5);
+    const lidH = Math.max(5, Number.isFinite(lidHeight) ? lidHeight as number : H * 0.5);
+    const layoutGap = Math.max(24, t * 10);
+    const base = trayEngine({
+      L, W, H, thickness: t, glueTab, x0, dimensionConvention, variant: 'زیره',
+    });
+    // Lid must pass over the outside of the base; clearance is explicit in the
+    // independent cover blank, rather than hiding in a generic size multiplier.
+    const lidL = L + 2 * t + fit;
+    const lidW = W + 2 * t + fit;
+    const lidX = base.xMax + layoutGap;
+    const lid = trayEngine({
+      L: lidL, W: lidW, H: lidH, thickness: t, glueTab,
+      x0: lidX, dimensionConvention: 'inside', variant: 'درب',
+    });
+    const xMin = Math.min(base.xMin, lid.xMin);
+    const yMin = Math.min(base.yMin, lid.yMin);
+    const xMax = Math.max(base.xMax, lid.xMax);
+    const yMax = Math.max(base.yMax, lid.yMax);
+    return {
+      cuts: [...base.cuts, ...lid.cuts],
+      creases: [...base.creases, ...lid.creases],
+      labels: [...base.labels, ...lid.labels],
+      xMin, yMin, xMax, yMax,
+      totalW: xMax - xMin,
+      totalH: yMax - yMin,
+    };
+  };
+};
 
 type SlottedStyle = '0200' | '0201' | '0203' | '0204';
 
@@ -873,6 +919,7 @@ const tuckEndEngine = createTuckEndEngine(false);
 const straightTuckEngine = createTuckEndEngine(false, true);
 const crashLockEngine = createTuckEndEngine(true);
 const trayEngine = createTrayEngine();
+const telescopicTrayEngine = createTelescopicTrayEngine();
 const sleeveEngine = createSleeveEngine();
 const pizzaBoxEngine = createPizzaBoxEngine();
 
@@ -955,8 +1002,10 @@ export const STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEnginePara
   'fefco-0215': fefco0215Engine,
 
   // FEFCO 0300 Series (Telescope & Tray)
-  'fefco-0300': telescopicEngine,
-  'fefco-0301': telescopicEngine,
+  // 0300 is retained as a clearly labelled generic family baseline.
+  'fefco-0300': telescopicTrayEngine,
+  'fefco-0301': telescopicTrayEngine,
+  // 0320 is built from two independent FEFCO 0200-style half-slotted blanks.
   'fefco-0320': telescopicEngine,
 
   // FEFCO 0400 Series (Mailer & Folders)
