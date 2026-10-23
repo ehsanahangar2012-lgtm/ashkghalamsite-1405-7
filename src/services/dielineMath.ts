@@ -330,7 +330,7 @@ const createMailerEngine = () => {
 
 // 3. ECMA A20.20 (Tuck End Folding Carton) Engine
 const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
-  return ({ L, W, H, glueTab = 15, tuck = 20, dustFlap = 15, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+  return ({ L, W, H, glueTab = 15, tuck = 20, dustFlap = 15, autoLockAngle = 45, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
     const G = Math.max(12, glueTab || 15);
     const T = Math.max(15, tuck || 20);
     const DF = Math.max(12, dustFlap || 15);
@@ -413,14 +413,19 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       cuts.push(`M ${xP3} ${yBodyBtm} L ${xP3} ${yBodyBtm + DF} L ${xP4} ${yBodyBtm + DF} L ${xP4} ${yBodyBtm}`);
       creases.push(`M ${xP3} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
     } else {
-      // Crash lock bottom (45-degree angle flaps)
-      cuts.push(`M ${xG} ${yBodyBtm} L ${xG} ${yBtmFlap} L ${xP1 - 10} ${yBtmFlap} L ${xP1} ${yBodyBtm}`);
+      // Experimental crash-lock-inspired bottom. The long-panel shoulders scale
+      // with the selected angle and actual flap depth rather than a fixed 10 mm.
+      const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45));
+      const angleRad = angleDeg * Math.PI / 180;
+      const flapDepth = yBtmFlap - yBodyBtm;
+      const lockRun = Math.min(L * 0.9, flapDepth / Math.tan(angleRad));
+      cuts.push(`M ${xG} ${yBodyBtm} L ${xG} ${yBtmFlap} L ${xP1 - lockRun} ${yBtmFlap} L ${xP1} ${yBodyBtm}`);
       cuts.push(`M ${xP1} ${yBodyBtm} L ${xP2} ${yBtmFlap} L ${xP2} ${yBodyBtm}`);
-      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP3 - 10} ${yBtmFlap} L ${xP3} ${yBodyBtm}`);
+      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP3 - lockRun} ${yBtmFlap} L ${xP3} ${yBodyBtm}`);
       cuts.push(`M ${xP3} ${yBodyBtm} L ${xP4} ${yBtmFlap} L ${xP4} ${yBodyBtm}`);
       creases.push(`M ${xG} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
-      creases.push(`M ${xG} ${yBodyBtm} L ${xP1 - 10} ${yBtmFlap}`);
-      creases.push(`M ${xP2} ${yBodyBtm} L ${xP3 - 10} ${yBtmFlap}`);
+      creases.push(`M ${xG} ${yBodyBtm} L ${xP1 - lockRun} ${yBtmFlap}`);
+      creases.push(`M ${xP2} ${yBodyBtm} L ${xP3 - lockRun} ${yBtmFlap}`);
     }
 
     // Outer Right Wall Cut
