@@ -137,7 +137,7 @@ export const runComprehensiveGeometryCheck = (
   if(tuck>h*0.6){warnings.push('عمق زبانه درب نسبت به ارتفاع محصول زیاد است؛ قفل‌شدن را در حالت مونتاژ بررسی کنید.');tuckCollision=true;}
 
   // Detect proper crossings between non-adjacent segments belonging to the same cut path.
-  let hasSelfIntersection=false,checked=0;
+  let hasSelfIntersection=false,checked=0,selfIntersectionDetail='';
   const byPath=new Map<number,{segments:Segment[];closed:boolean}>();
   segments.forEach(s=>{
     if(s.pathIndex<cuts.length){
@@ -146,17 +146,22 @@ export const runComprehensiveGeometryCheck = (
       byPath.set(s.pathIndex,record);
     }
   });
-  outer: for(const pathRecord of byPath.values()){
+  outer: for(const [pathIndex,pathRecord] of byPath.entries()){
     const pathSegments=pathRecord.segments;
     for(let i=0;i<pathSegments.length;i++)for(let j=i+2;j<pathSegments.length;j++){
       // Only a genuinely closed path has a legitimate first/last adjacent pair.
       if(pathRecord.closed&&i===0&&j===pathSegments.length-1)continue;
       if(++checked>20000)break outer;
-      if(intersects(pathSegments[i],pathSegments[j])){hasSelfIntersection=true;break outer;}
+      if(intersects(pathSegments[i],pathSegments[j])){
+        hasSelfIntersection=true;
+        const a=pathSegments[i],b=pathSegments[j];
+        selfIntersectionDetail=`مسیر برش ${pathIndex+1}، قطعات ${i+1}/${j+1}، نقاط [${a.a.x},${a.a.y}→${a.b.x},${a.b.y}] و [${b.a.x},${b.a.y}→${b.b.x},${b.b.y}]`;
+        break outer;
+      }
     }
   }
   if(checked>20000)warnings.push('برای جلوگیری از کندشدن پیش‌نمایش، بررسی تقاطع پس از ۲۰۰۰۰ جفت قطعه متوقف شد؛ این نقشه به بررسی کامل‌تر نیاز دارد.');
-  if(hasSelfIntersection)warnings.push('تقاطع، تماس غیرمجاور یا هم‌پوشانی بین قطعات یک مسیر برش شناسایی شد؛ مسیر را بازبینی کنید.');
+  if(hasSelfIntersection)warnings.push(`تقاطع، تماس غیرمجاور یا هم‌پوشانی بین قطعات یک مسیر برش شناسایی شد؛ مسیر را بازبینی کنید. (${selfIntersectionDetail})`);
 
   const closedCutPaths=parsed.slice(0,cuts.length).filter(p=>!p.malformed&&p.segments.length>0);
   // Engines may legitimately represent a perimeter as several open SVG subpaths;
