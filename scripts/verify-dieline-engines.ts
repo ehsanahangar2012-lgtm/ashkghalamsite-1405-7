@@ -117,7 +117,7 @@ const sampleDxf = [
   '0','LWPOLYLINE','8','CUT','90','4','70','1',
   '10','0','20','0','10','100','20','0','10','100','20','50','10','0','20','50',
   '0','ENDSEC','0','EOF'
-].join('\\n');
+].join('\n');
 const parsedDxf = parseDxfToEntities(sampleDxf);
 if (parsedDxf.length !== 6) fail(`DXF parser should extract six line segments, got ${parsedDxf.length}`);
 if (!parsedDxf.some(entity => entity.isCrease)) fail('DXF parser must preserve crease layer classification');
