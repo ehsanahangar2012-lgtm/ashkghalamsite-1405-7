@@ -143,6 +143,7 @@ export interface DielineEngineParams {
   thickness?: number;
   slotGap?: number;
   dimensionConvention?: 'inside' | 'outside';
+  lidHeight?: number;
   autoLockAngle?: number;
   autoLockGlueWidth?: number;
 }
