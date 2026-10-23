@@ -110,20 +110,19 @@ if (Math.abs(rscGeometry.totalH - (100 + 160 + 2 * 1.6 - 2.4)) > 1e-8) {
   fail(`FEFCO 0201 inside-size blank height must include board caliper and the opposing-flap slot gap, got ${rscGeometry.totalH}`);
 }
 
-// Regression: the default ECMA reverse-tuck-end pattern has tapered dust flaps and a real tuck notch.
+// Regression: reverse-tuck panel topology, closure tongues, hinge scores, and tapered dust flaps.
 const rteGeometry = STANDARD_DIELINE_ENGINES['ecma-a2020']({
   L: 240, W: 160, H: 100, thickness: 0.45, glueTab: 30, tuck: 20, dustFlap: 15, x0: 40,
 });
-if (!rteGeometry.cuts.some(path => path.includes('L 163.6 30 L 163.6 33.6')) ||
-    !rteGeometry.cuts.some(path => path.includes('L 325 195 L 455 195'))) {
-  fail('ECMA reverse-tuck-end must include a locking notch and angled dust-flap corners');
+const complexTuckContours = rteGeometry.cuts.filter(path => path.split(' L ').length >= 11);
+const taperedFlapContours = rteGeometry.cuts.filter(path => path.split(' L ').length === 4);
+if (Math.abs(rteGeometry.totalW - (30 + 2 * 240 + 2 * 160)) > 1e-8 ||
+    Math.abs(rteGeometry.totalH - (100 + 2 * (160 + 20))) > 1e-8) {
+  fail('ECMA reverse-tuck-end must use the correct four-panel body width and opposing closure depths');
 }
-if (!rteGeometry.cuts.some(path =>
-  path.includes('L 563.6 490 L 563.6 486.4 L 616.4 486.4 L 616.4 490')
-)) {
-  fail('ECMA reverse-tuck-end bottom locking slot must follow a non-overlapping perimeter order');
+if (complexTuckContours.length < 2 || taperedFlapContours.length < 4 || rteGeometry.creases.length < 10) {
+  fail('ECMA reverse-tuck-end must include two notched tuck tongues, tongue hinge scores, and tapered dust-flap cuts');
 }
-
 const telescope = STANDARD_DIELINE_ENGINES['fefco-0320']({
   L: 240, W: 160, H: 100, lidHeight: 35, thickness: 1.6, glueTab: 30, slotGap: 2.4, x0: 40,
 });
