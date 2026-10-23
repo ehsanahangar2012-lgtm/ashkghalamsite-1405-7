@@ -75,7 +75,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [length, setLength] = useState(240);
   const [width, setWidth] = useState(160);
   const [height, setHeight] = useState(100);
-  const [thickness, setThickness] = useState(1.6);
+  const [thickness, setThickness] = useState(1.5);
   const [materialPreset, setMaterialPreset] = useState('corrugated-e');
   const [glueTab, setGlueTab] = useState(30);
   const [showLabels, setShowLabels] = useState(true);
