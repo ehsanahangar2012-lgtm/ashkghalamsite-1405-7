@@ -178,18 +178,24 @@ const closedLegacyPolyline = [
   '0','VERTEX','8','CUT','10','100','20','50',
   '0','SEQEND',
   '0','ENDSEC','0','EOF'
-].join('\\n');
+].join('\n');
 const closedLegacyEntities = parseDxfToEntities(closedLegacyPolyline);
 if (closedLegacyEntities.length !== 3) {
-  fail(`closed legacy DXF POLYLINE should yield three edges, got ${closedLegacyEntities.length}`);
+  fail(\`closed legacy DXF POLYLINE should yield three edges, got \${closedLegacyEntities.length}\`);
 }
-const explicitlyClosedLegacyPolyline = closedLegacyPolyline.replace(
-  "'0','SEQEND',",
-  "'0','VERTEX','8','CUT','10','0','20','0', '0','SEQEND',"
-);
+const explicitlyClosedLegacyPolyline = [
+  '0','SECTION','2','ENTITIES',
+  '0','POLYLINE','8','CUT','66','1','70','1',
+  '0','VERTEX','8','CUT','10','0','20','0',
+  '0','VERTEX','8','CUT','10','100','20','0',
+  '0','VERTEX','8','CUT','10','100','20','50',
+  '0','VERTEX','8','CUT','10','0','20','0',
+  '0','SEQEND',
+  '0','ENDSEC','0','EOF'
+].join('\n');
 const explicitClosedEntities = parseDxfToEntities(explicitlyClosedLegacyPolyline);
 if (explicitClosedEntities.length !== 3) {
-  fail(`legacy DXF POLYLINE with repeated first vertex must not duplicate closure, got ${explicitClosedEntities.length}`);
+  fail(\`legacy DXF POLYLINE with repeated first vertex must not duplicate closure, got \${explicitClosedEntities.length}\`);
 }
 const parsedValidation = validateDxfDieline(parsedDxf);
 if (!parsedValidation.valid || parsedValidation.totalLength <= 0 || parsedValidation.totalLength === 1250) {
