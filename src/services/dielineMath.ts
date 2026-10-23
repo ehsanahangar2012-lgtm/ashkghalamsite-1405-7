@@ -149,6 +149,10 @@ export interface DielineEngineParams {
   lidClearance?: number;
   autoLockAngle?: number;
   autoLockGlueWidth?: number;
+  /** Snap-lock side-flap depth, independent from the top dust-flap depth (mm). */
+  bottomFlapDepth?: number;
+  /** Projection of the snap-lock tongue beyond its flap edge (mm). */
+  lockTongueDepth?: number;
 }
 
 export interface DielineEngineResult {
@@ -843,6 +847,7 @@ const fefco0204Engine = createSlottedCaseEngine('0204');
 const createSnapLockBottomEngine = () => {
   return ({
     L, W, H, glueTab = 15, thickness = 0.5, tuck = 25, dustFlap = 33,
+    bottomFlapDepth, lockTongueDepth,
     x0 = 50, autoLockAngle = 45, autoLockGlueWidth, dimensionConvention = 'inside',
   }: DielineEngineParams): DielineEngineResult => {
     const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 0.5);
@@ -860,7 +865,8 @@ const createSnapLockBottomEngine = () => {
     const G = Math.max(6, Math.min(Number.isFinite(glueTab) ? glueTab : 15, panelH * 0.8));
     const tuckDepth = Math.max(4, Math.min(Number.isFinite(tuck) ? tuck : 25, panelW * 0.8));
     const topDustDepth = Math.max(4, Math.min(Number.isFinite(dustFlap) ? dustFlap : 33, panelW * 0.48));
-    const bottomSideDepth = Math.max(6, Math.min(panelW * 0.48, Number.isFinite(dustFlap) ? dustFlap : 33));
+    const bottomSideDepth = Math.max(6, Math.min(panelW * 0.48,
+      Number.isFinite(bottomFlapDepth) ? bottomFlapDepth as number : (Number.isFinite(dustFlap) ? dustFlap : 33)));
     const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45));
     const angleRad = angleDeg * Math.PI / 180;
     const xs = [x0 + G, x0 + G + panelL, x0 + G + panelL + panelW,
@@ -874,10 +880,11 @@ const createSnapLockBottomEngine = () => {
     // A 1-2-3 base has two short side flaps, a deeper receiver flap with a
     // half-moon edge notch, and an opposing flap with an integral lock tongue.
     const lockDepth = Math.max(14, panelW * 2 / 3);
-    const requestedTongue = Number.isFinite(autoLockGlueWidth) ? autoLockGlueWidth as number : 17.5;
-    const tongueWidth = Math.max(8, Math.min(requestedTongue, panelL * 0.42, panelW * 0.42));
+    // Tongue width and tongue projection are different manufacturing dimensions.
+    const requestedTongueWidth = Number.isFinite(autoLockGlueWidth) ? autoLockGlueWidth as number : panelL * 0.34;
+    const tongueWidth = Math.max(8, Math.min(requestedTongueWidth, panelL * 0.42, panelW * 0.42));
     const tongueNeck = tongueWidth * 0.72;
-    const tongueProjection = Math.max(4, Math.min(Number.isFinite(autoLockGlueWidth) ? requestedTongue : 17.5, panelW * 0.35));
+    const tongueProjection = Math.max(4, Math.min(Number.isFinite(lockTongueDepth) ? lockTongueDepth as number : 17.5, panelW * 0.35));
     const tongueBaseY = yBodyBottom + bottomSideDepth;
     const tongueTipY = tongueBaseY + tongueProjection;
     const receiverY = yBodyBottom + lockDepth;
