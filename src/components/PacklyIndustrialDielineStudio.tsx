@@ -17,8 +17,9 @@ const TEMPLATES: TemplateOption[] = [
   { id: 'fefco-0203', name: 'کارتن فلپ هم‌پوشان', code: 'FEFCO 0203', category: 'کارتن حمل', description: 'فلپ‌های بلند برای هم‌پوشانی بیشتر در درب و کف.', status: 'baseline' },
   { id: 'fefco-0204', name: 'کارتن فلپ‌مرکزی', code: 'FEFCO 0204', category: 'کارتن حمل', description: 'فلپ‌ها برای رسیدن به مرکز صفحه طراحی می‌شوند.', status: 'baseline' },
   { id: 'fefco-0215', name: 'کارتن ته‌قفلی دستی', code: 'ته‌قفلی سفارشی', category: 'کارتن حمل', description: 'ساختار پارامتریک زبانه و شیار قفل کف.', status: 'custom', note: 'این موتور قفل سفارشی می‌سازد؛ تطابق دقیق با نقشه رسمی FEFCO 0215 تأیید نشده است. ابعاد قفل را با ضخامت واقعی ورق و نمونه تاخورده کنترل کنید.' },
-  { id: 'fefco-0300', name: 'جعبه تلسکوپی درب و زیره', code: 'FEFCO 0300 · پایه', category: 'جعبه تلسکوپی', description: 'مدل اولیه دو قطعه‌ای درب و زیره.', status: 'custom', note: 'مدل فعلی میان چند کد تلسکوپی مشترک است و با نقشه رسمی FEFCO 0300 تطبیق کامل نشده است.' },
-  { id: 'fefco-0320', name: 'جعبه دو‌تکه تلسکوپی', code: 'FEFCO 0320 · پایه', category: 'جعبه تلسکوپی', description: 'زیره و درب در دو گسترده مجزا.', status: 'custom', note: 'ارتفاع درب به‌صورت پیش‌فرض تخمین زده می‌شود؛ هندسه و خلاصی درب باید با نقشه مرجع و نمونه مونتاژ تأیید شوند.' },
+  { id: 'fefco-0300', name: 'نمونه عمومی جعبه تلسکوپی', code: 'خانواده FEFCO 0300', category: 'جعبه تلسکوپی', description: 'دو گسترده سینی‌شکل مستقل، برای شروع طراحی و تنظیم عمق درب.', status: 'custom', note: '0300 شماره خانواده است، نه یک قالب واحد. این نمونه پارامتریک است و نقشه نهایی باید با کد دقیق و نقشه قالب‌ساز تطبیق داده شود.' },
+  { id: 'fefco-0301', name: 'جعبه سینی و درب تلسکوپی', code: 'FEFCO 0301 · پایه پارامتریک', category: 'جعبه تلسکوپی', description: 'دو گسترده سینی‌شکل مستقل؛ خلاصی درب بر اساس ضخامت تخمین زده می‌شود.', status: 'custom', note: 'هندسه سینی و درب جداگانه تولید می‌شود؛ خلاصی واقعی به نوع ورق و روش خط‌تا وابسته است و باید با نمونه فیزیکی تنظیم شود.' },
+  { id: 'fefco-0320', name: 'جعبه تلسکوپی دو نیم‌کارتن', code: 'FEFCO 0320 · پایه پارامتریک', category: 'جعبه تلسکوپی', description: 'دو نیم‌کارتن از خانواده 0200 با عمق مستقل درب و زیره.', status: 'custom', note: 'عمق دیواره درب مستقل است؛ ابعاد و خلاصی، الگوی پایه‌اند و باید با نوع ورق و نقشه قالب‌ساز کالیبره شوند.' },
   { id: 'fefco-0427', name: 'جعبه کیبوردی / پستی', code: 'FEFCO 0427 · پایه', category: 'جعبه پستی', description: 'مدل اولیه جعبه پستی با درب متصل.', status: 'custom', note: 'موتور فعلی یک مدل ساده‌شده است و تطابق دقیق آن با نقشه رسمی FEFCO 0427 تأیید نشده است.' },
   { id: 'fefco-0713', name: 'کارتن با درب زبانه‌ای', code: 'FEFCO 0713 · پایه', category: 'کارتن حمل', description: 'مدل اولیه برای بررسی فرم و ابعاد.', status: 'custom', note: 'موتور فعلی یک مدل عمومی قفل‌دار است؛ تطابق دقیق با نقشه رسمی FEFCO 0713 تأیید نشده است.' },
   { id: 'fefco-pizza', name: 'جعبه پیتزا یک‌تکه', code: 'سفارشی', category: 'جعبه سفارشی', description: 'قالب اختصاصی برای شروع طراحی جعبه پیتزا.', status: 'custom', note: 'کد رسمی FEFCO برای این قالب ادعا نمی‌شود؛ قفل، تهویه و لبه‌ها نیازمند بازبینی هستند.' },
@@ -75,6 +76,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [length, setLength] = useState(240);
   const [width, setWidth] = useState(160);
   const [height, setHeight] = useState(100);
+  const [lidHeight, setLidHeight] = useState(50);
   const [thickness, setThickness] = useState(1.5);
   const [slotGap, setSlotGap] = useState(2.25);
   const [dimensionConvention, setDimensionConvention] = useState<'inside' | 'outside'>('inside');
@@ -88,13 +90,14 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
 
   const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
   const validInputs = numeric(length, 10, 2000) && numeric(width, 10, 2000) && numeric(height, 10, 2000) &&
-    numeric(thickness, 0.2, 10) && numeric(glueTab, 5, 200) && numeric(slotGap, 1, 10);
+    numeric(thickness, 0.2, 10) && numeric(glueTab, 5, 200) && numeric(slotGap, 1, 10) && numeric(lidHeight, 5, 2000);
   const engine = STANDARD_DIELINE_ENGINES[templateId];
+  const supportsLidHeight = ['fefco-0300', 'fefco-0301', 'fefco-0320'].includes(templateId);
   const supportsDimensionConvention = ['fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'default-rsc'].includes(templateId);
   const geometryState = useMemo(() => {
     if (!validInputs || typeof engine !== 'function') return { geometry: null as DielineEngineResult | null, error: 'ابعاد باید عدد معتبر باشند و در محدوده مجاز قرار گیرند.' };
     try {
-      const g = engine({ L: length, W: width, H: height, thickness, glueTab, slotGap, dimensionConvention, x0: 40 });
+      const g = engine({ L: length, W: width, H: height, lidHeight, thickness, glueTab, slotGap, dimensionConvention, x0: 40 });
       const allValues = [g.xMin, g.yMin, g.xMax, g.yMax, g.totalW, g.totalH];
       const pathsValid = Array.isArray(g.cuts) && g.cuts.length > 0 &&
         Array.isArray(g.creases) && g.creases.length > 0 &&
@@ -107,7 +110,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     } catch (error) {
       return { geometry: null, error: error instanceof Error ? error.message : 'خطای ناشناخته در موتور تولید قالب.' };
     }
-  }, [engine, length, width, height, thickness, glueTab, slotGap, dimensionConvention, validInputs]);
+  }, [engine, length, width, height, lidHeight, thickness, glueTab, slotGap, dimensionConvention, validInputs]);
 
   const geometry = geometryState.geometry;
   const geometryAudit = useMemo(() => {
@@ -160,6 +163,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
         typeId: templateId, dimensions: { w: length, h: height, d: width },
         paperType: `کالیپر ${thickness}mm`, glueTab,
         dimensionConvention: supportsDimensionConvention ? dimensionConvention : 'template-default',
+        lidHeight: supportsLidHeight ? lidHeight : null,
         slotGap: supportsDimensionConvention ? slotGap : null,
         geometry: { cutPaths: geometry.cuts.length, creasePaths: geometry.creases.length, bounds: { width: geometry.xMax - geometry.xMin, height: geometry.yMax - geometry.yMin }, units: 'mm' },
       },
@@ -196,6 +200,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               <div className="grid grid-cols-3 gap-2">
                 {([['طول', length, setLength], ['عرض', width, setWidth], ['ارتفاع', height, setHeight]] as const).map(([label, value, setter]) => <label key={label} className="text-[11px] font-bold text-slate-700">{label}<input type="number" min={10} max={2000} value={Number.isFinite(value) ? value : ''} onChange={e => setter(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>)}
               </div>
+              {supportsLidHeight && <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2"><label className="block text-[11px] font-bold text-slate-700">عمق دیواره درب (mm)<input type="number" min={5} max={2000} value={Number.isFinite(lidHeight) ? lidHeight : ''} onChange={e => setLidHeight(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label><p className="mt-1 text-[10px] leading-5 text-slate-600">ارتفاع بدنه در «ارتفاع» و عمق دیواره درب جداگانه وارد می‌شوند؛ خلاصی درب بر اساس ضخامت، تخمینی است.</p></div>}
               {supportsDimensionConvention && <label className="mt-3 block text-[11px] font-bold text-slate-700">مبنای اندازه‌گذاری
                 <select value={dimensionConvention} onChange={e => setDimensionConvention(e.target.value as 'inside' | 'outside')} className={inputClass}>
                   <option value="inside">ابعاد داخلی محصول — جبران کالیپر در گسترده</option>
@@ -236,7 +241,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             <div className="grid grid-cols-2 gap-2">
               <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className={buttonClass + ' bg-sky-600 text-white hover:bg-sky-500'}><Download className="h-4 w-4"/>خروجی SVG</button>
               <button disabled={!exportReady} onClick={exportDxf} className={buttonClass + ' bg-indigo-600 text-white hover:bg-indigo-500'}><Download className="h-4 w-4"/>خروجی DXF</button>
-              <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height, convention: supportsDimensionConvention ? dimensionConvention : 'template-default' }, material: { thickness, glueTab, slotGap: supportsDimensionConvention ? slotGap : null }, geometry, units: 'mm' }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-200 hover:bg-slate-300'}><Download className="h-4 w-4"/>پروژه JSON</button>
+              <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height, lidHeight: supportsLidHeight ? lidHeight : null, convention: supportsDimensionConvention ? dimensionConvention : 'template-default' }, material: { thickness, glueTab, slotGap: supportsDimensionConvention ? slotGap : null }, geometry, units: 'mm' }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-200 hover:bg-slate-300'}><Download className="h-4 w-4"/>پروژه JSON</button>
               <button disabled={!exportReady || !onSaveProject} onClick={saveProject} className={buttonClass + ' border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}><Save className="h-4 w-4"/>ثبت پروژه</button>
             </div>
             {saved && <p className="text-center text-xs text-emerald-700"><CheckCircle2 className="ml-1 inline h-4 w-4"/>پروژه به تابع ذخیره‌سازی تحویل شد.</p>}
