@@ -425,7 +425,7 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       cuts.push(`M ${xP3} ${yBodyBtm} L ${xP4} ${yBtmFlap} L ${xP4} ${yBodyBtm}`);
       creases.push(`M ${xG} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
       creases.push(`M ${xG} ${yBodyBtm} L ${xP1 - lockRun} ${yBtmFlap}`);
-      creases.push(`M ${xP2} ${yBodyBtm} L ${xP3 - lockRun} ${yBtmFlap}`);
+      // The second lock edge is a cut edge, not a crease; a score here would double-process the knife path.
     }
 
     // Outer Right Wall Cut
