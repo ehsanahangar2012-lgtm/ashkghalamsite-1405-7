@@ -64,11 +64,24 @@ export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
 
   let polylineLayer = '0';
   let polylinePoints: Point[] | null = null;
+  let polylineClosed = false;
   const flushPolyline = () => {
     if (polylinePoints && polylinePoints.length > 1) {
-      for (let i = 0; i < polylinePoints.length - 1; i++) addLine(polylinePoints[i], polylinePoints[i + 1], polylineLayer);
+      for (let i = 0; i < polylinePoints.length - 1; i++) {
+        addLine(polylinePoints[i], polylinePoints[i + 1], polylineLayer);
+      }
+      // DXF POLYLINE closure is stored on the POLYLINE header (group 70),
+      // not on the SEQEND. Honor it without duplicating an existing closing edge.
+      if (polylineClosed) {
+        const first = polylinePoints[0];
+        const last = polylinePoints[polylinePoints.length - 1];
+        if (Math.hypot(last.x - first.x, last.y - first.y) > 1e-9) {
+          addLine(last, first, polylineLayer);
+        }
+      }
     }
     polylinePoints = null;
+    polylineClosed = false;
   };
 
   for (const entity of sections) {
@@ -77,6 +90,7 @@ export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
     if (entity.type === 'POLYLINE') {
       flushPolyline();
       polylineLayer = layer;
+      polylineClosed = (((groupByCode(p, 70)[0] || 0) & 1) === 1);
       polylinePoints = [];
       continue;
     }
