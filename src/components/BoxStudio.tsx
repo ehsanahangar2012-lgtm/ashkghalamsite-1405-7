@@ -114,8 +114,8 @@ export function BoxStudio() {
       minY: Math.min(...ys), maxY: Math.max(...ys),
     };
   }, [geom]);
-  const sheetWidth = Math.max(0, bounds.maxX - bounds.minX) + 2 * thickness;
-  const sheetHeight = Math.max(0, bounds.maxY - bounds.minY) + 2 * thickness;
+  const sheetWidth = Math.max(0, bounds.maxX - bounds.minX);
+  const sheetHeight = Math.max(0, bounds.maxY - bounds.minY);
   const warnings = [
     ...(L < 40 || W < 40 || H < 20 ? ['ابعاد انتخابی کوچک است؛ امکان ساخت را بررسی کنید.'] : []),
     ...(W / 2 + Number(allowance) < thickness * 2 ? ['عمق فلپ نسبت به ضخامت ورق کم است.'] : []),
@@ -125,21 +125,19 @@ export function BoxStudio() {
   const materialArea = (sheetWidth * sheetHeight) / 1_000_000;
 
   const exportSvg = () => {
-    if (!svgRef.current) return;
-    const clone = svgRef.current.cloneNode(true) as SVGSVGElement;
-    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    clone.setAttribute('width', `${Math.ceil(viewW)}mm`);
-    clone.setAttribute('height', `${Math.ceil(viewH)}mm`);
-    clone.setAttribute('viewBox', `0 0 ${viewW} ${viewH}`);
-    const textNodes = clone.querySelectorAll('[data-ui-only="true"]');
-    textNodes.forEach(n => n.remove());
-    downloadFile(`ashkghalam-${template}-dieline.svg`, new XMLSerializer().serializeToString(clone), 'image/svg+xml;charset=utf-8');
+    const widthMm = Math.max(0.001, bounds.maxX - bounds.minX);
+    const heightMm = Math.max(0.001, bounds.maxY - bounds.minY);
+    const entities = geom.lines.map(s =>
+      `<line x1="${(s.x1 - bounds.minX).toFixed(3)}" y1="${(s.y1 - bounds.minY).toFixed(3)}" x2="${(s.x2 - bounds.minX).toFixed(3)}" y2="${(s.y2 - bounds.minY).toFixed(3)}" stroke="${s.kind === 'cut' ? '#e44747' : '#2878cf'}" stroke-width="0.2"${s.kind === 'fold' ? ' stroke-dasharray="2 1"' : ''} data-kind="${s.kind}"/>`
+    ).join('');
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${widthMm.toFixed(3)}mm" height="${heightMm.toFixed(3)}mm" viewBox="0 0 ${widthMm.toFixed(3)} ${heightMm.toFixed(3)}">${entities}</svg>`;
+    downloadFile(`ashkghalam-fefco-${template}-dieline.svg`, svg, 'image/svg+xml;charset=utf-8');
   };
 
   const exportDxf = () => {
     const entities = geom.lines.map(s => {
       const layer = s.kind === 'cut' ? 'CUT' : 'CREASE';
-      return `0\nLINE\n8\n${layer}\n10\n${(s.x1).toFixed(3)}\n20\n${(geom.totalH - s.y1).toFixed(3)}\n30\n0\n11\n${(s.x2).toFixed(3)}\n21\n${(geom.totalH - s.y2).toFixed(3)}\n31\n0\n`;
+      return `0\nLINE\n8\n${layer}\n10\n${(s.x1 - bounds.minX).toFixed(3)}\n20\n${(bounds.maxY - s.y1).toFixed(3)}\n30\n0\n11\n${(s.x2 - bounds.minX).toFixed(3)}\n21\n${(bounds.maxY - s.y2).toFixed(3)}\n31\n0\n`;
     }).join('');
     const dxf = `0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n2\n0\nLAYER\n2\nCUT\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nCREASE\n70\n0\n62\n5\n6\nCONTINUOUS\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities}0\nENDSEC\n0\nEOF\n`;
     downloadFile(`ashkghalam-${template}-dieline.dxf`, dxf, 'application/dxf');
@@ -181,7 +179,7 @@ export function BoxStudio() {
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left">
               <div className="text-[10px] uppercase tracking-[0.2em] text-indigo-200">LIVE GEOMETRY</div>
-              <div className="mt-1 text-2xl font-black">{Math.round(geom.totalW)} × {Math.round(geom.totalH)} <span className="text-xs font-medium text-slate-300">mm</span></div>
+              <div className="mt-1 text-2xl font-black">{Math.round(sheetWidth)} × {Math.round(sheetHeight)} <span className="text-xs font-medium text-slate-300">mm</span></div>
               <div className="mt-1 text-xs text-slate-300">اندازه تقریبی گسترده</div>
             </div>
           </div>
@@ -248,7 +246,7 @@ export function BoxStudio() {
                         <text x={geom.xs[2] + L/2} y={geom.yTop + H/2} textAnchor="middle">{L} mm</text>
                         <text x={geom.xs[3] + W/2} y={geom.yTop + H/2} textAnchor="middle">{W} mm</text>
                       </> : <text x={(geom.xs[0] + geom.xs[1])/2} y={(geom.yTop + geom.yBottom)/2} textAnchor="middle">{L} × {W} mm</text>}
-                      <text x={geom.totalW/2} y={geom.totalH - 4} textAnchor="middle">گسترده تقریبی: {Math.round(geom.totalW)} × {Math.round(geom.totalH)} mm</text>
+                      <text x={geom.totalW/2} y={geom.totalH - 4} textAnchor="middle">گسترده: {Math.round(sheetWidth)} × {Math.round(sheetHeight)} mm</text>
                     </g>}
                   </g>
                 </svg>
