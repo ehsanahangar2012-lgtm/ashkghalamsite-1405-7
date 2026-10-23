@@ -137,9 +137,11 @@ export const getRscFlapDepths = (L: number, W: number, topRatio = 0.5, bottomRat
 };
 
 const createRscEngine = (flapRatioTop = 0.5, flapRatioBottom = 0.5) => {
-  return ({ L, W, H, glueTab = 35, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+  return ({ L, W, H, glueTab = 35, thickness = 1.6, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
     const G = Math.max(12, glueTab || 35);
-    const depths = getRscFlapDepths(L, W, flapRatioTop, flapRatioBottom);
+    // Caliper-aware opposing-flap relief: a starting allowance only, not a machine-calibrated rule.
+    const flapClearance = Math.max(1, Math.min(6, thickness * 1.5));
+    const depths = getRscFlapDepths(L, W, flapRatioTop, flapRatioBottom, flapClearance);
     const topMax = Math.max(...depths.top);
     const bottomMax = Math.max(...depths.bottom);
 
@@ -622,11 +624,13 @@ type SlottedStyle = '0200' | '0201' | '0203' | '0204';
 
 /** Parametric slotted-case family with panel-specific flap depths. */
 const createSlottedCaseEngine = (style: SlottedStyle) => {
-  return ({ L, W, H, glueTab = 35, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+  return ({ L, W, H, glueTab = 35, thickness = 1.6, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
     const G = Math.max(15, glueTab || 35);
     const xs = [x0 + G, x0 + G + L, x0 + G + L + W, x0 + G + 2 * L + W, x0 + G + 2 * L + 2 * W];
-    const halfFlaps = getRscFlapDepths(L, W, 0.5, 0.5, 2);
-    const fullOverlapFlaps = getRscFlapDepths(L, W, 1, 1, 2);
+    // Caliper-based clearance keeps opposing flap tips from being treated as an interference-free fit.
+    const flapClearance = Math.max(1, Math.min(6, thickness * 1.5));
+    const halfFlaps = getRscFlapDepths(L, W, 0.5, 0.5, flapClearance);
+    const fullOverlapFlaps = getRscFlapDepths(L, W, 1, 1, flapClearance);
     const topDepths = style === '0200'
       ? [0, 0, 0, 0]
       : style === '0203'
