@@ -813,7 +813,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   const [bleedOffset, setBleedOffset] = useState<number>(30);
   const [creaseCompensation, setCreaseCompensation] = useState<number>(0.5);
   const [diecutTolerance, setDiecutTolerance] = useState<number>(0.1);
-  const [cadTheme, setCadTheme] = useState<'white' | 'blueprint' | 'charcoal'>('charcoal');
+  const [cadTheme, setCadTheme] = useState<'white' | 'blueprint' | 'charcoal'>('white');
   const [alignmentKey, setAlignmentKey] = useState<number>(0);
 
   const getThemeStyle = (themeName: 'white' | 'blueprint' | 'charcoal') => {
@@ -872,8 +872,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       bg: '#f8fafc',
       stroke: '#cbd5e1',
       gridFill: 'none',
-      cutColor: '#475569', // Softer deep grey-slate instead of harsh black #0f172a
-      creaseColor: '#f43f5e', // Softer crimson instead of harsh red #dc2626
+      cutColor: '#dc2626', // Clear red cut line
+      creaseColor: '#16a34a', // Clear green fold/crease line
       textColor: '#475569',
       textAccent: '#0f172a',
       labelBg: '#ffffff',
@@ -5416,6 +5416,56 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
           outline: 2px solid #2563eb !important;
           outline-offset: 2px;
         }
+
+        /* Minimal 2D dieline studio: one toolbar, a quiet light sheet, readable production lines. */
+        .dieline-generator-container .dieline-canvas-workspace {
+          display: flex; flex: 1 1 auto; flex-direction: column; width: 100%;
+          min-height: min(650px, 72vh); overflow: hidden; background: #ffffff;
+          border: 1px solid #dbe3ee; border-radius: 14px;
+          box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+        }
+        .dieline-generator-container .dieline-canvas-toolbar {
+          display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+          gap: 10px; padding: 10px 14px; background: #f8fafc;
+          border-bottom: 1px solid #e2e8f0; color: #0f172a; flex: 0 0 auto;
+        }
+        .dieline-generator-container .dieline-canvas-heading {
+          display: flex; flex-wrap: wrap; align-items: center; gap: 9px; min-width: 0;
+        }
+        .dieline-generator-container .dieline-canvas-model-code {
+          display: inline-flex; align-items: center; border: 1px solid #bfdbfe;
+          background: #eff6ff; color: #1d4ed8; border-radius: 6px;
+          padding: 3px 7px; font-size: 10px; font-weight: 800; direction: ltr;
+        }
+        .dieline-generator-container .dieline-canvas-model-name { color: #334155; font-size: 12px; font-weight: 750; }
+        .dieline-generator-container .dieline-canvas-dim-summary {
+          color: #475569; border-right: 1px solid #cbd5e1; padding-right: 9px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; direction: ltr;
+        }
+        .dieline-generator-container .dieline-canvas-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+        .dieline-generator-container .dieline-canvas-action {
+          display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+          min-height: 32px; padding: 5px 9px; border: 1px solid #cbd5e1; border-radius: 7px;
+          background: #ffffff; color: #334155; font-size: 10px; font-weight: 700; cursor: pointer;
+        }
+        .dieline-generator-container .dieline-canvas-action:hover,
+        .dieline-generator-container .dieline-canvas-action.is-active {
+          border-color: #93c5fd; background: #eff6ff; color: #1d4ed8;
+        }
+        .dieline-generator-container #cad-blueprint-canvas-svg {
+          display: block; flex: 1 1 auto; min-height: 0 !important;
+          border-radius: 0 0 14px 14px; filter: none !important;
+        }
+        .dieline-generator-container #cad-physical-sheet-group,
+        .dieline-generator-container #cad-watermark-group { display: none !important; }
+        .dieline-generator-container #cad-blueprint-canvas-svg #cad-coordinate-crosshair-group { opacity: .45; }
+        @media (max-width: 768px) {
+          .dieline-generator-container .dieline-canvas-toolbar { align-items: flex-start; padding: 8px; }
+          .dieline-generator-container .dieline-canvas-model-name { font-size: 11px; }
+          .dieline-generator-container .dieline-canvas-dim-summary { font-size: 10px; }
+          .dieline-generator-container .dieline-canvas-actions { width: 100%; }
+          .dieline-generator-container .dieline-canvas-action { flex: 1 1 auto; }
+        }
       `}</style>
 
       {/* 1. SUITE HEADER BAR */}
@@ -7242,7 +7292,25 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                     const isDimensionsVisible = layers.find(l => l.id === 'dimensions')?.isVisible !== false;
 
                     return (
-                      <svg 
+                      <div className="dieline-canvas-workspace" dir="rtl">
+                        <div className="dieline-canvas-toolbar">
+                          <div className="dieline-canvas-heading">
+                            <span className="dieline-canvas-model-code">{selectedModel.code || selectedModel.id}</span>
+                            <span className="dieline-canvas-model-name">{selectedModel.name}</span>
+                            <span className="dieline-canvas-dim-summary">
+                              {convertMmToUnit(dims.L, unit).toFixed(1)} × {convertMmToUnit(dims.W, unit).toFixed(1)} × {convertMmToUnit(dims.H, unit).toFixed(1)} {unit === 'inches' ? 'in' : unit}
+                            </span>
+                          </div>
+                          <div className="dieline-canvas-actions">
+                            <button type="button" onClick={() => setShowDimensions(value => !value)} className={`dieline-canvas-action ${showDimensions ? 'is-active' : ''}`}>
+                              <RulerIcon className="w-3.5 h-3.5" /> {showDimensions ? 'ابعاد روشن' : 'نمایش ابعاد'}
+                            </button>
+                            <button type="button" onClick={() => { setZoomScale(1); setPan({ x: 0, y: 0 }); }} className="dieline-canvas-action">
+                              <RefreshCw className="w-3.5 h-3.5" /> بازنشانی نما
+                            </button>
+                          </div>
+                        </div>
+                        <svg
                         id="cad-blueprint-canvas-svg"
                         viewBox={`${dieline.xMin - 160} ${dieline.yMin - 160} ${dieline.totalW + 320} ${dieline.totalH + 320}`} 
                         className="transition-all duration-300 h-auto object-contain w-full"
@@ -7251,7 +7319,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                           transformOrigin: 'center center',
                           width: '100%',
                           height: '100%',
-                          minHeight: isMobile ? '150px' : '650px',
+                          flex: '1 1 auto',
+                          minHeight: isMobile ? '150px' : '0px',
                         }}
                         onMouseMove={handleSvgMouseMove}
                         onMouseLeave={handleSvgMouseLeave}
@@ -7302,106 +7371,6 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                             fill={themeStyle.gridFill}
                           />
                         )}
-
-                        {/* Professional Brand Watermark of Chape Ashk Ghalam */}
-                        <g opacity={cadTheme === 'white' ? "0.04" : "0.06"} className="pointer-events-none select-none">
-                          <text
-                            x={(dieline.xMin + dieline.xMax) / 2}
-                            y={(dieline.yMin + dieline.yMax) / 2 - 25}
-                            fontSize="14"
-                            fontWeight="900"
-                            fill={themeStyle.watermarkColor}
-                            textAnchor="middle"
-                            className="font-sans"
-                          >
-                            چاپ اشک قلم
-                          </text>
-                          <text
-                            x={(dieline.xMin + dieline.xMax) / 2}
-                            y={(dieline.yMin + dieline.yMax) / 2 + 10}
-                            fontSize="22"
-                            fontWeight="900"
-                            fill={themeStyle.watermarkColor}
-                            textAnchor="middle"
-                            className="font-mono tracking-widest-lg"
-                          >
-                            ashkghalam.ir
-                          </text>
-                          <text
-                            x={(dieline.xMin + dieline.xMax) / 2}
-                            y={(dieline.yMin + dieline.yMax) / 2 + 32}
-                            fontSize="9"
-                            fontWeight="bold"
-                            fill={themeStyle.watermarkColor}
-                            textAnchor="middle"
-                            className="font-sans"
-                          >
-                            سامانه تخصصی فرم‌بندی و دایلاینهای استاندارد
-                          </text>
-                        </g>
-
-                        {/* Physical Industrial Sheet Boundary representing "این منطقه" (This Area) as requested in screenshot */}
-                        {(() => {
-                          const safeXMin = isNaN(dieline.xMin) ? 0 : dieline.xMin;
-                          const safeXMax = isNaN(dieline.xMax) ? 500 : dieline.xMax;
-                          const safeYMin = isNaN(dieline.yMin) ? 0 : dieline.yMin;
-                          const safeYMax = isNaN(dieline.yMax) ? 350 : dieline.yMax;
-                          const safeSheetWidth = isNaN(sheetSize.width) || sheetSize.width <= 0 ? 1000 : sheetSize.width;
-                          const safeSheetHeight = isNaN(sheetSize.height) || sheetSize.height <= 0 ? 700 : sheetSize.height;
-
-                          const centerX = (safeXMin + safeXMax) / 2;
-                          const centerY = (safeYMin + safeYMax) / 2;
-
-                          return (
-                            <g id="cad-physical-sheet-group" className="pointer-events-none select-none">
-                              <rect
-                                id="cad-physical-sheet-boundary"
-                                x={centerX - safeSheetWidth / 2}
-                                y={centerY - safeSheetHeight / 2}
-                                width={safeSheetWidth}
-                                height={safeSheetHeight}
-                                fill={cadTheme === 'white' ? "rgba(241, 245, 249, 0.4)" : "rgba(15, 23, 42, 0.45)"}
-                                stroke="#38bdf8"
-                                strokeWidth="1.5"
-                                strokeDasharray="5,5"
-                                opacity="0.85"
-                                rx="8"
-                              />
-                              {/* Inner glowing sheet label background to guarantee readability */}
-                              <rect
-                                x={centerX - 180}
-                                y={centerY - safeSheetHeight / 2 - 28}
-                                width="360"
-                                height="24"
-                                rx="6"
-                                fill="#030712"
-                                stroke="#38bdf8"
-                                strokeWidth="1"
-                                opacity="0.95"
-                              />
-                              <text
-                                x={centerX}
-                                y={centerY - safeSheetHeight / 2 - 12}
-                                fill="#38bdf8"
-                                fontSize="10.5px"
-                                fontWeight="bold"
-                                textAnchor="middle"
-                                className="font-sans animate-pulse"
-                                style={{
-                                  textShadow: '0 0 8px rgba(56, 189, 248, 0.7)',
-                                }}
-                              >
-                                محدوده مجاز چیدمان دایلاین روی ورق فیزیکی ماشین
-                              </text>
-                              
-                              {/* Left-align / Right-align auxiliary indicators for sheet corners */}
-                              <circle cx={centerX - safeSheetWidth / 2} cy={centerY - safeSheetHeight / 2} r="4" fill="#38bdf8" />
-                              <circle cx={centerX + safeSheetWidth / 2} cy={centerY - safeSheetHeight / 2} r="4" fill="#38bdf8" />
-                              <circle cx={centerX - safeSheetWidth / 2} cy={centerY + safeSheetHeight / 2} r="4" fill="#38bdf8" />
-                              <circle cx={centerX + safeSheetWidth / 2} cy={centerY + safeSheetHeight / 2} r="4" fill="#38bdf8" />
-                            </g>
-                          );
-                        })()}
 
                         {/* 3cm (30mm) Offset Margin Box around the dieline */}
                         {isBleedVisible && (
@@ -7477,7 +7446,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                               key={`cr-${index}`} 
                               d={pathStr} 
                               stroke={themeStyle.creaseColor} 
-                              strokeWidth="0.32" 
+                              strokeWidth="0.65" 
                               strokeDasharray="4,2.5" 
                               fill="none" 
                               opacity="0.9" 
@@ -7490,7 +7459,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                               key={`ct-${index}`} 
                               d={pathStr} 
                               stroke={themeStyle.cutColor} 
-                              strokeWidth="0.48" 
+                              strokeWidth="0.8" 
                               fill="none" 
                               strokeLinecap="round" 
                               strokeLinejoin="round" 
@@ -7604,83 +7573,6 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                             </text>
                           </g>
                         ))}
-
-                         {/* Native CAD Arrow Dimensions Group */}
-                        {showDimensions && (
-                          <g id="cad-svg-arrow-dimensions-layer" opacity="0.95">
-                            {/* Horizontal Top Width dimension arrow line */}
-                            <line 
-                              x1={dieline.xMin} 
-                              y1={dieline.yMin - 48} 
-                              x2={dieline.xMax} 
-                              y2={dieline.yMin - 48} 
-                              stroke={themeStyle.textAccent || themeStyle.textColor} 
-                              strokeWidth="1.2" 
-                              markerStart="url(#cad-arrow-start)"
-                              markerEnd="url(#cad-arrow-end)"
-                            />
-                            {/* Width Label box and text */}
-                            <rect 
-                              x={(dieline.xMin + dieline.xMax) / 2 - 68} 
-                              y={dieline.yMin - 56} 
-                              width="136" 
-                              height="16" 
-                              fill={themeStyle.labelBg} 
-                              rx="3" 
-                              stroke={themeStyle.labelBorder} 
-                              strokeWidth="0.8" 
-                            />
-                            <text 
-                              x={(dieline.xMin + dieline.xMax) / 2} 
-                              y={dieline.yMin - 45} 
-                              fontSize="8" 
-                              fontWeight="bold" 
-                              fill={themeStyle.labelText} 
-                              textAnchor="middle"
-                              className="font-mono text-[8px]"
-                            >
-                              عرض کل (W): {Math.round(dieline.totalW)} mm
-                            </text>
-
-                            {/* Vertical Left Height dimension arrow line */}
-                            <line 
-                              x1={dieline.xMin - 48} 
-                              y1={dieline.yMin} 
-                              x2={dieline.xMin - 48} 
-                              y2={dieline.yMax} 
-                              stroke={themeStyle.textAccent || themeStyle.textColor} 
-                              strokeWidth="1.2" 
-                              markerStart="url(#cad-arrow-start)"
-                              markerEnd="url(#cad-arrow-end)"
-                            />
-                            {/* Height Label box and text */}
-                            <g transform={`translate(${dieline.xMin - 48}, ${(dieline.yMin + dieline.yMax) / 2})`}>
-                              <rect 
-                                x="-8" 
-                                y="-68" 
-                                width="16" 
-                                height="136" 
-                                fill={themeStyle.labelBg} 
-                                rx="3" 
-                                stroke={themeStyle.labelBorder} 
-                                strokeWidth="0.8" 
-                              />
-                              <text 
-                                x="0" 
-                                y="0" 
-                                transform="rotate(-90)" 
-                                fontSize="8" 
-                                fontWeight="bold" 
-                                fill={themeStyle.labelText} 
-                                textAnchor="middle"
-                                dy="3.5"
-                                className="font-mono text-[8px]"
-                              >
-                                ارتفاع کل (H): {Math.round(dieline.totalH)} mm
-                              </text>
-                            </g>
-                          </g>
-                        )}
 
                         {/* Interactive Custom Dimensions */}
                         {customDimensions.map((cd) => {
@@ -7963,6 +7855,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                         )}
 
                       </svg>
+                      </div>
                     );
                   })()}
                 </div>
