@@ -215,7 +215,7 @@ export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
     polylineClosed = false;
   };
 
-  for (const entity of sections) {
+  for (const entity of expandedSections) {
     const p = entity.pairs;
     const layer = p.find(v => v.code === 8)?.value || '0';
     if (entity.type === 'POLYLINE') {
