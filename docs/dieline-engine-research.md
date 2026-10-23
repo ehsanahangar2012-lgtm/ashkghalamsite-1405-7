@@ -12,6 +12,8 @@ Updated: 2026-10-23. This records technical guidance and licensing decisions; it
   Useful for comparing model categories, product dimensions versus flattened dieline bounds, and board-caliper/secondary parameters. Packmage is commercial; no Packmage code was copied.
 - **GIGAJOHUB/OpenDieline** — https://github.com/GIGAJOHUB/OpenDieline  
   Reviewed repository metadata and README: millimetre-based parametric RTE, cut/fold/bleed/safe-zone semantics, and zoomable/pannable SVG viewport. No root LICENSE file was visible in the repository file listing during review. Its source is **not copied or ported** until a clear license is confirmed.
+- **BrownBear127/open-dieline** — https://github.com/BrownBear127/open-dieline  
+  A newer source-available reference advertises parametric RTE and telescope-box patterns, hinge-based 3D preview, separate CUT/CREASE/HALFCUT export layers, and production-validation workflows. Its published license is **PolyForm Noncommercial 1.0.0**; do not copy or port its implementation into a commercial product without a separate commercial license. Use only general engineering observations and independently written code unless reuse rights are confirmed.
 - **sbarrak/packbox** — https://github.com/sbarrak/packbox  
   MIT license: https://github.com/sbarrak/packbox/blob/main/LICENSE. Source reviewed: `src/geometry/boxBuilders.ts`, `src/geometry/shapes.ts`, and `src/geometry/types.ts`. Useful techniques: per-style panel builders, explicit parent-edge/offset hinges, separate fold angles, per-wall flap-depth resolution, chamfered dust-flap polygons, and one structural model for flat/folded views. No PackBox source was copied in the canvas UI commit; this is a candidate for a separately tested model-by-model refactor.
 
@@ -34,3 +36,8 @@ Updated: 2026-10-23. This records technical guidance and licensing decisions; it
 - Product L/W/H remains conceptually separate from overall flat dieline bounds; glue tabs, flaps, and closures contribute to the latter.
 - Keep canvas, geometry engine, and exporters independently testable.
 - Reference drawings and physical folded prototypes remain acceptance evidence for production claims; generic path checks are not industrial certification.
+
+## Generated-geometry validation (2026-10-23)
+
+- The dieline studio now runs `runComprehensiveGeometryCheck` on the generated SVG cut/fold paths before enabling file export or saving a project. It reports estimated cut/fold lengths and structural warnings; a detected self-intersection or validator error disables export/save rather than presenting the output as ready for manufacturing.
+- This is a defensive path-structure check, not a complete topology, fold simulation, dimension-convention, die-maker, or physical-sample validation. A passing status must not be described as manufacturing certification.
