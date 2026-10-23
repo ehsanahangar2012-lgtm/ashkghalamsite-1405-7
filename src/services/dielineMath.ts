@@ -587,11 +587,8 @@ const createPizzaBoxEngine = () => {
       `M ${xB} ${yTuck} L ${xR} ${yTuck} L ${xR} ${yBackBottom} L ${xR + wall} ${yBackBottom} L ${xR + wall} ${yBaseBottom} L ${xR} ${yBaseBottom} L ${xR} ${yFrontBottom} L ${xB} ${yFrontBottom} L ${xB} ${yBaseBottom} L ${xB - wall} ${yBaseBottom} L ${xB - wall} ${yBackBottom} L ${xB} ${yBackBottom} Z`
     );
 
-    // Side-wall hinges are scored along the left and right edges of the base panel.
-    creases.push(`M ${xB - wall} ${yBackBottom} L ${xB} ${yBackBottom}`);
-    creases.push(`M ${xB - wall} ${yBaseBottom} L ${xB} ${yBaseBottom}`);
-    creases.push(`M ${xR} ${yBackBottom} L ${xR + wall} ${yBackBottom}`);
-    creases.push(`M ${xR} ${yBaseBottom} L ${xR + wall} ${yBaseBottom}`);
+    // The outer side-wall boundaries are cut edges; the true hinge axes are
+    // the vertical lines at xB and xR within the base panel (below).
 
     // Creases: tuck/lid, lid/back, back/base, base/front and side-wall hinges.
     creases.push(`M ${xB} ${yLidTop} L ${xR} ${yLidTop}`);
