@@ -175,7 +175,7 @@ const inchDxf = [
   '0','SECTION','2','ENTITIES',
   '0','LINE','8','CUT','10','0','20','0','11','10','21','5',
   '0','ENDSEC','0','EOF'
-].join('\\n');
+].join('\n');
 const inchEntities = parseDxfToEntities(inchDxf);
 if (inchEntities.length !== 1 ||
     inchEntities[0].end?.x !== 254 ||
