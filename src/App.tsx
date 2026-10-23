@@ -1904,7 +1904,7 @@ const AppContent = () => {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL === '/' ? undefined : import.meta.env.BASE_URL.replace(/\/$/, '')}>
       <AuthProvider>
         <ContentProvider>
           <AppContent />
