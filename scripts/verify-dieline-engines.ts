@@ -63,6 +63,13 @@ if (rscDepths.top.some(depth => depth !== 78) || rscDepths.bottom.some(depth => 
   fail(`FEFCO 0201 flaps must share the W/2 depth after clearance, got ${JSON.stringify(rscDepths)}`);
 }
 const rscGeometry = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, x0: 40 });
+const widthPanelsMeetGeometry = STANDARD_DIELINE_ENGINES['fefco-0204']({
+  L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, x0: 40,
+});
+if (!(widthPanelsMeetGeometry.totalH > rscGeometry.totalH)) {
+  fail('FEFCO 0204 width-panel flaps should extend farther than the standard 0201 flap depth when L > W');
+}
+
 if (Math.abs(rscGeometry.totalH - (100 + 160 - 2 * 2.4)) > 1e-8) {
   fail(`FEFCO 0201 sheet height must be H + W - two flap clearances, got ${rscGeometry.totalH}`);
 }
@@ -132,8 +139,9 @@ const rscMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'FEFCO 0201');
 const sleeveMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'ecma-b10');
 const openTopMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'fefco-0200');
 const fullFlapMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'fefco-0203');
-if (!(openTopMetrics.netArea < rscMetrics.netArea && rscMetrics.netArea < fullFlapMetrics.netArea)) {
-  fail('slotted-case blank-area estimate must reflect open-top, half-flap and full-overlap constructions');
+if (!(openTopMetrics.netArea < rscMetrics.netArea && rscMetrics.netArea < fullFlapMetrics.netArea &&
+      rscMetrics.netArea < calculateDielineParameters(240, 160, 100, 1.6, 'fefco-0204').netArea)) {
+  fail('slotted-case blank-area estimate must reflect open-top, regular, width-panel-meeting and full-overlap constructions');
 }
 if (!(rscMetrics.netArea < rscMetrics.grossArea && rscMetrics.wastePercentage >= 0 && rscMetrics.wastePercentage <= 100)) {
   fail('estimated blank area must remain below the bounding sheet area and yield a bounded waste estimate');
