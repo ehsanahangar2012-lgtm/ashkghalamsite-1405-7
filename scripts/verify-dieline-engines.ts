@@ -5,7 +5,7 @@ import { validateDxfDieline, runComprehensiveGeometryCheck } from '../src/servic
 const requiredEngines = [
   'default-rsc',
   'fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'fefco-0215',
-  'fefco-0300', 'fefco-0301', 'fefco-0320', 'fefco-0427', 'fefco-pizza',
+  'fefco-0300', 'fefco-0301', 'fefco-0320', 'fefco-0427', 'fefco-0409', 'fefco-0470', 'fefco-pizza',
   'fefco-0713', 'ecma-a2020', 'ecma-ste', 'snap-lock-123', 'ecma-a30',
   'ecma-b10', 'ecma-c1020', 'ecma-d50',
 ];
@@ -169,4 +169,44 @@ if (!badGeometry.hasSelfIntersection) fail('geometry validator must detect non-a
 const emptyValidation = validateDxfDieline([]);
 if (emptyValidation.valid || emptyValidation.errors.length === 0) fail('empty DXF geometry must fail validation');
 
-console.log(`Dieline geometry checks passed: ${requiredEngines.length} engines × ${dimensions.length} dimension sets.`);
+
+// All registered IDs, including compatibility aliases, must remain callable.
+// The registry currently has 21 keys; some intentionally share an implementation.
+for (const id of Object.keys(STANDARD_DIELINE_ENGINES)) {
+  const engine = STANDARD_DIELINE_ENGINES[id];
+  if (typeof engine !== 'function') fail(`registered ID has no engine: ${id}`);
+  for (const dims of dimensions) {
+    const result = engine(dims);
+    if (![result.xMin, result.yMin, result.xMax, result.yMax, result.totalW, result.totalH].every(Number.isFinite)) {
+      fail(`${id}: non-finite bounds from registry sweep`);
+    }
+    if (result.totalW <= 0 || result.totalH <= 0) fail(`${id}: non-positive bounds from registry sweep`);
+  }
+}
+for (const [l, w, h, caliper] of [
+  [Number.NaN, 0, -10, Number.NaN],
+  [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1, Number.POSITIVE_INFINITY],
+  [-1, -1, -1, -1],
+] as const) {
+  const metrics = calculateDielineParameters(l, w, h, caliper, 'fefco-0201');
+  if (![metrics.sheetWidth, metrics.sheetHeight, metrics.grossArea, metrics.netArea, metrics.cutLength, metrics.creaseLength].every(Number.isFinite)) {
+    fail(`invalid input normalization leaked non-finite metrics for ${JSON.stringify([l,w,h,caliper])}`);
+  }
+  if (metrics.sheetWidth <= 0 || metrics.sheetHeight <= 0 || metrics.grossArea < 0) {
+    fail('invalid input normalization produced impossible manufacturing metrics');
+  }
+}
+const curvedDxf = [
+  '0','SECTION','2','ENTITIES',
+  '0','ARC','8','CREASE','10','0','20','0','40','10','50','0','51','90',
+  '0','CIRCLE','8','CUT','10','20','20','20','40','5',
+  '0','ENDSEC','0','EOF'
+].join('\n');
+const curvedEntities = parseDxfToEntities(curvedDxf);
+if (curvedEntities.length < 12) fail(`ARC/CIRCLE should be tessellated into line segments, got ${curvedEntities.length}`);
+if (!curvedEntities.some(e => e.isCrease) || curvedEntities.some(e => !e.start || !e.end ||
+    ![e.start.x,e.start.y,e.end.x,e.end.y].every(Number.isFinite))) {
+  fail('ARC/CIRCLE conversion must preserve layer classification and finite coordinates');
+}
+
+console.log(`Dieline geometry checks passed: ${Object.keys(STANDARD_DIELINE_ENGINES).length} registered engine IDs × ${dimensions.length} dimension sets, plus invalid-input and DXF curve checks.`);

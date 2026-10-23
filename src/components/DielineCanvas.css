@@ -92,7 +92,7 @@
   stroke: transparent !important;
   stroke-dasharray: none !important;
 }
-#cad-blueprint-canvas-svg #cad-grid-mesh { display: none !important; }
+#cad-blueprint-canvas-svg #cad-grid-mesh { opacity: .14 !important; }
 #cad-blueprint-canvas-svg #cad-offset-text-label { display: none !important; }
 #cad-blueprint-canvas-svg #cad-offset-margin-box { stroke: #cbd5e1 !important; opacity: .65 !important; }
 #cad-blueprint-canvas-svg #cad-cut-line-0,
