@@ -8,6 +8,11 @@ export interface DielineCalculationResult {
   creaseLength: number;
 }
 
+/**
+ * Calculates manufacturing metrics from the selected engine's actual geometry.
+ * Dimensions and line lengths are millimetres; areas are square metres.
+ * This is an estimate of flat-blank bounds/waste, not a nesting or sheet-yield solver.
+ */
 export const calculateDielineParameters = (
   fefcoCode: string,
   l: number,
@@ -15,20 +20,60 @@ export const calculateDielineParameters = (
   h: number,
   caliper: number = 3
 ): DielineCalculationResult => {
-  const totalLength = 2 * (l + w) + 40;
-  const totalHeight = h + w;
-  const grossArea = (totalLength * totalHeight) / 10000;
-  const netArea = (2 * l * w + 2 * l * h + 2 * w * h) / 100;
-  const waste = Math.max(5, Math.min(35, Math.round(((grossArea - netArea) / grossArea) * 100)));
+  const normalizedCode = fefcoCode.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const engineId = normalizedCode.startsWith('fefco-') || normalizedCode.startsWith('ecma-') || normalizedCode === 'default-rsc' || normalizedCode === 'snap-lock-123'
+    ? normalizedCode
+    : `fefco-${normalizedCode.replace(/^fefco-/, '')}`;
+  const engine = STANDARD_DIELINE_ENGINES[engineId] || STANDARD_DIELINE_ENGINES['default-rsc'];
+  const geometry = engine({
+    L: Math.max(1, l),
+    W: Math.max(1, w),
+    H: Math.max(1, h),
+    thickness: Math.max(0.2, caliper),
+    x0: 0,
+  });
+
+  const pathLength = (path: string): number => {
+    const commands = path.match(/[MLZ][^MLZ]*/g) || [];
+    let current: [number, number] | null = null;
+    let first: [number, number] | null = null;
+    let length = 0;
+    for (const raw of commands) {
+      const command = raw[0];
+      if (command === 'Z') {
+        if (current && first) length += Math.hypot(current[0] - first[0], current[1] - first[1]);
+        current = first;
+        continue;
+      }
+      const values = raw.slice(1).match(/-?\\d*\\.?\\d+(?:e[-+]?\\d+)?/gi)?.map(Number) || [];
+      for (let i = 0; i + 1 < values.length; i += 2) {
+        const point: [number, number] = [values[i], values[i + 1]];
+        if (command === 'M' && i === 0) {
+          current = point;
+          first = point;
+        } else if (current) {
+          length += Math.hypot(point[0] - current[0], point[1] - current[1]);
+          current = point;
+        }
+      }
+    }
+    return length;
+  };
+
+  const grossArea = (geometry.totalW * geometry.totalH) / 1_000_000;
+  const netArea = (2 * l * w + 2 * l * h + 2 * w * h) / 1_000_000;
+  const wastePercentage = grossArea > 0
+    ? Math.max(0, Math.min(100, Math.round(((grossArea - netArea) / grossArea) * 100)))
+    : 0;
 
   return {
-    sheetWidth: totalLength,
-    sheetHeight: totalHeight,
-    grossArea: Math.round(grossArea),
-    netArea: Math.round(netArea),
-    wastePercentage: waste,
-    cutLength: Math.round((2 * totalLength + 2 * totalHeight + 4 * w) / 10),
-    creaseLength: Math.round((totalLength + 4 * h) / 10),
+    sheetWidth: geometry.totalW,
+    sheetHeight: geometry.totalH,
+    grossArea: Number(grossArea.toFixed(4)),
+    netArea: Number(netArea.toFixed(4)),
+    wastePercentage,
+    cutLength: Math.round(geometry.cuts.reduce((sum, path) => sum + pathLength(path), 0)),
+    creaseLength: Math.round(geometry.creases.reduce((sum, path) => sum + pathLength(path), 0)),
   };
 };
 
