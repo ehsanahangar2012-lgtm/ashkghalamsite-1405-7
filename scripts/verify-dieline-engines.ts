@@ -165,6 +165,13 @@ if (ecmaDisplayMetrics.sheetWidth !== ecmaEngineMetrics.sheetWidth ||
     ecmaDisplayMetrics.sheetHeight !== ecmaEngineMetrics.sheetHeight) {
   fail('human-readable ECMA A20.20 code must resolve to its specific engine');
 }
+const narrowGlueMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'fefco-0201', 15);
+const wideGlueMetrics = calculateDielineParameters(240, 160, 100, 1.6, 'fefco-0201', 60);
+if (narrowGlueMetrics.glueTab !== 15 || wideGlueMetrics.glueTab !== 60 ||
+    !(wideGlueMetrics.sheetWidth > narrowGlueMetrics.sheetWidth) ||
+    !(wideGlueMetrics.netArea > narrowGlueMetrics.netArea)) {
+  fail('selected glue-tab width must affect both generated sheet bounds and estimated blank area');
+}
 const thinMetrics = calculateDielineParameters(120, 90, 100, 0.45, 'snap-lock-123');
 const thickMetrics = calculateDielineParameters(120, 90, 100, 2.5, 'snap-lock-123');
 if (thinMetrics.cutLength === thickMetrics.cutLength && thinMetrics.sheetHeight === thickMetrics.sheetHeight) {
