@@ -245,7 +245,7 @@ const CollapsiblePanel = ({
   children: React.ReactNode 
 }) => {
   return (
-    <div className="bg-[#0b0f15]/80 border border-slate-800/60 rounded-2xl overflow-hidden transition-all duration-300 shadow-sm mb-3">
+    <div className={`bg-[#0b0f15]/80 border border-slate-800/60 rounded-2xl overflow-hidden transition-all duration-300 shadow-sm mb-3 ${title.includes("انتخاب و نوع الگوی دایلاین") || title.includes("ابعاد فیزیکی و اصلی جعبه") ? "primary-setup-panel" : ""}`}>
       <button
         onClick={onToggle}
         className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-900/40 transition-colors cursor-pointer select-none text-right"
@@ -5391,6 +5391,30 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             gap: .5rem;
             padding: .625rem;
           }
+        }
+
+        /* Make the two essential setup steps visually unmistakable in the light workspace. */
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel {
+          background: #eff6ff !important;
+          border: 1px solid #93c5fd !important;
+          box-shadow: 0 3px 14px rgba(37, 99, 235, .08) !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel > button {
+          background: #eff6ff !important;
+          border-bottom: 1px solid #dbeafe !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel > div:last-child {
+          background: #ffffff !important;
+          color: #1e293b !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel input,
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel select {
+          min-height: 36px;
+          border-radius: 8px;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel button:focus-visible {
+          outline: 2px solid #2563eb !important;
+          outline-offset: 2px;
         }
       `}</style>
 
