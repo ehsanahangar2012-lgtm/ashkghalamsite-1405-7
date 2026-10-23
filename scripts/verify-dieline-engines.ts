@@ -168,6 +168,21 @@ const parsedDxf = parseDxfToEntities(sampleDxf);
 if (parsedDxf.length !== 6) fail(`DXF parser should extract six line segments, got ${parsedDxf.length}`);
 if (!parsedDxf.some(entity => entity.isCrease)) fail('DXF parser must preserve crease layer classification');
 
+// Recognized DXF $INSUNITS values are normalized to millimetres; unitless
+// drawings keep their source coordinates rather than being guessed.
+const inchDxf = [
+  '0','SECTION','2','HEADER','9','$INSUNITS','70','1','0','ENDSEC',
+  '0','SECTION','2','ENTITIES',
+  '0','LINE','8','CUT','10','0','20','0','11','10','21','5',
+  '0','ENDSEC','0','EOF'
+].join('\\n');
+const inchEntities = parseDxfToEntities(inchDxf);
+if (inchEntities.length !== 1 ||
+    inchEntities[0].end?.x !== 254 ||
+    inchEntities[0].end?.y !== 127) {
+  fail(`DXF inch units should normalize to millimetres (10 x 5 in -> 254 x 127 mm), got ${JSON.stringify(inchEntities[0])}`);
+}
+
 // Legacy POLYLINE closure is encoded in header group 70; it must produce
 // the missing final edge exactly once, even if the last vertex repeats the first.
 const closedLegacyPolyline = [
