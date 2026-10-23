@@ -955,7 +955,6 @@ const createSnapLockBottomEngine = () => {
     labels.push({ x: (xs[1] + xs[2]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `پهنا W=${Math.round(safeW)}mm` });
     labels.push({ x: tongueCenter, y: (yBodyBottom + tongueTipY) / 2, text: `زبانه قفل ${Math.round(tongueWidth)}mm` });
     labels.push({ x: receiverCenter, y: receiverY - notchDepth - 4, text: `دریچه نیم‌ماه قفل · عمق ${Math.round(lockDepth)}mm` });
-    labels.push({ x: (xs[0] + xs[4]) / 2, y: receiverY + 14, text: 'ته قفلی ۱-۲-۳؛ نمونه تاخورده و خلاصی واقعی ورق باید تأیید شود' });
 
     const xMin = x0;
     const yMin = yBodyTop - topMax;
