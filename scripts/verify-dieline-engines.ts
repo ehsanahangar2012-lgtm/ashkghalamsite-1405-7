@@ -283,6 +283,45 @@ if (Math.abs(lockBottom.totalW - referenceWidth) > 1e-8) {
 if (Math.abs(lockBottom.totalH - 226) > 0.1) {
   fail(`snap-lock blank envelope must match the reference generator's 70×70×80 mm benchmark (296.8×226 mm), got ${lockBottom.totalW}×${lockBottom.totalH} mm`);
 }
+// Reference-layout regression: square boxes can hide a W/L panel-order bug.
+const rectangularLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
+  L: 90, W: 60, H: 80, thickness: 0.45, glueTab: 15, x0: 40,
+});
+const rectPanelL = 90 + 0.45;
+const rectPanelW = 60 + 0.45;
+const rectXs = [55, 55 + rectPanelW, 55 + rectPanelW + rectPanelL,
+  55 + 2 * rectPanelW + rectPanelL, 55 + 2 * rectPanelW + 2 * rectPanelL];
+const rectTopTuck = rectangularLock.cuts.find(path =>
+  path.startsWith(`M ${rectXs[1]} ${rectangularLock.yMin + rectPanelW} L ${rectXs[1]} `)
+);
+if (!rectTopTuck || rectTopTuck.includes(`M ${rectXs[0]} `)) {
+  fail('snap-lock front tuck flap must be attached to the first L-sized front panel after a W-sized side panel');
+}
+const rectTopDust = rectangularLock.cuts.filter(path =>
+  path.startsWith(`M ${rectXs[0]} `) || path.startsWith(`M ${rectXs[2]} `)
+);
+if (rectTopDust.length < 2) {
+  fail('snap-lock top dust flaps must be attached to the two W-sized side panels');
+}
+const rectThumbNotch = rectangularLock.cuts.find(path => path.startsWith(`M ${rectXs[3]} `));
+if (!rectThumbNotch || !rectThumbNotch.includes(`L ${rectXs[4]} `)) {
+  fail('snap-lock thumb notch must be on the L-sized rear panel, not a W-sized side panel');
+}
+const rectTongue = rectangularLock.cuts.find(path => path.startsWith(`M ${rectXs[1]} ` ) && path.includes('بیرون‌زدگی') === false);
+const rectReceiver = rectangularLock.cuts.find(path => path.startsWith(`M ${rectXs[3]} ` ) && path.includes(`L ${rectXs[4]} `));
+if (!rectTongue || !rectReceiver) {
+  fail('snap-lock bottom tongue and receiver must be attached to the two L-sized front/back panels');
+}
+if (Math.abs(rectangularLock.totalW - (15 + 2 * rectPanelL + 2 * rectPanelW)) > 1e-8) {
+  fail(`snap-lock rectangular body panels must follow W/L/W/L order and preserve total width; got ${rectangularLock.totalW}`);
+}
+if (Math.abs(rectangularLock.labels.find(label => label.text.startsWith('بدنه L='))!.x -
+    (rectXs[1] + rectXs[2]) / 2) > 1e-8 ||
+    Math.abs(rectangularLock.labels.find(label => label.text.startsWith('پهنا W='))!.x -
+    (rectXs[0] + rectXs[1]) / 2) > 1e-8) {
+  fail('snap-lock L/W labels must be placed on matching long/short body panels');
+}
+
 const dimensionFromLabel = (result: typeof lockBottom, labelPart: string, pattern: RegExp): number => {
   const text = result.labels.find(label => label.text.includes(labelPart))?.text ?? '';
   const match = text.match(pattern);
