@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import './DielineCanvas.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, Badge } from './UIComponents';
 import { ThreeDPreview, FlapDirections } from './ThreeDPreview';
