@@ -907,10 +907,13 @@ const createSnapLockBottomEngine = () => {
     const bottomSideDepth = Math.max(6, Math.min(panelW * 0.48, requestedBottomSideDepth));
     const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45));
     const angleRad = angleDeg * Math.PI / 180;
-    const xs = [x0 + G, x0 + G + panelL, x0 + G + panelL + panelW,
-      x0 + G + 2 * panelL + panelW, x0 + G + 2 * panelL + 2 * panelW];
+    // Match the reference dieline topology: side, front, side, back, then glue flap.
+    // The front/back panels span L; the two side panels span W. A square carton
+    // hides this order bug, so regression tests also use a rectangular footprint.
+    const xs = [x0 + G, x0 + G + panelW, x0 + G + panelW + panelL,
+      x0 + G + 2 * panelW + panelL, x0 + G + 2 * panelW + 2 * panelL];
     const topTuckDepth = panelW + tuckDepth;
-    const topDepths = [topTuckDepth, topDustDepth, 0, topDustDepth];
+    const topDepths = [topDustDepth, topTuckDepth, topDustDepth, 0];
     const topMax = Math.max(...topDepths);
     const yBodyTop = 40 + topMax;
     const yBodyBottom = yBodyTop + panelH;
@@ -951,9 +954,9 @@ const createSnapLockBottomEngine = () => {
     for (let i = 1; i < 4; i++) creases.push(line(xs[i], yBodyTop, xs[i], yBodyBottom));
 
     // Top closure: front tuck, two tapered dust flaps, and an exposed rear edge.
-    const tuckCenter = (xs[0] + xs[1]) / 2;
+    const tuckCenter = (xs[1] + xs[2]) / 2;
     const tuckInset = Math.min(panelL * 0.12, tuckDepth * 0.3);
-    const backThumbWidth = Math.min(panelW * 0.28, 18);
+    const backThumbWidth = Math.min(panelL * 0.28, 18);
     const backThumbDepth = Math.min(4, panelW * 0.06);
     const lidOuterY = yBodyTop - panelW;
     const tuckOuterY = yBodyTop - topTuckDepth;
@@ -965,12 +968,20 @@ const createSnapLockBottomEngine = () => {
     const tuckSlitY = tuckOuterY + tuckDepth * 0.42;
     const tuckSlitWidth = Math.min(panelL * 0.26, 22);
     cuts.push(line(tuckCenter - tuckSlitWidth / 2, tuckSlitY, tuckCenter + tuckSlitWidth / 2, tuckSlitY));
-    const backCenter = (xs[2] + xs[3]) / 2;
+    const backCenter = (xs[3] + xs[4]) / 2;
+    const backThumbLeft = backCenter - backThumbWidth / 2;
+    const backThumbRight = backCenter + backThumbWidth / 2;
+    const backThumbArc = Array.from({ length: 5 }, (_, index) => {
+      const angle = Math.PI * (index + 1) / 6;
+      return [backCenter - Math.cos(angle) * backThumbWidth / 2,
+        yBodyTop + Math.sin(angle) * backThumbDepth] as const;
+    }).map(([x, y]) => `L ${x} ${y}`).join(' ');
     cuts.push(
-      `M ${xs[2]} ${yBodyTop} L ${backCenter - backThumbWidth / 2} ${yBodyTop} L ${backCenter - backThumbWidth * 0.2} ${yBodyTop + backThumbDepth * 0.75} L ${backCenter} ${yBodyTop + backThumbDepth} L ${backCenter + backThumbWidth * 0.2} ${yBodyTop + backThumbDepth * 0.75} L ${backCenter + backThumbWidth / 2} ${yBodyTop} L ${xs[3]} ${yBodyTop}`
+      `M ${xs[3]} ${yBodyTop} L ${backThumbLeft} ${yBodyTop} ${backThumbArc} L ${backThumbRight} ${yBodyTop} L ${xs[4]} ${yBodyTop}`
     );
-    creases.push(line(xs[0], yBodyTop, xs[1], yBodyTop));
-    for (const i of [1, 3]) {
+    // The tuck hinge belongs to the front L panel, not to the first W side panel.
+    creases.push(line(xs[1], yBodyTop, xs[2], yBodyTop));
+    for (const i of [0, 2]) {
       const xa = xs[i], xb = xs[i + 1], outerY = yBodyTop - topDustDepth;
       const inset = Math.min(8, topDustDepth * 0.28, panelW * 0.12);
       cuts.push(`M ${xa} ${yBodyTop} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${yBodyTop}`);
@@ -982,7 +993,7 @@ const createSnapLockBottomEngine = () => {
 
     // Bottom tongue flap. The tongue is part of the flap contour, not a
     // decorative rectangle or a separate overlapping knife path.
-    const tongueCenter = (xs[0] + xs[1]) / 2;
+    const tongueCenter = (xs[1] + xs[2]) / 2;
     const tongueLeft = tongueCenter - tongueWidth / 2;
     const tongueRight = tongueCenter + tongueWidth / 2;
     const neckLeft = tongueCenter - tongueNeck / 2;
@@ -991,10 +1002,10 @@ const createSnapLockBottomEngine = () => {
     cuts.push(
       `M ${xs[0]} ${yBodyBottom} L ${xs[0] + angleRun} ${tongueBaseY} L ${neckLeft} ${tongueBaseY} L ${tongueLeft} ${tongueBaseY + tongueProjection * 0.42} L ${tongueLeft + tipInset} ${tongueTipY} L ${tongueRight - tipInset} ${tongueTipY} L ${tongueRight} ${tongueBaseY + tongueProjection * 0.42} L ${neckRight} ${tongueBaseY} L ${xs[1] - angleRun} ${tongueBaseY} L ${xs[1]} ${yBodyBottom}`
     );
-    creases.push(line(xs[0], yBodyBottom, xs[1], yBodyBottom));
+    creases.push(line(xs[1], yBodyBottom, xs[2], yBodyBottom));
 
-    // Two side flaps fold first. Each has its own tapered perimeter.
-    for (const i of [1, 3]) {
+    // The two W side-panel flaps fold in first.
+    for (const i of [0, 2]) {
       const xa = xs[i], xb = xs[i + 1], outerY = yBodyBottom + bottomSideDepth;
       const inset = Math.min(7, bottomSideDepth * 0.22, panelW * 0.1);
       cuts.push(`M ${xa} ${yBodyBottom} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${yBodyBottom}`);
@@ -1003,27 +1014,28 @@ const createSnapLockBottomEngine = () => {
 
     // Receiver flap: a two-thirds-depth flap with a half-moon notch in its
     // outer edge. The notch is open to the edge; it is not a closed slot.
-    const receiverLeft = xs[2], receiverRight = xs[3];
+    const receiverLeft = xs[3], receiverRight = xs[4];
     const receiverCenter = (receiverLeft + receiverRight) / 2;
     const notchL = receiverCenter - notchWidth / 2, notchR = receiverCenter + notchWidth / 2;
     const receiverInset = Math.min(angleRun, panelL * 0.15);
-    const notchPoints = [
-      [notchL + notchWidth * 0.18, receiverY - notchDepth * 0.72],
-      [receiverCenter - notchWidth * 0.18, receiverY - notchDepth],
-      [receiverCenter + notchWidth * 0.18, receiverY - notchDepth],
-      [notchR - notchWidth * 0.18, receiverY - notchDepth * 0.72],
-    ];
+    // Approximate the reference's half-moon receiver as short straight segments;
+    // keeping the arc polygonal preserves compatibility with the SVG/DXF validators.
+    const notchArc = Array.from({ length: 5 }, (_, index) => {
+      const angle = Math.PI * (index + 1) / 6;
+      return [receiverCenter - Math.cos(angle) * notchWidth / 2,
+        receiverY - Math.sin(angle) * notchDepth] as const;
+    }).map(([x, y]) => `L ${x} ${y}`).join(' ');
     cuts.push(
-      `M ${receiverLeft} ${yBodyBottom} L ${receiverLeft + receiverInset} ${receiverY} L ${notchL} ${receiverY} L ${notchPoints[0][0]} ${notchPoints[0][1]} L ${notchPoints[1][0]} ${notchPoints[1][1]} L ${notchPoints[2][0]} ${notchPoints[2][1]} L ${notchPoints[3][0]} ${notchPoints[3][1]} L ${notchR} ${receiverY} L ${receiverRight - receiverInset} ${receiverY} L ${receiverRight} ${yBodyBottom}`
+      `M ${receiverLeft} ${yBodyBottom} L ${receiverLeft + receiverInset} ${receiverY} L ${notchL} ${receiverY} ${notchArc} L ${notchR} ${receiverY} L ${receiverRight - receiverInset} ${receiverY} L ${receiverRight} ${yBodyBottom}`
     );
     creases.push(line(receiverLeft, yBodyBottom, receiverRight, yBodyBottom));
 
-    labels.push({ x: (xs[0] + xs[1]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `بدنه L=${Math.round(safeL)}mm` });
-    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `پهنا W=${Math.round(safeW)}mm` });
+    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `بدنه L=${Math.round(safeL)}mm` });
+    labels.push({ x: (xs[0] + xs[1]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `پهنا W=${Math.round(safeW)}mm` });
     labels.push({ x: tuckCenter, y: yBodyTop - topTuckDepth / 2, text: `زبانه درب ${Math.round(tuckDepth)}mm` });
-    labels.push({ x: (xs[1] + xs[2]) / 2, y: yBodyTop - topDustDepth / 2, text: `گردگیر بالایی ${Math.round(topDustDepth)}mm` });
+    labels.push({ x: (xs[0] + xs[1]) / 2, y: yBodyTop - topDustDepth / 2, text: `گردگیر بالایی ${Math.round(topDustDepth)}mm` });
     labels.push({ x: tongueCenter, y: (yBodyBottom + tongueTipY) / 2, text: `زبانه قفل ${Math.round(tongueWidth)}mm · بیرون‌زدگی ${Math.round(tongueProjection)}mm` });
-    labels.push({ x: (xs[1] + xs[2]) / 2, y: yBodyBottom + bottomSideDepth / 2, text: `فلپ کناری کف ${Math.round(bottomSideDepth)}mm` });
+    labels.push({ x: (xs[0] + xs[1]) / 2, y: yBodyBottom + bottomSideDepth / 2, text: `فلپ کناری کف ${Math.round(bottomSideDepth)}mm` });
     labels.push({ x: receiverCenter, y: receiverY - notchDepth - 4, text: `دریچه نیم‌ماه قفل · عرض ${Math.round(notchWidth)} × عمق ${Math.round(notchDepth)}mm` });
 
     const xMin = x0;
