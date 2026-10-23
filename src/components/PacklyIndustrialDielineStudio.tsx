@@ -91,7 +91,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [saved, setSaved] = useState(false);
 
   const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
-  const supportsLockAngle = templateId === 'snap-lock-123';
+  const supportsLockAngle = ['snap-lock-123', 'fefco-0713'].includes(templateId);
   const supportsLidHeight = ['fefco-0300', 'fefco-0301', 'fefco-0320'].includes(templateId);
   const validInputs = numeric(length, 10, 2000) && numeric(width, 10, 2000) && numeric(height, 10, 2000) &&
     numeric(thickness, 0.2, 10) && numeric(glueTab, 5, 200) && numeric(slotGap, 1, 10) && numeric(lidHeight, 5, 2000) &&
@@ -230,7 +230,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 {supportsDimensionConvention && <label className="text-[11px] font-bold text-slate-700">فاصله شیار (mm)<input type="number" min={1} max={10} step={0.1} value={Number.isFinite(slotGap) ? slotGap : ''} onChange={e => setSlotGap(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>}
                 {supportsLockAngle && <label className="text-[11px] font-bold text-slate-700">زاویه شانه قفل (درجه)<input type="number" min={25} max={65} step={1} value={Number.isFinite(autoLockAngle) ? autoLockAngle : ''} onChange={e => setAutoLockAngle(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>}
               </div>
-              <p className="mt-2 text-[10px] leading-5 text-slate-600">{supportsDimensionConvention ? 'برای خانواده FEFCO 0200، ابعاد داخلی پیش‌فرض است؛ کالیپر به ابعاد پنل و بدنه افزوده می‌شود و فاصله شیار بین فلپ‌ها جداگانه تنظیم می‌شود. اصلاح دقیق خطوط تا باید با روش قالب‌ساز کالیبره شود.' : supportsLockAngle ? 'زاویه شانه در هندسه برش اعمال می‌شود؛ شیار بر اساس ضخامت ورق تنظیم اولیه دارد. این قفل پارامتریک است و برای تولید باید با نمونه تاخورده و مشخصات قالب‌ساز تأیید شود.' : 'برای این ساختار پارامتریک، تفسیر دقیق ابعاد داخل/خارج و جبران کامل خطوط تا هنوز تأیید نشده است.'}</p>
+              <p className="mt-2 text-[10px] leading-5 text-slate-600">{supportsDimensionConvention ? 'برای خانواده FEFCO 0200، ابعاد داخلی پیش‌فرض است؛ کالیپر به ابعاد پنل و بدنه افزوده می‌شود و فاصله شیار بین فلپ‌ها جداگانه تنظیم می‌شود. اصلاح دقیق خطوط تا باید با روش قالب‌ساز کالیبره شود.' : supportsLockAngle ? 'زاویه شانه در هندسه برش اعمال می‌شود؛ اما این‌ها الگوهای پارامتریک/آزمایشی‌اند، نه نقشهٔ رسمی تأییدشده. جای‌گیری قفل، خلاصی ورق و مونتاژ باید با نمونه تاخورده و مشخصات قالب‌ساز تأیید شود.' : 'برای این ساختار پارامتریک، تفسیر دقیق ابعاد داخل/خارج و جبران کامل خطوط تا هنوز تأیید نشده است.'}</p>
               {!validInputs && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm · فاصله شیار: ۱ تا ۱۰ mm · خلاصی درب (در صورت نمایش): ۰٫۱ تا ۱۲ mm · زاویه قفل: ۲۵ تا ۶۵ درجه. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
             </div>
             <details className="rounded-xl border border-slate-200 bg-slate-50 p-2">
