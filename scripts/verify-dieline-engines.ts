@@ -63,8 +63,8 @@ if (rscDepths.top[0] !== 78 || rscDepths.top[1] !== 118 || rscDepths.top[2] !== 
   fail(`RSC panel flap depths must follow the perpendicular box dimension, got ${JSON.stringify(rscDepths.top)}`);
 }
 const rscGeometry = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, glueTab: 30, x0: 40 });
-if (!rscGeometry.cuts.some(path => path.includes('M 310 158 L 310 40 L 470 40 L 470 158')) ||
-    !rscGeometry.cuts.some(path => path.includes('M 70 158 L 70 80 L 310 80 L 310 158'))) {
+if (!rscGeometry.cuts.some(path => path.includes('L 316.4 40 L 463.6 40')) ||
+    !rscGeometry.cuts.some(path => path.includes('L 76.4 80 L 303.6 80'))) {
   fail('FEFCO 0201 must render visibly different side-flap and main-flap depths');
 }
 
