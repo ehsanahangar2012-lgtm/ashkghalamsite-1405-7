@@ -330,21 +330,20 @@ const geometryAudit = (path: string) => runComprehensiveGeometryCheck(
   10, 5, 30, 30, 100, 100, 15
 );
 const validRectangleAudit = geometryAudit('M 0 0 L 30 0 L 30 30 L 0 30 Z');
-if (validRectangleAudit.hasSelfIntersection) {
-  fail('valid closed rectangle must not be flagged for its adjacent corners');
+if (validRectangleAudit.hasSelfIntersection || !validRectangleAudit.passed) {
+  fail('valid closed rectangle must pass without flagging its adjacent corners');
 }
+const assertIntersectionFailsAudit = (report: ReturnType<typeof geometryAudit>, scenario: string) => {
+  if (!report.hasSelfIntersection || report.passed || report.errors.length === 0) {
+    fail(`${scenario}: detected path intersection must make the structural audit fail`);
+  }
+};
 const openFirstLastCrossingAudit = geometryAudit('M 0 0 L 20 20 L 0 20 L 20 0');
-if (!openFirstLastCrossingAudit.hasSelfIntersection) {
-  fail('open path first/last segment crossing must be detected');
-}
+assertIntersectionFailsAudit(openFirstLastCrossingAudit, 'open path first/last segment crossing');
 const endpointTouchAudit = geometryAudit('M 0 0 L 20 0 L 20 20 L 10 0 L 0 20');
-if (!endpointTouchAudit.hasSelfIntersection) {
-  fail('non-adjacent endpoint-on-segment contact must be detected');
-}
+assertIntersectionFailsAudit(endpointTouchAudit, 'non-adjacent endpoint-on-segment contact');
 const collinearOverlapAudit = geometryAudit('M 0 0 L 20 0 L 20 20 L 5 0 L 15 0');
-if (!collinearOverlapAudit.hasSelfIntersection) {
-  fail('non-adjacent collinear overlap must be detected');
-}
+assertIntersectionFailsAudit(collinearOverlapAudit, 'non-adjacent collinear overlap');
 
 
 // All registered IDs, including compatibility aliases, must remain callable.
