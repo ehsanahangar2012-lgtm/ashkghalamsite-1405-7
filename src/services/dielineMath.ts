@@ -542,7 +542,7 @@ const createSlottedCaseEngine = (style: SlottedStyle) => {
     // Manufacturer's joint, body perimeter and four vertical panel scores.
     cuts.push(`M ${x0 + 4} ${yTop} L ${x0} ${yTop + 4} L ${x0} ${yBottom - 4} L ${x0 + 4} ${yBottom}`);
     cuts.push(`M ${xs[4]} ${yTop} L ${xs[4]} ${yBottom}`);
-    creases.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`);
+    if (style !== '0200') creases.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`);
     creases.push(`M ${xs[0]} ${yBottom} L ${xs[4]} ${yBottom}`);
     creases.push(`M ${xs[0]} ${yTop} L ${xs[0]} ${yBottom}`);
     for (let i = 1; i < 4; i++) creases.push(`M ${xs[i]} ${yTop} L ${xs[i]} ${yBottom}`);
