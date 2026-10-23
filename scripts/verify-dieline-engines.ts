@@ -331,6 +331,22 @@ for (const id of Object.keys(STANDARD_DIELINE_ENGINES)) {
     if (result.totalW <= 0 || result.totalH <= 0) fail(`${id}: non-positive bounds from registry sweep`);
   }
 }
+// Every production-preview engine output must pass the same structural audit used to gate SVG/DXF export.
+for (const id of requiredEngines) {
+  const engine = STANDARD_DIELINE_ENGINES[id];
+  for (const dims of dimensions) {
+    const result = engine(dims);
+    const audit = runComprehensiveGeometryCheck(
+      result.cuts, result.creases, dims.L, dims.W, dims.H, id,
+      20, 15, result.totalW, result.totalH,
+      result.totalW + 1, result.totalH + 1, dims.glueTab
+    );
+    if (!audit.passed || audit.hasSelfIntersection) {
+      fail(`${id}: engine output fails the export structural audit for ${JSON.stringify(dims)}: ${[...audit.errors, ...(audit.hasSelfIntersection ? ['self-intersection'] : [])].join('; ')}`);
+    }
+  }
+}
+
 // FEFCO 0201 bounds must follow its four-panel strip and opposing half-depth flaps.
 const rscThin = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, thickness: 0.45, glueTab: 35, x0: 0 });
 const rscThick = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, thickness: 4.8, glueTab: 35, x0: 0 });
