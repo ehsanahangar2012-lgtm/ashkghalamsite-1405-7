@@ -124,7 +124,8 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     return runComprehensiveGeometryCheck(
       geometry.cuts, geometry.creases, length, width, height, templateId,
       20, 15, geometry.totalW, geometry.totalH,
-      Math.max(100000, geometry.totalW + 1), Math.max(100000, geometry.totalH + 1), glueTab
+      Math.max(100000, geometry.totalW + 1), Math.max(100000, geometry.totalH + 1), glueTab,
+      { xMin: geometry.xMin, yMin: geometry.yMin, xMax: geometry.xMax, yMax: geometry.yMax }
     );
   }, [geometry, length, width, height, templateId, glueTab]);
   const exportReady = Boolean(geometry && geometryAudit?.passed && !geometryAudit.hasSelfIntersection);
@@ -263,6 +264,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               {geometryAudit && <div className={`mb-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
                 <div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4"/>{exportReady ? 'بررسی ساختاری مسیرها گذشت' : 'خروجی به بررسی بیشتر نیاز دارد'}</div>
                 <p className="mt-1">طول برش تقریبی: {geometryAudit.cutLength} mm · طول خط‌تا: {geometryAudit.creaseLength} mm · امتیاز بررسی ساختاری: {geometryAudit.score}/100</p>
+                <p className="mt-1">کنترل تقاطع: برش/برش {geometryAudit.topology.cutCutCrossings} · برش/خط‌تا {geometryAudit.topology.cutCreaseCrossings} · هم‌پوشانی {geometryAudit.topology.overlaps} · اتصال T نیازمند بازبینی {geometryAudit.topology.teeContacts} · خارج از محدوده {geometryAudit.topology.boundsViolations}</p>
                 {geometryAudit.errors.map((message, i) => <p key={`audit-error-${i}`} className="mt-1">• {message}</p>)}
                 {geometryAudit.warnings.map((message, i) => <p key={`audit-warning-${i}`} className="mt-1">• {message}</p>)}
                 {geometryAudit.hasSelfIntersection && <p className="mt-1 font-bold">به‌دلیل تقاطع مسیر برش در یک مسیر، خروجی فایل و ثبت پروژه موقتاً غیرفعال است.</p>}
