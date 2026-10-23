@@ -218,6 +218,9 @@ const createRscEngine = (flapRatioTop = 0.5, flapRatioBottom = 0.5) => {
       if (topDepth > 0) {
         const outerY = yTop - topDepth;
         cuts.push(`M ${left} ${outerY} L ${right} ${outerY}`);
+      } else {
+        // On an open-top blank this body edge is exposed perimeter, not a hinge.
+        cuts.push(`M ${left} ${yTop} L ${right} ${yTop}`);
       }
       if (bottomDepth > 0) {
         const outerY = yBottom + bottomDepth;
