@@ -24,7 +24,8 @@ export const calculateDielineParameters = (
   w: number,
   h: number,
   caliper: number = 3,
-  fefcoCode: string = 'fefco-0201'
+  fefcoCode: string = 'fefco-0201',
+  requestedGlueTab?: number
 ): DielineCalculationResult => {
   const normalizedCode = fefcoCode.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const aliases: Record<string, string> = {
@@ -42,11 +43,13 @@ export const calculateDielineParameters = (
   const safeW = Number.isFinite(w) ? Math.max(1, w) : 1;
   const safeH = Number.isFinite(h) ? Math.max(1, h) : 1;
   const safeCaliper = Number.isFinite(caliper) ? Math.max(0.2, caliper) : 3;
+  const safeGlueTab = Number.isFinite(requestedGlueTab) ? Math.max(5, Math.min(200, requestedGlueTab as number)) : 35;
   const geometry = engine({
     L: safeL,
     W: safeW,
     H: safeH,
     thickness: safeCaliper,
+    glueTab: safeGlueTab,
     x0: 0,
   });
 
@@ -83,7 +86,7 @@ export const calculateDielineParameters = (
   const isSlottedCase = ['default-rsc', 'fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204'].includes(engineId);
   let blankAreaMm2: number;
   if (isSlottedCase) {
-    const glue = Math.max(15, 35);
+    const glue = safeGlueTab;
     const clearance = Math.max(1, Math.min(6, safeCaliper * 1.5));
     const sidePanelArea = (2 * safeL + 2 * safeW + glue) * safeH;
     const totalPanelSpan = 2 * safeL + 2 * safeW;
@@ -110,7 +113,7 @@ export const calculateDielineParameters = (
     wastePercentage,
     cutLength: Math.round(geometry.cuts.reduce((sum, path) => sum + pathLength(path), 0)),
     creaseLength: Math.round(geometry.creases.reduce((sum, path) => sum + pathLength(path), 0)),
-    glueTab: Math.max(15, Math.min(35, safeL * 0.18)),
+    glueTab: safeGlueTab,
     tuck: Math.max(15, Math.min(30, safeL * 0.18)),
     dustFlap: Math.max(12, Math.min(50, safeW * 0.42)),
   };
