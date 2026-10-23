@@ -59,4 +59,22 @@ if (!pizza.cuts.length || !pizza.creases.some(path => path.includes('L'))) {
   fail('custom pizza carton must include both cut and crease geometry');
 }
 
+
+const lockBottom = STANDARD_DIELINE_ENGINES['snap-lock-123']({
+  L: 120, W: 90, H: 100, thickness: 0.45, glueTab: 22, x0: 40,
+});
+if (!lockBottom.cuts.some(path => path.includes('Z'))) {
+  fail('snap-lock bottom must contain a closed receiving-slot cut path');
+}
+if (!lockBottom.labels.some(label => label.text.includes('زبانه قفل')) ||
+    !lockBottom.labels.some(label => label.text.includes('شیار قفل'))) {
+  fail('snap-lock bottom must expose both tongue and receiving-slot geometry');
+}
+const thickBoardLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
+  L: 120, W: 90, H: 100, thickness: 2.5, glueTab: 22, x0: 40,
+});
+if (JSON.stringify(lockBottom.cuts) === JSON.stringify(thickBoardLock.cuts)) {
+  fail('snap-lock geometry must respond to board caliper');
+}
+
 console.log(`Dieline geometry checks passed: ${requiredEngines.length} engines × ${dimensions.length} dimension sets.`);
