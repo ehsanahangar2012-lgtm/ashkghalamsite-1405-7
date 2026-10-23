@@ -54,7 +54,7 @@ for (const id of requiredEngines) {
       }
       bottomContours.forEach((path, index) => {
         const contour = path as string;
-        const nums = contour.match(/-?\\d+(?:\\.\\d+)?/g)?.map(Number) || [];
+        const nums = contour.match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
         const points: Array<[number, number]> = [];
         for (let n = 0; n + 1 < nums.length; n += 2) points.push([nums[n], nums[n + 1]]);
         if (points.length < 4) fail(`fefco-0713: bottom flap ${index + 1} must not be a triangular wedge: ${contour}`);
