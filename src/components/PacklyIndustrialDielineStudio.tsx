@@ -1,31 +1,36 @@
 import React, { useMemo, useState } from 'react';
-import { Download, Save, Box, Ruler, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Download, Save, Box, Ruler, AlertTriangle, CheckCircle2, Search, Layers, Scissors, Rotate3d, Info, Filter, Check, XCircle } from 'lucide-react';
 import { ThreeDPreview } from './ThreeDPreview';
 import { STANDARD_DIELINE_ENGINES } from '../services/dielineMath';
 import type { DielineEngineResult } from '../services/dielineMath';
 import type { Project } from '../types';
 
-type TemplateOption = { id: string; name: string; code: string; note?: string };
+type TemplateOption = {
+  id: string; name: string; code: string; category: string;
+  description: string; status: 'baseline' | 'custom'; note?: string;
+};
 
 const TEMPLATES: TemplateOption[] = [
-  { id: 'fefco-0200', name: 'کارتن نیمه‌شیاردار روباز', code: 'FEFCO 0200' },
-  { id: 'fefco-0201', name: 'کارتن چهارلَت استاندارد', code: 'FEFCO 0201' },
-  { id: 'fefco-0203', name: 'کارتن فلپ هم‌پوشان', code: 'FEFCO 0203' },
-  { id: 'fefco-0204', name: 'کارتن فلپ‌مرکزی', code: 'FEFCO 0204' },
-  { id: 'fefco-0215', name: 'کارتن ته‌قفلی دستی', code: 'FEFCO 0215', note: 'قفل کف باید با نمونه فیزیکی تأیید شود.' },
-  { id: 'fefco-0300', name: 'جعبه تلسکوپی درب و زیره', code: 'FEFCO 0300' },
-  { id: 'fefco-0320', name: 'جعبه دو‌تکه تلسکوپی', code: 'FEFCO 0320' },
-  { id: 'fefco-0427', name: 'جعبه کیبوردی/پستی', code: 'FEFCO 0427' },
-  { id: 'fefco-0713', name: 'کارتن آماده‌چسب‌شده با درب زبانه‌ای', code: 'FEFCO 0713', note: 'هندسه فعلی الگوی پایه است و باید با نقشه رسمی 0713 تطبیق داده شود.' },
-  { id: 'fefco-pizza', name: 'جعبه پیتزا یک‌تکه', code: 'قالب اختصاصی', note: 'کد استاندارد رسمی برای این نسخه ادعا نمی‌شود؛ قفل و تهویه نیازمند بازبینی است.' },
-  { id: 'ecma-a2020', name: 'جعبه دارویی Reverse Tuck End', code: 'ECMA A20.20' },
-  { id: 'ecma-ste', name: 'جعبه Straight Tuck End', code: 'ECMA STE — الگوی پایه', note: 'شناسه توصیفی است، نه کد رسمی ECMA.' },
-  { id: 'snap-lock-123', name: 'جعبه ته‌قفلی مقوایی', code: 'ECMA / ته‌قفلی', note: 'هندسه قفل باید طبق نمونه و ابزار خط تولید تأیید شود.' },
-  { id: 'ecma-a30', name: 'جعبه آویز فروشگاهی', code: 'ECMA A30' },
-  { id: 'ecma-b10', name: 'غلاف یا اسلیو', code: 'ECMA B10.10' },
-  { id: 'ecma-c1020', name: 'جعبه کشویی', code: 'ECMA C10.20' },
-  { id: 'ecma-d50', name: 'استند نمایش محصول', code: 'ECMA D50' },
+  { id: 'fefco-0200', name: 'کارتن نیمه‌شیاردار روباز', code: 'FEFCO 0200', category: 'کارتن حمل', description: 'بدنه چهاروجهی با کف و بدون درپوش کامل.', status: 'baseline' },
+  { id: 'fefco-0201', name: 'کارتن چهارلَت استاندارد', code: 'FEFCO 0201', category: 'کارتن حمل', description: 'کارتن RSC با فلپ‌های بالا و پایین.', status: 'baseline' },
+  { id: 'fefco-0203', name: 'کارتن فلپ هم‌پوشان', code: 'FEFCO 0203', category: 'کارتن حمل', description: 'فلپ‌های بلند برای هم‌پوشانی بیشتر در درب و کف.', status: 'baseline' },
+  { id: 'fefco-0204', name: 'کارتن فلپ‌مرکزی', code: 'FEFCO 0204', category: 'کارتن حمل', description: 'فلپ‌ها برای رسیدن به مرکز صفحه طراحی می‌شوند.', status: 'baseline' },
+  { id: 'fefco-0215', name: 'کارتن ته‌قفلی دستی', code: 'FEFCO 0215', category: 'کارتن حمل', description: 'الگوی پایه با زبانه و شیار قفل کف.', status: 'baseline', note: 'ابعاد قفل و خلاصی باید با ضخامت واقعی ورق و نمونه تاخورده تأیید شود.' },
+  { id: 'fefco-0300', name: 'جعبه تلسکوپی درب و زیره', code: 'FEFCO 0300', category: 'جعبه تلسکوپی', description: 'دو قطعه مجزا برای زیره و درب.', status: 'baseline' },
+  { id: 'fefco-0320', name: 'جعبه دو‌تکه تلسکوپی', code: 'FEFCO 0320', category: 'جعبه تلسکوپی', description: 'زیره و درب در دو گسترده مجزا.', status: 'baseline' },
+  { id: 'fefco-0427', name: 'جعبه کیبوردی / پستی', code: 'FEFCO 0427', category: 'جعبه پستی', description: 'الگوی پایه جعبه پستی با درب متصل.', status: 'baseline', note: 'هندسه فعلی یک پایه پارامتریک است؛ پیش از تولید با نقشه مرجع تطبیق دهید.' },
+  { id: 'fefco-0713', name: 'کارتن با درب زبانه‌ای', code: 'FEFCO 0713', category: 'کارتن حمل', description: 'الگوی پایه برای بررسی فرم و ابعاد.', status: 'baseline', note: 'تطابق دقیق این هندسه با نقشه رسمی FEFCO 0713 تأیید نشده است.' },
+  { id: 'fefco-pizza', name: 'جعبه پیتزا یک‌تکه', code: 'سفارشی', category: 'جعبه سفارشی', description: 'قالب اختصاصی برای شروع طراحی جعبه پیتزا.', status: 'custom', note: 'کد رسمی FEFCO برای این قالب ادعا نمی‌شود؛ قفل، تهویه و لبه‌ها نیازمند بازبینی هستند.' },
+  { id: 'ecma-a2020', name: 'جعبه Reverse Tuck End', code: 'ECMA A20.20', category: 'مقوای تاشو', description: 'جعبه مقوایی با زبانه‌های درب در دو سمت مخالف.', status: 'baseline' },
+  { id: 'ecma-ste', name: 'جعبه Straight Tuck End', code: 'ECMA STE*', category: 'مقوای تاشو', description: 'الگوی پایه درب مستقیم.', status: 'custom', note: 'شناسه STE در این برنامه برچسب توصیفی است و تأیید کد رسمی ECMA نیست.' },
+  { id: 'snap-lock-123', name: 'جعبه ته‌قفلی مقوایی', code: 'ته‌قفلی', category: 'مقوای تاشو', description: 'زبانه و شیار دریافت‌کننده قفل کف.', status: 'custom', note: 'قفل پارامتریک است؛ پیش از ساخت تیغ نمونه فیزیکی لازم است.' },
+  { id: 'ecma-a30', name: 'جعبه آویز فروشگاهی', code: 'ECMA A30', category: 'مقوای تاشو', description: 'الگوی پایه جعبه با زبانه آویز.', status: 'baseline', note: 'هندسه از موتور tuck-end مشترک استفاده می‌کند و تطابق رسمی تأیید نشده است.' },
+  { id: 'ecma-b10', name: 'غلاف یا اسلیو', code: 'ECMA B10.10', category: 'اسلیو و کشویی', description: 'غلاف چهاروجهی برای پوشاندن محصول یا سینی.', status: 'baseline' },
+  { id: 'ecma-c1020', name: 'جعبه کشویی', code: 'ECMA C10.20*', category: 'اسلیو و کشویی', description: 'ترکیب سینی داخلی و غلاف بیرونی در یک گسترده.', status: 'custom', note: 'الگوی سفارشی برنامه است؛ تأییدیه رسمی ECMA ندارد.' },
+  { id: 'ecma-d50', name: 'استند نمایش محصول', code: 'ECMA D50*', category: 'نمایشگاهی', description: 'پایه استند با دیواره عقب، دیواره جانبی و لبه جلویی.', status: 'custom', note: 'الگوی سفارشی برنامه است؛ کد D50 و پایداری سازه تأیید نشده است.' },
 ];
+
+const CATEGORIES = ['همه قالب‌ها', ...Array.from(new Set(TEMPLATES.map(t => t.category)))];
 
 const pathSegments = (path: string): [number, number, number, number][] => {
   const commands = path.match(/[MLZ][^MLZ]*/g) || [];
@@ -35,21 +40,16 @@ const pathSegments = (path: string): [number, number, number, number][] => {
   for (const raw of commands) {
     const command = raw[0];
     if (command === 'Z') {
-      if (current && first && (current[0] !== first[0] || current[1] !== first[1])) {
-        segments.push([current[0], current[1], first[0], first[1]]);
-      }
+      if (current && first && (current[0] !== first[0] || current[1] !== first[1])) segments.push([current[0], current[1], first[0], first[1]]);
       current = first;
       continue;
     }
-    const nums = raw.slice(1).match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)?.map(Number) || [];
+    const nums = raw.slice(1).match(/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
     if (nums.length < 2) continue;
-    const point: [number, number] = [nums[0], nums[1]];
-    if (command === 'M') {
-      current = point;
-      first = point;
-    } else if (command === 'L' && current) {
-      segments.push([current[0], current[1], point[0], point[1]]);
-      current = point;
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      const point: [number, number] = [nums[i], nums[i + 1]];
+      if (command === 'M' && i === 0) { current = point; first = point; }
+      else if (current) { segments.push([current[0], current[1], point[0], point[1]]); current = point; }
     }
   }
   return segments;
@@ -62,135 +62,178 @@ const download = (name: string, contents: string, type: string) => {
   a.href = url;
   a.download = name;
   a.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
+
+const numeric = (value: number, min: number, max: number) => Number.isFinite(value) && value >= min && value <= max;
 
 export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project: Project) => void }> = ({ onSaveProject }) => {
   const [templateId, setTemplateId] = useState('fefco-0201');
+  const [category, setCategory] = useState('همه قالب‌ها');
+  const [search, setSearch] = useState('');
   const [length, setLength] = useState(240);
   const [width, setWidth] = useState(160);
   const [height, setHeight] = useState(100);
   const [thickness, setThickness] = useState(1.6);
   const [glueTab, setGlueTab] = useState(30);
+  const [showLabels, setShowLabels] = useState(true);
+  const [showGrid, setShowGrid] = useState(true);
+  const [show3D, setShow3D] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[1];
-  const geometry: DielineEngineResult = useMemo(() => {
-    const engine = STANDARD_DIELINE_ENGINES[templateId] || STANDARD_DIELINE_ENGINES['default-rsc'];
-    return engine({
-      L: Math.max(20, Math.min(2000, length)),
-      W: Math.max(20, Math.min(2000, width)),
-      H: Math.max(10, Math.min(2000, height)),
-      thickness,
-      glueTab,
-      x0: 40,
-    });
-  }, [templateId, length, width, height, thickness, glueTab]);
+  const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
+  const validInputs = numeric(length, 10, 2000) && numeric(width, 10, 2000) && numeric(height, 10, 2000) &&
+    numeric(thickness, 0.2, 10) && numeric(glueTab, 5, 200);
+  const engine = STANDARD_DIELINE_ENGINES[templateId];
+  const geometryState = useMemo(() => {
+    if (!validInputs || typeof engine !== 'function') return { geometry: null as DielineEngineResult | null, error: 'ابعاد باید عدد معتبر باشند و در محدوده مجاز قرار گیرند.' };
+    try {
+      const g = engine({ L: length, W: width, H: height, thickness, glueTab, x0: 40 });
+      const allValues = [g.xMin, g.yMin, g.xMax, g.yMax, g.totalW, g.totalH];
+      const pathsValid = Array.isArray(g.cuts) && g.cuts.length > 0 &&
+        Array.isArray(g.creases) && g.creases.length > 0 &&
+        [...g.cuts, ...g.creases].every(p => typeof p === 'string' && p.trim().length > 0 &&
+          (p.match(/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/gi) || []).map(Number).every(Number.isFinite));
+      if (!allValues.every(Number.isFinite) || g.totalW <= 0 || g.totalH <= 0 || !pathsValid) {
+        return { geometry: null, error: 'موتور قالب هندسه نامعتبر یا ناقص تولید کرد؛ خروجی فایل غیرفعال شد.' };
+      }
+      return { geometry: g, error: '' };
+    } catch (error) {
+      return { geometry: null, error: error instanceof Error ? error.message : 'خطای ناشناخته در موتور تولید قالب.' };
+    }
+  }, [engine, length, width, height, thickness, glueTab, validInputs]);
+
+  const geometry = geometryState.geometry;
+  const filteredTemplates = TEMPLATES.filter(t =>
+    (category === 'همه قالب‌ها' || t.category === category) &&
+    (t.name + ' ' + t.code + ' ' + t.description).toLocaleLowerCase('fa').includes(search.toLocaleLowerCase('fa'))
+  );
 
   const svg = useMemo(() => {
-    const minX = geometry.xMin;
-    const minY = geometry.yMin;
-    const viewW = Math.max(1, geometry.totalW);
-    const viewH = Math.max(1, geometry.totalH);
+    if (!geometry) return '';
+    const viewW = Math.max(1, geometry.xMax - geometry.xMin);
+    const viewH = Math.max(1, geometry.yMax - geometry.yMin);
     const cuts = geometry.cuts.map(d => `<path d="${d}" fill="none" stroke="#dc2626" stroke-width="0.25"/>`).join('');
     const creases = geometry.creases.map(d => `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="0.25" stroke-dasharray="2 1"/>`).join('');
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW}mm" height="${viewH}mm" viewBox="${minX} ${minY} ${viewW} ${viewH}"><g id="CUT">${cuts}</g><g id="CREASE">${creases}</g></svg>`;
-  }, [geometry]);
+    const labels = showLabels ? geometry.labels.map(label => `<text x="${label.x}" y="${label.y}" font-size="4" text-anchor="middle" fill="#64748b">${label.text.replace(/[&<>"]/g, '')}</text>`).join('') : '';
+    const grid = showGrid ? `<defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" stroke-opacity=".35" stroke-width=".15"/></pattern></defs><rect x="${geometry.xMin}" y="${geometry.yMin}" width="${viewW}" height="${viewH}" fill="url(#grid)"/>` : '';
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW}mm" height="${viewH}mm" viewBox="${geometry.xMin} ${geometry.yMin} ${viewW} ${viewH}">${grid}<g id="CUT">${cuts}</g><g id="CREASE">${creases}</g>${labels}</svg>`;
+  }, [geometry, showLabels, showGrid]);
 
   const exportDxf = () => {
+    if (!geometry) return;
     const entities: string[] = [];
-    const add = (path: string, layer: string) => {
-      for (const [x1, y1, x2, y2] of pathSegments(path)) {
-        entities.push(`0\nLINE\n8\n${layer}\n10\n${x1.toFixed(3)}\n20\n${y1.toFixed(3)}\n30\n0\n11\n${x2.toFixed(3)}\n21\n${y2.toFixed(3)}\n31\n0\n`);
-      }
-    };
+    const add = (path: string, layer: string) => pathSegments(path).forEach(([x1, y1, x2, y2]) => {
+      entities.push(`0\nLINE\n8\n${layer}\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0\n`);
+    });
     geometry.cuts.forEach(p => add(p, 'CUT'));
     geometry.creases.forEach(p => add(p, 'CREASE'));
-    const dxf = `0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n2\n0\nLAYER\n2\nCUT\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nCREASE\n70\n0\n62\n5\n6\nCONTINUOUS\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('')}0\nENDSEC\n0\nEOF\n`;
+    if (!entities.length) return;
+    const dxf = `0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n2\n0\nLAYER\n2\nCUT\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nCREASE\n70\n0\n62\n5\n6\nDASHED\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('')}0\nENDSEC\n0\nEOF\n`;
     download(`ashkghalam-${templateId}.dxf`, dxf, 'application/dxf');
   };
 
   const saveProject = () => {
+    if (!geometry || !onSaveProject) return;
     const project: Project = {
-      id: `dieline-${Date.now()}`,
-      title: `${template.code} — ${length}×${width}×${height}mm`,
-      type: 'dieline',
-      status: 'saved_design',
-      date: new Date().toISOString(),
+      id: `dieline-${Date.now()}`, title: `${template.code} — ${length}×${width}×${height}mm`,
+      type: 'dieline', status: 'saved_design', date: new Date().toISOString(),
       dielineConfig: {
-        typeId: templateId,
-        dimensions: { w: length, h: height, d: width },
-        paperType: `کالیپر ${thickness}mm`,
-        glueTab,
-        geometry: { cutPaths: geometry.cuts.length, creasePaths: geometry.creases.length, bounds: { width: geometry.totalW, height: geometry.totalH } },
+        typeId: templateId, dimensions: { w: length, h: height, d: width },
+        paperType: `کالیپر ${thickness}mm`, glueTab,
+        geometry: { cutPaths: geometry.cuts.length, creasePaths: geometry.creases.length, bounds: { width: geometry.xMax - geometry.xMin, height: geometry.yMax - geometry.yMin } },
       },
     };
-    onSaveProject?.(project);
+    onSaveProject(project);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1800);
   };
 
+  const inputClass = 'mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-sm text-white outline-none focus:border-sky-500';
+  const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40';
+
   return (
     <div dir="rtl" className="h-full min-h-0 overflow-y-auto bg-slate-950 p-3 text-slate-100 sm:p-5">
-      <div className="mx-auto grid max-w-[1320px] grid-cols-1 gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
-        <aside className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-          <div className="flex items-center gap-2"><Box className="h-5 w-5 text-amber-400" /><h2 className="font-black">کتابخانه قالب‌های بسته‌بندی</h2></div>
-          <label className="block text-xs font-bold text-slate-300">نوع جعبه
-            <select value={templateId} onChange={e => setTemplateId(e.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-950 p-2.5 text-sm">
-              {TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
-            </select>
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {[['طول', length, setLength], ['عرض', width, setWidth], ['ارتفاع', height, setHeight]].map(([label, value, setter]) => (
-              <label key={String(label)} className="text-[11px] font-bold text-slate-300">{String(label)}
-                <input type="number" min={10} max={2000} value={Number(value)} onChange={e => (setter as (n:number)=>void)(Number(e.target.value))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm text-white" />
-              </label>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-[11px] font-bold text-slate-300">ضخامت ورق (mm)
-              <input type="number" min={0.2} max={10} step={0.1} value={thickness} onChange={e => setThickness(Math.max(0.2, Number(e.target.value)))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm text-white" />
-            </label>
-            <label className="text-[11px] font-bold text-slate-300">لبه چسب (mm)
-              <input type="number" min={10} max={120} value={glueTab} onChange={e => setGlueTab(Math.max(10, Number(e.target.value)))} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-sm text-white" />
-            </label>
-          </div>
-          {template.note && <p className="rounded-lg border border-amber-900/70 bg-amber-950/30 p-2 text-xs leading-6 text-amber-200"><AlertTriangle className="ml-1 inline h-3.5 w-3.5" />{template.note}</p>}
-          <div className="space-y-2">
-            <button onClick={() => download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky-600 px-3 py-2.5 text-sm font-bold hover:bg-sky-500"><Download className="h-4 w-4" />خروجی SVG با مقیاس میلی‌متر</button>
-            <button onClick={exportDxf} className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-2.5 text-sm font-bold hover:bg-indigo-500"><Download className="h-4 w-4" />خروجی DXF با لایه‌ها</button>
-            <button onClick={() => download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height }, thickness, glueTab, geometry: { cuts: geometry.cuts, creases: geometry.creases } }, null, 2), 'application/json')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-700 px-3 py-2.5 text-sm font-bold hover:bg-slate-600"><Download className="h-4 w-4" />ذخیره JSON پروژه</button>
-            <button onClick={saveProject} className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-700 bg-emerald-950/50 px-3 py-2.5 text-sm font-bold text-emerald-200 hover:bg-emerald-900"><Save className="h-4 w-4" />ثبت در پروژه‌ها</button>
-            {saved && <p className="text-center text-xs text-emerald-300"><CheckCircle2 className="ml-1 inline h-4 w-4" />درخواست ذخیره ارسال شد</p>}
-          </div>
-        </aside>
+      <div className="mx-auto max-w-[1500px] space-y-4">
+        <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-gradient-to-l from-slate-900 to-slate-950 p-4">
+          <div className="flex items-center gap-3"><div className="rounded-xl bg-sky-500/10 p-2 text-sky-300"><Box className="h-6 w-6"/></div><div><h2 className="text-lg font-black sm:text-xl">استودیوی طراحی دایلاین</h2><p className="mt-1 text-xs text-slate-400">کتابخانه پارامتریک · پیش‌نمایش ۲بعدی · خروجی برداری</p></div></div>
+          <div className="flex flex-wrap items-center gap-2 text-xs"><span className="rounded-full border border-slate-700 px-3 py-1.5">{TEMPLATES.length} قالب پایه</span><span className="rounded-full border border-emerald-900 bg-emerald-950/50 px-3 py-1.5 text-emerald-300">واحد هندسه: mm</span></div>
+        </header>
 
-        <section className="min-w-0 rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div><h3 className="font-black">{template.code} — {template.name}</h3><p className="mt-1 text-xs text-slate-400">قرمز: برش · آبی خط‌چین: خط‌تا · واحد هندسه: میلی‌متر</p></div>
-            <div className="flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs"><Ruler className="h-4 w-4 text-sky-400" />{Math.round(geometry.totalW)} × {Math.round(geometry.totalH)} mm</div>
-          </div>
-          <div className="overflow-auto rounded-xl border border-slate-800 bg-[#080b11] p-2">
-            <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="auto" viewBox={`${geometry.xMin} ${geometry.yMin} ${Math.max(1, geometry.totalW)} ${Math.max(1, geometry.totalH)}`} className="min-h-[360px] w-full">
-              {geometry.cuts.map((d, i) => <path key={`c-${i}`} d={d} fill="none" stroke="#ef4444" strokeWidth={0.6} vectorEffect="non-scaling-stroke" />)}
-              {geometry.creases.map((d, i) => <path key={`f-${i}`} d={d} fill="none" stroke="#3b82f6" strokeWidth={0.6} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />)}
-            </svg>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <div className="rounded-lg border border-slate-800 bg-slate-950 p-2"><span className="text-[10px] text-slate-500">خطوط برش</span><p className="text-lg font-black">{geometry.cuts.length}</p></div>
-            <div className="rounded-lg border border-slate-800 bg-slate-950 p-2"><span className="text-[10px] text-slate-500">خطوط تا</span><p className="text-lg font-black">{geometry.creases.length}</p></div>
-            <div className="rounded-lg border border-slate-800 bg-slate-950 p-2"><span className="text-[10px] text-slate-500">مساحت گسترده تقریبی</span><p className="text-lg font-black">{((geometry.totalW * geometry.totalH) / 1_000_000).toFixed(3)} m²</p></div>
-            <div className="rounded-lg border border-slate-800 bg-slate-950 p-2"><span className="text-[10px] text-slate-500">کالیپر انتخابی</span><p className="text-lg font-black">{thickness} mm</p></div>
-          </div>
-          <details className="mt-3 rounded-xl border border-slate-800 bg-slate-950 p-3">
-            <summary className="cursor-pointer text-sm font-bold text-slate-200">پیش‌نمایش حجمی (صرفاً بررسی ابعاد)</summary>
-            <div className="mt-3 h-[220px] overflow-hidden rounded-lg"><ThreeDPreview width={length} height={height} depth={width} autoRotate={true} /></div>
-            <p className="mt-2 text-xs leading-5 text-slate-400">این نما حرکت فلپ‌ها یا صحت قفل را شبیه‌سازی نمی‌کند.</p>
-          </details>
-          <p className="mt-3 text-xs leading-6 text-amber-200/90">این محیط موتورهای هندسی پارامتریک موجود در پروژه را فعال می‌کند. خروجی‌های دارای هشدار یا قالب اختصاصی را قبل از ساخت تیغ با نقشه استاندارد، جبران ضخامت، تلرانس و نمونه تاخورده تطبیق دهید.</p>
-        </section>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
+          <aside className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:p-4">
+            <div className="flex items-center justify-between"><h3 className="font-black">کتابخانه قالب‌ها</h3><Layers className="h-4 w-4 text-sky-300"/></div>
+            <label className="relative block"><Search className="absolute right-3 top-3 h-4 w-4 text-slate-500"/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="جست‌وجوی نام یا کد..." className={inputClass + ' pr-9'}/></label>
+            <label className="block text-xs font-bold text-slate-300">دسته‌بندی<select value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
+            <div className="grid max-h-[420px] grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2 xl:grid-cols-1">
+              {filteredTemplates.map(t => <button key={t.id} type="button" onClick={() => setTemplateId(t.id)} className={`rounded-xl border p-3 text-right transition ${t.id === templateId ? 'border-sky-500 bg-sky-950/50 ring-1 ring-sky-500/30' : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'}`}>
+                <div className="flex items-start justify-between gap-2"><span className="text-sm font-bold leading-6">{t.name}</span>{t.id === templateId && <Check className="mt-1 h-4 w-4 shrink-0 text-sky-300"/>}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5"><span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">{t.code}</span><span className={`rounded px-1.5 py-0.5 text-[10px] ${t.status === 'baseline' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-200'}`}>{t.status === 'baseline' ? 'موتور موجود' : 'قالب سفارشی / پایه'}</span></div>
+                <p className="mt-2 text-xs leading-5 text-slate-400">{t.description}</p>
+              </button>)}
+              {filteredTemplates.length === 0 && <p className="rounded-lg border border-slate-800 p-4 text-sm text-slate-400">قالبی با این عبارت پیدا نشد.</p>}
+            </div>
+            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3">
+              <h4 className="mb-3 text-sm font-bold">ابعاد و متریال</h4>
+              <div className="grid grid-cols-3 gap-2">
+                {([['طول', length, setLength], ['عرض', width, setWidth], ['ارتفاع', height, setHeight]] as const).map(([label, value, setter]) => <label key={label} className="text-[11px] font-bold text-slate-300">{label}<input type="number" min={10} max={2000} value={value} onChange={e => setter(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>)}
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <label className="text-[11px] font-bold text-slate-300">ضخامت ورق (mm)<input type="number" min={0.2} max={10} step={0.1} value={Number.isFinite(thickness) ? thickness : ''} onChange={e => setThickness(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+                <label className="text-[11px] font-bold text-slate-300">لبه چسب (mm)<input type="number" min={5} max={200} value={Number.isFinite(glueTab) ? glueTab : ''} onChange={e => setGlueTab(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+              </div>
+              {!validInputs && <p className="mt-2 rounded-lg border border-red-900 bg-red-950/50 p-2 text-xs leading-5 text-red-200">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
+            </div>
+            {template.note && <p className="rounded-lg border border-amber-900/70 bg-amber-950/30 p-3 text-xs leading-6 text-amber-100"><AlertTriangle className="ml-1 inline h-4 w-4"/>{template.note}</p>}
+            <div className="grid grid-cols-2 gap-2">
+              <button disabled={!geometry} onClick={() => geometry && download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className={buttonClass + ' bg-sky-600 hover:bg-sky-500'}><Download className="h-4 w-4"/>خروجی SVG</button>
+              <button disabled={!geometry} onClick={exportDxf} className={buttonClass + ' bg-indigo-600 hover:bg-indigo-500'}><Download className="h-4 w-4"/>خروجی DXF</button>
+              <button disabled={!geometry} onClick={() => geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height }, material: { thickness, glueTab }, geometry }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-700 hover:bg-slate-600'}><Download className="h-4 w-4"/>پروژه JSON</button>
+              <button disabled={!geometry || !onSaveProject} onClick={saveProject} className={buttonClass + ' border border-emerald-800 bg-emerald-950/50 text-emerald-200 hover:bg-emerald-900'}><Save className="h-4 w-4"/>ثبت پروژه</button>
+            </div>
+            {saved && <p className="text-center text-xs text-emerald-300"><CheckCircle2 className="ml-1 inline h-4 w-4"/>پروژه به تابع ذخیره‌سازی تحویل شد.</p>}
+          </aside>
 
-
+          <main className="min-w-0 space-y-4">
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 sm:p-4">
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{template.code} — {template.name}</h3><span className={`rounded-full px-2 py-1 text-[10px] ${geometry ? 'bg-emerald-950 text-emerald-300' : 'bg-red-950 text-red-200'}`}>{geometry ? 'هندسه تولید شد' : 'خطای تولید'}</span></div><p className="mt-1 text-xs leading-5 text-slate-400">قرمز: برش · آبی خط‌چین: خط‌تا · مقیاس مختصات: میلی‌متر</p></div>
+                <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"><Ruler className="ml-1 inline h-4 w-4 text-sky-300"/>{geometry ? `${(geometry.xMax - geometry.xMin).toFixed(1)} × ${(geometry.yMax - geometry.yMin).toFixed(1)} mm` : '—'}</span></div>
+              </div>
+              {geometryState.error && <div role="alert" className="mb-3 flex gap-2 rounded-xl border border-red-800 bg-red-950/40 p-3 text-sm text-red-100"><XCircle className="mt-0.5 h-5 w-5 shrink-0"/><div><strong>تولید دایلاین متوقف شد.</strong><p className="mt-1 text-xs leading-5">{geometryState.error}</p></div></div>}
+              {geometry && <div className="overflow-auto rounded-xl border border-slate-800 bg-white p-2">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                  <span>پیش‌نمایش بازشده / ۲بعدی</span>
+                  <div className="flex flex-wrap gap-3"><label className="flex items-center gap-1"><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)}/>شبکه</label><label className="flex items-center gap-1"><input type="checkbox" checked={showLabels} onChange={e => setShowLabels(e.target.checked)}/>ابعاد و برچسب‌ها</label></div>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="auto" viewBox={`${geometry.xMin - 8} ${geometry.yMin - 8} ${Math.max(1, geometry.xMax - geometry.xMin + 16)} ${Math.max(1, geometry.yMax - geometry.yMin + 16)}`} className="max-h-[680px] min-h-[360px] w-full">
+                  {showGrid && <defs><pattern id="dieline-grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" strokeWidth="0.2"/></pattern></defs>}
+                  {showGrid && <rect x={geometry.xMin - 8} y={geometry.yMin - 8} width={geometry.xMax - geometry.xMin + 16} height={geometry.yMax - geometry.yMin + 16} fill="url(#dieline-grid)"/>}
+                  {geometry.cuts.map((d, i) => <path key={`cut-${i}`} d={d} fill="none" stroke="#dc2626" strokeWidth="0.8" vectorEffect="non-scaling-stroke"/>)}
+                  {geometry.creases.map((d, i) => <path key={`crease-${i}`} d={d} fill="none" stroke="#2563eb" strokeWidth="0.8" strokeDasharray="5 3" vectorEffect="non-scaling-stroke"/>)}
+                  {showLabels && geometry.labels.map((label, i) => <text key={`label-${i}`} x={label.x} y={label.y} fill="#475569" fontSize="5" textAnchor="middle">{label.text}</text>)}
+                </svg>
+              </div>}
+              {geometry && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3"><span className="text-[10px] text-slate-500">مسیرهای برش</span><p className="mt-1 text-xl font-black">{geometry.cuts.length}</p></div>
+                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3"><span className="text-[10px] text-slate-500">مسیرهای تا</span><p className="mt-1 text-xl font-black">{geometry.creases.length}</p></div>
+                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3"><span className="text-[10px] text-slate-500">سطح مستطیل پوشاننده</span><p className="mt-1 text-xl font-black">{(((geometry.xMax - geometry.xMin) * (geometry.yMax - geometry.yMin)) / 1_000_000).toFixed(3)} m²</p><p className="text-[10px] text-slate-500">برآورد ورق، نه سطح خالص قالب</p></div>
+                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3"><span className="text-[10px] text-slate-500">ضخامت ورق</span><p className="mt-1 text-xl font-black">{thickness} mm</p></div>
+              </div>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button type="button" onClick={() => setShow3D(v => !v)} className={buttonClass + ' border border-slate-700 bg-slate-950 hover:bg-slate-800'}><Rotate3d className="h-4 w-4"/>{show3D ? 'بستن نمای حجمی' : 'نمای حجمی ابعاد'}</button>
+                <a className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800" href="https://www.fefco.org/technical-information/fefco-code" target="_blank" rel="noreferrer">مرجع رسمی FEFCO ↗</a>
+                <a className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:bg-slate-800" href="https://www.packmage.com/Home/BoxLibrary" target="_blank" rel="noreferrer">کتابخانه Packmage ↗</a>
+              </div>
+              {show3D && <div className="mt-3 rounded-xl border border-slate-800 bg-slate-950 p-3"><div className="mb-2 flex items-center gap-2 text-sm font-bold"><Rotate3d className="h-4 w-4 text-sky-300"/>نمای حجمی مرجع ابعاد</div><div className="h-[300px] overflow-hidden rounded-lg"><ThreeDPreview width={length} height={height} depth={width} autoRotate/></div><p className="mt-2 text-xs leading-5 text-amber-200"><Info className="ml-1 inline h-4 w-4"/>این مدل، جعبه مستطیلی را برای مقایسه ابعاد نشان می‌دهد؛ تاخوردن واقعی فلپ‌ها یا صحت مونتاژ از روی آن شبیه‌سازی نمی‌شود.</p></div>}
+            </section>
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3 text-xs leading-6 text-slate-400 sm:p-4">
+              <h4 className="mb-1 flex items-center gap-2 font-bold text-slate-200"><Scissors className="h-4 w-4 text-rose-300"/>یادداشت تولید</h4>
+              <p>نام یا شماره قالب به‌تنهایی تضمین‌کننده تطابق با نقشه رسمی نیست. جبران ضخامت، جهت الیاف، تلرانس ماشین، خلاصی قفل و نمونه تاخورده باید با مشخصات خط تولید بررسی شود. این استودیو خطای آشکار در ابعاد یا مسیرهای خالی را متوقف می‌کند و خروجی را در صورت معتبر نبودن هندسه غیرفعال می‌سازد.</p>
+              <p className="mt-1">* برچسب ستاره‌دار یا «قالب سفارشی» به معنی هندسه پایه داخلی است، نه تأیید رسمی FEFCO/ECMA.</p>
+            </section>
+          </main>
+        </div>
       </div>
     </div>
   );
