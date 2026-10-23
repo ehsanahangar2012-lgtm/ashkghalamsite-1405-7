@@ -484,7 +484,7 @@ const createTrayEngine = () => {
     // Single non-self-crossing outer contour. Corner tabs occupy the blank
     // quadrants outside the base and do not overlap the four wall panels.
     const cuts = [
-      `M ${xL} ${yT} L ${xL - tab} ${yT} L ${xL - tab} ${yMin} L ${xR + tab} ${yMin} L ${xR + tab} ${yT} L ${xMax} ${yT} L ${xMax} ${yB} L ${xR + tab} ${yB} L ${xR + tab} ${yMax} L ${xL - tab} ${yMax} L ${xL - tab} ${yB} L ${xMin} ${yB} L ${xMin} ${yT} Z`,
+      `M ${xMin} ${yT} L ${xL - tab} ${yT} L ${xL - tab} ${yMin} L ${xR + tab} ${yMin} L ${xR + tab} ${yT} L ${xMax} ${yT} L ${xMax} ${yB} L ${xR + tab} ${yB} L ${xR + tab} ${yMax} L ${xL - tab} ${yMax} L ${xL - tab} ${yB} L ${xMin} ${yB} Z`,
     ];
     const creases = [
       `M ${xL} ${yT} L ${xR} ${yT}`,
