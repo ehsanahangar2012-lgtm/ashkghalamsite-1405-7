@@ -598,6 +598,83 @@ const fefco0201Engine = createSlottedCaseEngine('0201');
 const fefco0203Engine = createSlottedCaseEngine('0203');
 const fefco0204Engine = createSlottedCaseEngine('0204');
 
+
+/** FEFCO 0215 tuck-top carton with a manually interlocking bottom (parametric base). */
+const createFefco0215Engine = () => {
+  return ({ L, W, H, glueTab = 35, thickness = 1.6, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const G = Math.max(20, glueTab || 35);
+    const tuck = Math.max(18, W * 0.9);
+    const dust = Math.max(10, Math.min(L * 0.42, W * 0.55));
+    const lock = Math.max(7, (thickness || 1.6) * 4);
+    const xs = [x0 + G, x0 + G + L, x0 + G + L + W, x0 + G + 2 * L + W, x0 + G + 2 * L + 2 * W];
+    const yTop = 40 + Math.max(tuck, dust);
+    const yBottom = yTop + H;
+    const cuts: string[] = [];
+    const creases: string[] = [];
+    const labels: { x: number; y: number; text: string }[] = [];
+
+    // Manufacturer's joint and body boundaries.
+    cuts.push(`M ${x0 + 4} ${yTop} L ${x0} ${yTop + 4} L ${x0} ${yBottom - 4} L ${x0 + 4} ${yBottom}`);
+    cuts.push(`M ${xs[4]} ${yTop} L ${xs[4]} ${yBottom}`);
+    creases.push(`M ${x0 + G} ${yTop} L ${x0 + G} ${yBottom}`);
+    for (let i = 1; i < 4; i++) creases.push(`M ${xs[i]} ${yTop} L ${xs[i]} ${yBottom}`);
+    creases.push(`M ${xs[0]} ${yBottom} L ${xs[4]} ${yBottom}`);
+
+    // Tuck-top flap on the first long panel; dust flaps on both side panels.
+    const topFlaps = [
+      { depth: tuck, style: 'tuck' },
+      { depth: dust, style: 'dust' },
+      { depth: 0, style: 'none' },
+      { depth: dust, style: 'dust' },
+    ];
+    for (let i = 0; i < 4; i++) {
+      const { depth, style } = topFlaps[i];
+      const xa = xs[i], xb = xs[i + 1];
+      if (depth <= 0) {
+        cuts.push(`M ${xa} ${yTop} L ${xb} ${yTop}`);
+        continue;
+      }
+      const outerY = yTop - depth;
+      const inset = Math.min(8, Math.max(2, (xb - xa) * 0.06));
+      cuts.push(`M ${xa} ${yTop} L ${xa} ${outerY + 4} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${outerY + 4} L ${xb} ${yTop}`);
+      creases.push(`M ${xa} ${yTop} L ${xb} ${yTop}`);
+      if (style === 'tuck') creases.push(`M ${xa} ${outerY} L ${xb} ${outerY}`);
+    }
+
+    // Four interlocking bottom flaps. The primary flap has a central locking tongue;
+    // the opposite flap receives a relief slot. Caliper and tool clearance still need calibration.
+    const depths = [W / 2, W / 2, W / 2, W / 2];
+    for (let i = 0; i < 4; i++) {
+      const xa = xs[i], xb = xs[i + 1], d = depths[i];
+      const inset = Math.min(8, Math.max(2, (xb - xa) * 0.06));
+      const outerY = yBottom + d;
+      if (i === 0) {
+        const panelW = xb - xa;
+        const tongueL = xa + panelW * 0.32;
+        const tongueR = xb - panelW * 0.32;
+        cuts.push(`M ${xa} ${yBottom} L ${xa} ${outerY - 4} L ${xa + inset} ${outerY} L ${tongueL} ${outerY} L ${tongueL + 2} ${outerY + lock} L ${tongueR - 2} ${outerY + lock} L ${tongueR} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${outerY - 4} L ${xb} ${yBottom}`);
+      } else {
+        cuts.push(`M ${xa} ${yBottom} L ${xa} ${outerY - 4} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${outerY - 4} L ${xb} ${yBottom}`);
+      }
+      if (i === 2) {
+        const mid = (xa + xb) / 2;
+        cuts.push(`M ${mid - Math.min(12, W * 0.12)} ${outerY - lock / 2} L ${mid + Math.min(12, W * 0.12)} ${outerY - lock / 2}`);
+      }
+    }
+    labels.push({ x: (xs[0] + xs[1]) / 2, y: (yTop + yBottom) / 2, text: `بدنه ${Math.round(L)}mm` });
+    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yTop + yBottom) / 2, text: `پهنا ${Math.round(W)}mm` });
+    labels.push({ x: (xs[0] + xs[4]) / 2, y: yBottom + W / 2 + lock + 10, text: 'کف ته‌قفلی — قفل نمونه‌ای، نیازمند تست تاخورده' });
+
+    return {
+      cuts, creases, labels,
+      xMin: x0, yMin: yTop - Math.max(tuck, dust), xMax: xs[4], yMax: yBottom + W / 2 + lock + 20,
+      totalW: xs[4] - x0, totalH: H + Math.max(tuck, dust) + W / 2 + lock + 20
+    };
+  };
+};
+
+const fefco0215Engine = createFefco0215Engine();
+
 const rscStandardEngine = createRscEngine(0.5, 0.5);
 const openTopEngine = createRscEngine(0, 0.5);
 const folEngine = createRscEngine(1.0, 1.0);
@@ -618,7 +695,7 @@ export const STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEnginePara
   'fefco-0200': fefco0200Engine,
   'fefco-0203': fefco0203Engine,
   'fefco-0204': fefco0204Engine,
-  'fefco-0215': crashLockEngine,
+  'fefco-0215': fefco0215Engine,
 
   // FEFCO 0300 Series (Telescope & Tray)
   'fefco-0300': telescopicEngine,
