@@ -132,7 +132,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
 
   return (
     <div dir="rtl" className="h-full min-h-0 overflow-y-auto bg-slate-950 p-3 text-slate-100 sm:p-5">
-      <div className="mx-auto grid max-w-[1500px] grid-cols-1 gap-4 xl:grid-cols-[330px_minmax(0,1fr)_300px]">
+      <div className="mx-auto grid max-w-[1320px] grid-cols-1 gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
         <aside className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
           <div className="flex items-center gap-2"><Box className="h-5 w-5 text-amber-400" /><h2 className="font-black">کتابخانه قالب‌های بسته‌بندی</h2></div>
           <label className="block text-xs font-bold text-slate-300">نوع جعبه
@@ -182,19 +182,15 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             <div className="rounded-lg border border-slate-800 bg-slate-950 p-2"><span className="text-[10px] text-slate-500">مساحت گسترده تقریبی</span><p className="text-lg font-black">{((geometry.totalW * geometry.totalH) / 1_000_000).toFixed(3)} m²</p></div>
             <div className="rounded-lg border border-slate-800 bg-slate-950 p-2"><span className="text-[10px] text-slate-500">کالیپر انتخابی</span><p className="text-lg font-black">{thickness} mm</p></div>
           </div>
+          <details className="mt-3 rounded-xl border border-slate-800 bg-slate-950 p-3">
+            <summary className="cursor-pointer text-sm font-bold text-slate-200">پیش‌نمایش حجمی (صرفاً بررسی ابعاد)</summary>
+            <div className="mt-3 h-[220px] overflow-hidden rounded-lg"><ThreeDPreview width={length} height={height} depth={width} autoRotate={true} /></div>
+            <p className="mt-2 text-xs leading-5 text-slate-400">این نما حرکت فلپ‌ها یا صحت قفل را شبیه‌سازی نمی‌کند.</p>
+          </details>
           <p className="mt-3 text-xs leading-6 text-amber-200/90">این محیط موتورهای هندسی پارامتریک موجود در پروژه را فعال می‌کند. خروجی‌های دارای هشدار یا قالب اختصاصی را قبل از ساخت تیغ با نقشه استاندارد، جبران ضخامت، تلرانس و نمونه تاخورده تطبیق دهید.</p>
         </section>
 
-        <aside className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/80 p-3">
-          <h3 className="font-black">پیش‌نمایش حجمی</h3>
-          <p className="text-xs leading-5 text-slate-400">نمای ابعادی سه‌بعدی برای بررسی تناسب طول، عرض و ارتفاع است؛ شبیه‌سازی حرکت تک‌تک فلپ‌ها هنوز در این پنل پیاده‌سازی نشده است.</p>
-          <div className="h-[300px] overflow-hidden rounded-xl"><ThreeDPreview width={length} height={height} depth={width} autoRotate={true} /></div>
-          <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs">
-            <div className="flex justify-between gap-2"><span className="text-slate-400">طول</span><strong>{length} mm</strong></div>
-            <div className="flex justify-between gap-2"><span className="text-slate-400">عرض</span><strong>{width} mm</strong></div>
-            <div className="flex justify-between gap-2"><span className="text-slate-400">ارتفاع</span><strong>{height} mm</strong></div>
-          </div>
-        </aside>
+
       </div>
     </div>
   );
