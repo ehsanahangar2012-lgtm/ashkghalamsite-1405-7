@@ -179,17 +179,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             <div className="flex items-center justify-between"><h3 className="font-black">کتابخانه قالب‌ها</h3><Layers className="h-4 w-4 text-sky-300"/></div>
             <label className="relative block"><Search className="absolute right-3 top-3 h-4 w-4 text-slate-500"/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="جست‌وجوی نام یا کد..." className={inputClass + ' pr-9'}/></label>
             <label className="block text-xs font-bold text-slate-300">دسته‌بندی<select value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
-            <details className="rounded-xl border border-slate-800 bg-slate-950/50 p-2">
-              <summary className="cursor-pointer px-2 py-1 text-xs font-bold text-slate-300">مرور همه قالب‌ها و توضیحات</summary>
-              <div className="mt-2 grid max-h-[320px] grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2 xl:grid-cols-1">
-              {filteredTemplates.map(t => <button key={t.id} type="button" onClick={() => setTemplateId(t.id)} className={`rounded-xl border p-3 text-right transition ${t.id === templateId ? 'border-sky-500 bg-sky-950/50 ring-1 ring-sky-500/30' : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'}`}>
-                <div className="flex items-start justify-between gap-2"><span className="text-sm font-bold leading-6">{t.name}</span>{t.id === templateId && <Check className="mt-1 h-4 w-4 shrink-0 text-sky-300"/>}</div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5"><span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">{t.code}</span><span className={`rounded px-1.5 py-0.5 text-[10px] ${t.status === 'baseline' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-200'}`}>{t.status === 'baseline' ? 'موتور موجود' : 'قالب سفارشی / پایه'}</span></div>
-                <p className="mt-2 text-xs leading-5 text-slate-400">{t.description}</p>
-              </button>)}
-              {filteredTemplates.length === 0 && <p className="rounded-lg border border-slate-800 p-4 text-sm text-slate-400">قالبی با این عبارت پیدا نشد.</p>}
-              </div>
-            </details>
+
             <label className="block text-xs font-bold text-slate-300">نوع قالب / جعبه
               <select value={templateId} onChange={e => setTemplateId(e.target.value)} className={inputClass}>
                 {TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.code} — {t.name}</option>)}
@@ -218,6 +208,17 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               <p className="mt-2 text-[10px] leading-5 text-slate-400">این گزینه فقط ضخامت مرجع و پارامترهای موتور را تنظیم می‌کند؛ جبران کامل ضخامت، داخل/خارج و خطوط تا هنوز برای همه قالب‌ها پیاده‌سازی نشده است.</p>
               {!validInputs && <p className="mt-2 rounded-lg border border-red-900 bg-red-950/50 p-2 text-xs leading-5 text-red-200">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
             </div>
+            <details className="rounded-xl border border-slate-800 bg-slate-950/50 p-2">
+              <summary className="cursor-pointer px-2 py-1 text-xs font-bold text-slate-300">مرور همه قالب‌ها و توضیحات</summary>
+              <div className="mt-2 grid max-h-[320px] grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2 xl:grid-cols-1">
+              {filteredTemplates.map(t => <button key={t.id} type="button" onClick={() => setTemplateId(t.id)} className={`rounded-xl border p-3 text-right transition ${t.id === templateId ? 'border-sky-500 bg-sky-950/50 ring-1 ring-sky-500/30' : 'border-slate-800 bg-slate-950/60 hover:border-slate-600'}`}>
+                <div className="flex items-start justify-between gap-2"><span className="text-sm font-bold leading-6">{t.name}</span>{t.id === templateId && <Check className="mt-1 h-4 w-4 shrink-0 text-sky-300"/>}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5"><span className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-[10px] text-slate-300">{t.code}</span><span className={`rounded px-1.5 py-0.5 text-[10px] ${t.status === 'baseline' ? 'bg-emerald-950 text-emerald-300' : 'bg-amber-950 text-amber-200'}`}>{t.status === 'baseline' ? 'موتور موجود' : 'قالب سفارشی / پایه'}</span></div>
+                <p className="mt-2 text-xs leading-5 text-slate-400">{t.description}</p>
+              </button>)}
+              {filteredTemplates.length === 0 && <p className="rounded-lg border border-slate-800 p-4 text-sm text-slate-400">قالبی با این عبارت پیدا نشد.</p>}
+              </div>
+            </details>
             {template.note && <p className="rounded-lg border border-amber-900/70 bg-amber-950/30 p-3 text-xs leading-6 text-amber-100"><AlertTriangle className="ml-1 inline h-4 w-4"/>{template.note}</p>}
             <div className="grid grid-cols-2 gap-2">
               <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className={buttonClass + ' bg-sky-600 hover:bg-sky-500'}><Download className="h-4 w-4"/>خروجی SVG</button>
