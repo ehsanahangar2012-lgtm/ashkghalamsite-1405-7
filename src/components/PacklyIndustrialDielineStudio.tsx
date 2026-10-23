@@ -202,7 +202,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               </label>}
               <h4 className="mb-2 mt-4 text-sm font-bold">۲. جنس و ضخامت ورق</h4>
               <label className="block text-[11px] font-bold text-slate-700">گروه مقوا
-                <select value={materialPreset} onChange={e => { const value=e.target.value; setMaterialPreset(value); const presets:Record<string,number>={'folding-carton':0.45,'corrugated-e':1.5,'corrugated-b':3,'corrugated-c':4,'corrugated-eb':6.5,'custom':thickness}; if(value!=='custom')setThickness(presets[value]); }} className={inputClass}>
+                <select value={materialPreset} onChange={e => { const value=e.target.value; setMaterialPreset(value); const presets:Record<string,number>={'folding-carton':0.45,'corrugated-e':1.5,'corrugated-b':3,'corrugated-c':4,'corrugated-eb':6.5,'custom':thickness}; if(value!=='custom'){setThickness(presets[value]);setSlotGap(Math.max(1,Math.min(6,presets[value]*1.5)));} }} className={inputClass}>
                   <option value="folding-carton">مقوای تاشو — حدود ۰٫۴۵ mm</option>
                   <option value="corrugated-e">کارتن فلوت E — حدود ۱٫۵ mm</option>
                   <option value="corrugated-b">کارتن فلوت B — حدود ۳ mm</option>
@@ -224,7 +224,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               <div className="mt-2 grid max-h-[320px] grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2 xl:grid-cols-1">
               {filteredTemplates.map(t => <button key={t.id} type="button" onClick={() => setTemplateId(t.id)} className={`rounded-xl border p-3 text-right transition ${t.id === templateId ? 'border-sky-500 bg-sky-50 ring-1 ring-sky-200' : 'border-slate-200 bg-slate-50 hover:border-slate-400'}`}>
                 <div className="flex items-start justify-between gap-2"><span className="text-sm font-bold leading-6">{t.name}</span>{t.id === templateId && <Check className="mt-1 h-4 w-4 shrink-0 text-sky-700"/>}</div>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5"><span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">{t.code}</span><span className={`rounded px-1.5 py-0.5 text-[10px] ${t.status === 'baseline' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-950 text-amber-800'}`}>{t.status === 'baseline' ? 'مبنای پارامتریک' : 'غیرتأییدشده'}</span></div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5"><span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">{t.code}</span><span className={`rounded px-1.5 py-0.5 text-[10px] ${t.status === 'baseline' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{t.status === 'baseline' ? 'مبنای پارامتریک' : 'غیرتأییدشده'}</span></div>
                 <p className="mt-2 text-xs leading-5 text-slate-600">{t.description}</p>
               </button>)}
               {filteredTemplates.length === 0 && <p className="rounded-lg border border-slate-200 p-4 text-sm text-slate-600">قالبی با این عبارت پیدا نشد.</p>}
@@ -235,7 +235,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className={buttonClass + ' bg-sky-600 text-white hover:bg-sky-500'}><Download className="h-4 w-4"/>خروجی SVG</button>
               <button disabled={!exportReady} onClick={exportDxf} className={buttonClass + ' bg-indigo-600 text-white hover:bg-indigo-500'}><Download className="h-4 w-4"/>خروجی DXF</button>
               <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height }, material: { thickness, glueTab }, geometry }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-200 hover:bg-slate-300'}><Download className="h-4 w-4"/>پروژه JSON</button>
-              <button disabled={!exportReady || !onSaveProject} onClick={saveProject} className={buttonClass + ' border border-emerald-200 bg-emerald-50 text-emerald-200 hover:bg-emerald-900'}><Save className="h-4 w-4"/>ثبت پروژه</button>
+              <button disabled={!exportReady || !onSaveProject} onClick={saveProject} className={buttonClass + ' border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}><Save className="h-4 w-4"/>ثبت پروژه</button>
             </div>
             {saved && <p className="text-center text-xs text-emerald-700"><CheckCircle2 className="ml-1 inline h-4 w-4"/>پروژه به تابع ذخیره‌سازی تحویل شد.</p>}
           </aside>
@@ -244,16 +244,16 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             <section className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
               <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{template.code} — {template.name}</h3><span className={`rounded-full px-2 py-1 text-[10px] ${geometry ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-800'}`}>{geometry ? 'هندسه تولید شد' : 'خطای تولید'}</span></div><p className="mt-1 text-xs leading-5 text-slate-600">قرمز پیوسته: برش · آبی خط‌چین: خط‌تا · L×W×H ورودی بر حسب میلی‌متر</p></div>
-                <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-lg border border-slate-300 bg-white px-3 py-2"><Ruler className="ml-1 inline h-4 w-4 text-sky-700"/>{geometry ? `${(geometry.xMax - geometry.xMin).toFixed(1)} × ${(geometry.yMax - geometry.yMin).toFixed(1)} mm` : '—'}</span></div>
+                <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-lg border border-slate-300 bg-white px-3 py-2"><Ruler className="ml-1 inline h-4 w-4 text-sky-700"/>{geometry ? `گسترده: ${(geometry.xMax - geometry.xMin).toFixed(1)} × ${(geometry.yMax - geometry.yMin).toFixed(1)} mm` : '—'}</span></div>
               </div>
-              {geometryAudit && <div className={`mb-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-200 bg-emerald-50 text-emerald-100' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+              {geometryAudit && <div className={`mb-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
                 <div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4"/>{exportReady ? 'بررسی ساختاری مسیرها گذشت' : 'خروجی به بررسی بیشتر نیاز دارد'}</div>
                 <p className="mt-1">طول برش تقریبی: {geometryAudit.cutLength} mm · طول خط‌تا: {geometryAudit.creaseLength} mm · امتیاز بررسی ساختاری: {geometryAudit.score}/100</p>
                 {geometryAudit.errors.map((message, i) => <p key={`audit-error-${i}`} className="mt-1">• {message}</p>)}
                 {geometryAudit.warnings.map((message, i) => <p key={`audit-warning-${i}`} className="mt-1">• {message}</p>)}
                 {geometryAudit.hasSelfIntersection && <p className="mt-1 font-bold">به‌دلیل تقاطع مسیر برش در یک مسیر، خروجی فایل و ثبت پروژه موقتاً غیرفعال است.</p>}
               </div>}
-              {geometryState.error && <div role="alert" className="mb-3 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-100"><XCircle className="mt-0.5 h-5 w-5 shrink-0"/><div><strong>تولید دایلاین متوقف شد.</strong><p className="mt-1 text-xs leading-5">{geometryState.error}</p></div></div>}
+              {geometryState.error && <div role="alert" className="mb-3 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><XCircle className="mt-0.5 h-5 w-5 shrink-0"/><div><strong>تولید دایلاین متوقف شد.</strong><p className="mt-1 text-xs leading-5">{geometryState.error}</p></div></div>}
               {geometry && <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-2">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
                   <span>پیش‌نمایش بازشده / ۲بعدی</span>
