@@ -101,6 +101,12 @@ const deeper0320Lid = STANDARD_DIELINE_ENGINES['fefco-0320']({
 if (JSON.stringify(telescope.cuts) === JSON.stringify(deeper0320Lid.cuts)) {
   fail('FEFCO 0320 lid wall depth must change the second blank geometry');
 }
+const clearance0320Lid = STANDARD_DIELINE_ENGINES['fefco-0320']({
+  L: 240, W: 160, H: 100, lidHeight: 35, lidClearance: 3.2, thickness: 1.6, glueTab: 30, slotGap: 2.4, x0: 40,
+});
+if (JSON.stringify(telescope.cuts) === JSON.stringify(clearance0320Lid.cuts)) {
+  fail('FEFCO 0320 lid plan geometry must respond to explicit clearance');
+}
 if (telescope.cuts.filter(path => /\bZ\s*$/.test(path)).length !== 0) {
   fail('FEFCO 0320 half-slotted blank paths should use their own separate segment contours, not a fictitious closed tray contour');
 }
@@ -128,6 +134,12 @@ const taller0301Lid = STANDARD_DIELINE_ENGINES['fefco-0301']({
 });
 if (JSON.stringify(trayLid.cuts) === JSON.stringify(taller0301Lid.cuts)) {
   fail('FEFCO 0301 lid wall depth must update the lid blank geometry');
+}
+const clearance0301Lid = STANDARD_DIELINE_ENGINES['fefco-0301']({
+  L: 240, W: 160, H: 100, lidHeight: 35, lidClearance: 3.2, thickness: 1.6, glueTab: 30, x0: 40,
+});
+if (JSON.stringify(trayLid.cuts) === JSON.stringify(clearance0301Lid.cuts)) {
+  fail('FEFCO 0301 lid plan geometry must respond to explicit clearance');
 }
 const thick0301 = STANDARD_DIELINE_ENGINES['fefco-0301']({
   L: 240, W: 160, H: 100, lidHeight: 35, thickness: 4.8, glueTab: 30, x0: 40,
