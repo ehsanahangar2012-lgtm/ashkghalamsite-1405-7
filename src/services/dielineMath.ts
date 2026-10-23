@@ -25,7 +25,9 @@ export const calculateDielineParameters = (
   h: number,
   caliper: number = 3,
   fefcoCode: string = 'fefco-0201',
-  requestedGlueTab?: number
+  requestedGlueTab?: number,
+  dimensionConvention: 'inside' | 'outside' = 'inside',
+  requestedSlotGap?: number
 ): DielineCalculationResult => {
   const normalizedCode = fefcoCode.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const aliases: Record<string, string> = {
@@ -46,12 +48,17 @@ export const calculateDielineParameters = (
   const safeGlueTab = Number.isFinite(requestedGlueTab)
     ? Math.max(5, Math.min(200, requestedGlueTab as number))
     : Math.max(15, Math.min(35, safeL * 0.18));
+  const safeSlotGap = Number.isFinite(requestedSlotGap)
+    ? Math.max(1, Math.min(10, requestedSlotGap as number))
+    : Math.max(1, Math.min(6, safeCaliper * 1.5));
   const geometry = engine({
     L: safeL,
     W: safeW,
     H: safeH,
     thickness: safeCaliper,
     glueTab: safeGlueTab,
+    slotGap: safeSlotGap,
+    dimensionConvention,
     x0: 0,
   });
 
@@ -89,12 +96,15 @@ export const calculateDielineParameters = (
   let blankAreaMm2: number;
   if (isSlottedCase) {
     const glue = safeGlueTab;
-    const clearance = Math.max(1, Math.min(6, safeCaliper * 1.5));
-    const sidePanelArea = (2 * safeL + 2 * safeW + glue) * safeH;
-    const totalPanelSpan = 2 * safeL + 2 * safeW;
-    const halfFlapPerEdge = totalPanelSpan * Math.max(0, safeW * 0.5 - clearance);
-    const widthPanelsMeetArea = Math.max(0, 2 * safeL * safeW - 2 * clearance * (safeL + safeW));
-    const fullFlapPerEdge = totalPanelSpan * Math.max(0, safeW - clearance);
+    const panelL = dimensionConvention === 'inside' ? safeL + safeCaliper : safeL;
+    const panelW = dimensionConvention === 'inside' ? safeW + safeCaliper : safeW;
+    const panelH = dimensionConvention === 'inside' ? safeH + safeCaliper : safeH;
+    const slotGap = safeSlotGap;
+    const sidePanelArea = (2 * panelL + 2 * panelW + glue) * panelH;
+    const totalPanelSpan = 2 * panelL + 2 * panelW;
+    const halfFlapPerEdge = totalPanelSpan * Math.max(0, (panelW - slotGap) / 2);
+    const widthPanelsMeetArea = Math.max(0, 2 * panelL * panelW - slotGap * (panelL + panelW));
+    const fullFlapPerEdge = totalPanelSpan * Math.max(0, panelW - slotGap);
     const flapArea = engineId === 'fefco-0204' ? widthPanelsMeetArea : halfFlapPerEdge;
     const topFlaps = engineId === 'fefco-0200' ? 0 : engineId === 'fefco-0203' ? fullFlapPerEdge : flapArea;
     const bottomFlaps = engineId === 'fefco-0203' ? fullFlapPerEdge : flapArea;
@@ -131,6 +141,8 @@ export interface DielineEngineParams {
   x0?: number;
   variant?: string;
   thickness?: number;
+  slotGap?: number;
+  dimensionConvention?: 'inside' | 'outside';
   autoLockAngle?: number;
   autoLockGlueWidth?: number;
 }
@@ -644,64 +656,92 @@ const createTelescopicEngine = () => {
 
 type SlottedStyle = '0200' | '0201' | '0203' | '0204';
 
-/** Parametric slotted-case family with panel-specific flap depths. */
+/**
+ * Parametric FEFCO 0200-family baseline.
+ * L/W/H inputs are inside dimensions by default. Board caliper is included in
+ * score-to-score panel dimensions; the slot gap is explicit and machine-adjustable.
+ * This is a dimensional baseline, not a replacement for a die-maker's crease rules.
+ */
 const createSlottedCaseEngine = (style: SlottedStyle) => {
-  return ({ L, W, H, glueTab = 35, thickness = 1.6, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
-    const G = Math.max(15, glueTab || 35);
-    const xs = [x0 + G, x0 + G + L, x0 + G + L + W, x0 + G + 2 * L + W, x0 + G + 2 * L + 2 * W];
-    // Caliper-based clearance keeps opposing flap tips from being treated as an interference-free fit.
-    const flapClearance = Math.max(1, Math.min(6, thickness * 1.5));
-    const halfFlaps = getRscFlapDepths(L, W, 0.5, 0.5, flapClearance);
-    const fullOverlapFlaps = getRscFlapDepths(L, W, 1, 1, flapClearance);
-    // FEFCO 0204 is the variant where the flaps attached to the width panels meet;
-    // those two flaps therefore extend by L/2, while the length-panel flaps use W/2.
-    const widthPanelsMeet = [
-      Math.max(0, W * 0.5 - flapClearance),
-      Math.max(0, L * 0.5 - flapClearance),
-      Math.max(0, W * 0.5 - flapClearance),
-      Math.max(0, L * 0.5 - flapClearance),
-    ];
+  return ({
+    L, W, H, glueTab = 35, thickness = 1.6, slotGap,
+    dimensionConvention = 'inside', x0 = 50,
+  }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 1.6);
+    const G = Math.max(5, Math.min(200, Number.isFinite(glueTab) ? glueTab : 35));
+    const gap = Math.max(1, Math.min(10, Number.isFinite(slotGap) ? slotGap as number : Math.max(1, Math.min(6, t * 1.5))));
+    const innerL = dimensionConvention === 'outside' ? Math.max(1, L - t) : L;
+    const innerW = dimensionConvention === 'outside' ? Math.max(1, W - t) : W;
+    const innerH = dimensionConvention === 'outside' ? Math.max(1, H - t) : H;
+    const panelL = innerL + t;
+    const panelW = innerW + t;
+    const panelH = innerH + t;
+    const xs = [x0 + G, x0 + G + panelL, x0 + G + panelL + panelW, x0 + G + 2 * panelL + panelW, x0 + G + 2 * panelL + 2 * panelW];
+
+    const halfDepth = Math.max(0, (panelW - gap) / 2);
+    const longPanelDepth = Math.max(0, (panelL - gap) / 2);
+    const fullDepth = Math.max(0, panelW - gap);
+    // 0204's flaps attached to W-wide panels reach farther so opposing flaps meet.
+    const widthPanelsMeet = [halfDepth, longPanelDepth, halfDepth, longPanelDepth];
     const topDepths = style === '0200'
       ? [0, 0, 0, 0]
       : style === '0203'
-        ? fullOverlapFlaps.top
+        ? [fullDepth, fullDepth, fullDepth, fullDepth]
         : style === '0204'
           ? widthPanelsMeet
-          : halfFlaps.top;
-    // FEFCO 0200 is open at the top, but its bottom still needs the normal opposing flap geometry.
-    const bottomDepths = style === '0200' ? halfFlaps.bottom : [...topDepths];
+          : [halfDepth, halfDepth, halfDepth, halfDepth];
+    // 0200 has no top flaps but retains a normal set of bottom flaps.
+    const bottomDepths = style === '0200'
+      ? [halfDepth, halfDepth, halfDepth, halfDepth]
+      : [...topDepths];
+
     const maxTop = Math.max(...topDepths);
     const maxBottom = Math.max(...bottomDepths);
     const yTop = 40 + maxTop;
-    const yBottom = yTop + H;
+    const yBottom = yTop + panelH;
     const cuts: string[] = [];
     const creases: string[] = [];
     const labels: { x: number; y: number; text: string }[] = [];
-    const bevel = Math.min(8, Math.max(2, W * 0.04));
 
-    // Manufacturer's joint, body perimeter and four vertical panel scores.
+    // Manufacturer's joint: complete the top and bottom edges of the glue flap,
+    // and keep its external edge separate from the glue score.
     cuts.push(`M ${x0 + 4} ${yTop} L ${x0} ${yTop + 4} L ${x0} ${yBottom - 4} L ${x0 + 4} ${yBottom}`);
+    cuts.push(`M ${x0 + 4} ${yTop} L ${xs[0]} ${yTop}`);
+    cuts.push(`M ${x0 + 4} ${yBottom} L ${xs[0]} ${yBottom}`);
     cuts.push(`M ${xs[4]} ${yTop} L ${xs[4]} ${yBottom}`);
-    if (style !== '0200') creases.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`);
-    creases.push(`M ${xs[0]} ${yBottom} L ${xs[4]} ${yBottom}`);
+
+    // Scores: glue joint, four body corners, and top/bottom flap hinges.
     creases.push(`M ${xs[0]} ${yTop} L ${xs[0]} ${yBottom}`);
     for (let i = 1; i < 4; i++) creases.push(`M ${xs[i]} ${yTop} L ${xs[i]} ${yBottom}`);
+    if (style !== '0200') creases.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`);
+    creases.push(`M ${xs[0]} ${yBottom} L ${xs[4]} ${yBottom}`);
 
-    const addFlap = (i: number, edgeY: number, depth: number, direction: -1 | 1) => {
-      const xa = xs[i], xb = xs[i + 1];
-      if (depth <= 0) return;
-      const outerY = edgeY + direction * depth;
-      const inset = Math.min(bevel, Math.max(1, (xb - xa) * 0.08));
-      const shoulderY = outerY - direction * Math.min(bevel, depth * 0.35);
-      cuts.push(`M ${xa} ${edgeY} L ${xa} ${shoulderY} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${shoulderY} L ${xb} ${edgeY}`);
-      labels.push({ x: (xa + xb) / 2, y: (edgeY + outerY) / 2, text: `فلپ ${Math.round(depth)}mm` });
+    // Use one straight outer edge per flap and one shared slot cut per panel seam.
+    // This avoids diagonal "decorative" flap shoulders and duplicate knife paths.
+    const addFlapEdge = (depths: number[], edgeY: number, direction: -1 | 1) => {
+      depths.forEach((depth, i) => {
+        if (depth <= 0) return;
+        const outerY = edgeY + direction * depth;
+        cuts.push(`M ${xs[i]} ${outerY} L ${xs[i + 1]} ${outerY}`);
+        labels.push({
+          x: (xs[i] + xs[i + 1]) / 2,
+          y: (edgeY + outerY) / 2,
+          text: `فلپ ${Math.round(depth)}mm`,
+        });
+      });
+      for (let i = 0; i <= 4; i++) {
+        const adjacentDepth = Math.max(i > 0 ? depths[i - 1] : 0, i < 4 ? depths[i] : 0);
+        if (adjacentDepth > 0) {
+          cuts.push(`M ${xs[i]} ${edgeY} L ${xs[i]} ${edgeY + direction * adjacentDepth}`);
+        }
+      }
     };
-    for (let i = 0; i < 4; i++) {
-      addFlap(i, yTop, topDepths[i], -1);
-      addFlap(i, yBottom, bottomDepths[i], 1);
-    }
+
+    addFlapEdge(topDepths, yTop, -1);
+    addFlapEdge(bottomDepths, yBottom, 1);
     if (style === '0200') cuts.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`);
 
+    // Print the user-entered product dimensions, not score-to-score dimensions, in labels.
     labels.push({ x: (xs[0] + xs[1]) / 2, y: (yTop + yBottom) / 2, text: `L ${Math.round(L)}mm` });
     labels.push({ x: (xs[1] + xs[2]) / 2, y: (yTop + yBottom) / 2, text: `W ${Math.round(W)}mm` });
     labels.push({ x: (xs[2] + xs[3]) / 2, y: (yTop + yBottom) / 2, text: `L ${Math.round(L)}mm` });
@@ -710,7 +750,7 @@ const createSlottedCaseEngine = (style: SlottedStyle) => {
     return {
       cuts, creases, labels,
       xMin: x0, yMin: yTop - maxTop, xMax: xs[4], yMax: yBottom + maxBottom,
-      totalW: xs[4] - x0, totalH: H + maxTop + maxBottom
+      totalW: xs[4] - x0, totalH: yBottom + maxBottom - (yTop - maxTop),
     };
   };
 };
