@@ -291,24 +291,32 @@ const rectPanelL = 90 + 0.45;
 const rectPanelW = 60 + 0.45;
 const rectXs = [55, 55 + rectPanelW, 55 + rectPanelW + rectPanelL,
   55 + 2 * rectPanelW + rectPanelL, 55 + 2 * rectPanelW + 2 * rectPanelL];
+const rectTuckDepth = rectPanelW * 25 / (70 + 0.45);
+const rectTopMax = rectPanelW + rectTuckDepth;
+const rectBodyTop = rectangularLock.yMin + rectTopMax;
+const rectBodyBottom = rectBodyTop + 80;
 const rectTopTuck = rectangularLock.cuts.find(path =>
-  path.startsWith(`M ${rectXs[1]} ${rectangularLock.yMin + rectPanelW} L ${rectXs[1]} `)
+  path.startsWith(`M ${rectXs[1]} ${rectBodyTop} L ${rectXs[1]} `)
 );
-if (!rectTopTuck || rectTopTuck.includes(`M ${rectXs[0]} `)) {
+if (!rectTopTuck) {
   fail('snap-lock front tuck flap must be attached to the first L-sized front panel after a W-sized side panel');
 }
 const rectTopDust = rectangularLock.cuts.filter(path =>
-  path.startsWith(`M ${rectXs[0]} `) || path.startsWith(`M ${rectXs[2]} `)
+  path.startsWith(`M ${rectXs[0]} ${rectBodyTop} L `) ||
+  path.startsWith(`M ${rectXs[2]} ${rectBodyTop} L `)
 );
-if (rectTopDust.length < 2) {
+if (rectTopDust.length !== 2) {
   fail('snap-lock top dust flaps must be attached to the two W-sized side panels');
 }
-const rectThumbNotch = rectangularLock.cuts.find(path => path.startsWith(`M ${rectXs[3]} `));
-if (!rectThumbNotch || !rectThumbNotch.includes(`L ${rectXs[4]} `)) {
+const rectThumbNotch = rectangularLock.cuts.find(path =>
+  path.startsWith(`M ${rectXs[3]} ${rectBodyTop} L `));
+if (!rectThumbNotch || !rectThumbNotch.includes(`L ${rectXs[4]} ${rectBodyTop}`)) {
   fail('snap-lock thumb notch must be on the L-sized rear panel, not a W-sized side panel');
 }
-const rectTongue = rectangularLock.cuts.find(path => path.startsWith(`M ${rectXs[1]} ` ) && path.includes('بیرون‌زدگی') === false);
-const rectReceiver = rectangularLock.cuts.find(path => path.startsWith(`M ${rectXs[3]} ` ) && path.includes(`L ${rectXs[4]} `));
+const rectTongue = rectangularLock.cuts.find(path =>
+  path.startsWith(`M ${rectXs[1]} ${rectBodyBottom} L `));
+const rectReceiver = rectangularLock.cuts.find(path =>
+  path.startsWith(`M ${rectXs[3]} ${rectBodyBottom} L `));
 if (!rectTongue || !rectReceiver) {
   fail('snap-lock bottom tongue and receiver must be attached to the two L-sized front/back panels');
 }
