@@ -116,6 +116,13 @@ if (!trayLid.labels.some(label => label.text.includes('زیره')) ||
 if (Math.abs(trayLid.totalW - 787.6) > 0.11 || Math.abs(trayLid.totalH - 364.8) > 0.11) {
   fail(`FEFCO 0301 blank bounds must include both tray blanks and the layout gap, got ${trayLid.totalW} × ${trayLid.totalH}`);
 }
+const trayOutlineValues = (trayLid.cuts[0].match(/-?\\d+(?:\\.\\d+)?/g) || []).map(Number);
+let trayHasDiagonalRelief = false;
+for (let i = 2; i + 1 < trayOutlineValues.length; i += 2) {
+  if (Math.abs(trayOutlineValues[i] - trayOutlineValues[i - 2]) > 0.01 &&
+      Math.abs(trayOutlineValues[i + 1] - trayOutlineValues[i - 1]) > 0.01) trayHasDiagonalRelief = true;
+}
+if (!trayHasDiagonalRelief) fail('FEFCO 0301 tray baseline must bevel corner glue tabs to reduce square-corner interference');
 const taller0301Lid = STANDARD_DIELINE_ENGINES['fefco-0301']({
   L: 240, W: 160, H: 100, lidHeight: 65, thickness: 1.6, glueTab: 30, x0: 40,
 });
@@ -161,6 +168,24 @@ if (!lockBottom.cuts.some(path => path.includes('Z'))) {
 if (!lockBottom.labels.some(label => label.text.includes('زبانه قفل')) ||
     !lockBottom.labels.some(label => label.text.includes('شیار قفل'))) {
   fail('snap-lock bottom must expose both tongue and receiving-slot geometry');
+}
+const lowAngleLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
+  L: 120, W: 90, H: 100, thickness: 0.45, glueTab: 22, autoLockAngle: 30, x0: 40,
+});
+const highAngleLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
+  L: 120, W: 90, H: 100, thickness: 0.45, glueTab: 22, autoLockAngle: 60, x0: 40,
+});
+if (JSON.stringify(lowAngleLock.cuts) === JSON.stringify(highAngleLock.cuts)) {
+  fail('snap-lock shoulder angles must change the generated cutting geometry');
+}
+const slotPath = lockBottom.cuts.find(path => /\\bZ\\s*$/.test(path));
+if (!slotPath) fail('snap-lock receiving slot must be a closed cut path');
+const slotCoordinates = (slotPath.match(/-?\\d+(?:\\.\\d+)?/g) || []).map(Number);
+const slotYValues = slotCoordinates.filter((_value, index) => index % 2 === 1);
+const slotCenterY = (Math.min(...slotYValues) + Math.max(...slotYValues)) / 2;
+const expectedTongueTipY = 40 + 20 + 100 + Math.max(90 * 0.48, 14) + Math.max(90 * 0.13, 5);
+if (Math.abs(slotCenterY - expectedTongueTipY) > 0.01) {
+  fail(`snap-lock slot centre must align with the tongue tip station, got ${slotCenterY} vs ${expectedTongueTipY}`);
 }
 const thickBoardLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
   L: 120, W: 90, H: 100, thickness: 2.5, glueTab: 22, x0: 40,
