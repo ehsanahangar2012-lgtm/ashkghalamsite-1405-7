@@ -17,7 +17,8 @@ const TEMPLATES: TemplateOption[] = [
   { id: 'fefco-0320', name: 'جعبه دو‌تکه تلسکوپی', code: 'FEFCO 0320' },
   { id: 'fefco-0427', name: 'جعبه کیبوردی/پستی', code: 'FEFCO 0427' },
   { id: 'fefco-pizza', name: 'جعبه پیتزا یک‌تکه', code: 'قالب اختصاصی', note: 'کد استاندارد رسمی برای این نسخه ادعا نمی‌شود؛ قفل و تهویه نیازمند بازبینی است.' },
-  { id: 'ecma-a2020', name: 'جعبه دارویی زبانه‌دار', code: 'ECMA A20.20' },
+  { id: 'ecma-a2020', name: 'جعبه دارویی Reverse Tuck End', code: 'ECMA A20.20' },
+  { id: 'ecma-ste', name: 'جعبه Straight Tuck End', code: 'ECMA STE — الگوی پایه', note: 'شناسه توصیفی است، نه کد رسمی ECMA.' },
   { id: 'snap-lock-123', name: 'جعبه ته‌قفلی مقوایی', code: 'ECMA / ته‌قفلی', note: 'هندسه قفل باید طبق نمونه و ابزار خط تولید تأیید شود.' },
   { id: 'ecma-a30', name: 'جعبه آویز فروشگاهی', code: 'ECMA A30' },
   { id: 'ecma-b10', name: 'غلاف یا اسلیو', code: 'ECMA B10.10' },
@@ -104,7 +105,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     };
     geometry.cuts.forEach(p => add(p, 'CUT'));
     geometry.creases.forEach(p => add(p, 'CREASE'));
-    const dxf = `0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n2\n0\nLAYER\n2\nCUT\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nCREASE\n70\n0\n62\n5\n6\nDASHED\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('')}0\nENDSEC\n0\nEOF\n`;
+    const dxf = `0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n2\n0\nLAYER\n2\nCUT\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nCREASE\n70\n0\n62\n5\n6\nCONTINUOUS\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('')}0\nENDSEC\n0\nEOF\n`;
     download(`ashkghalam-${templateId}.dxf`, dxf, 'application/dxf');
   };
 
