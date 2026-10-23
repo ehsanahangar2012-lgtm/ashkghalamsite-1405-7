@@ -1,4 +1,4 @@
-name: Build and preview full Ashk Ghalam site
+name: Build main site and isolated dieline preview
 on:
   push:
     branches:
@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'scripts/**'
+      - 'docs/**'
       - 'public/**'
       - 'index.html'
       - 'package.json'
@@ -31,23 +32,36 @@ jobs:
         uses: actions/checkout@v4
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
-      - name: Install project dependencies
+      - name: Install preview dependencies
         run: bun install --frozen-lockfile
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
       - name: Run dieline geometry regression checks
         run: bun scripts/verify-dieline-engines.ts
-      - name: Build the actual React/Vite application
+      - name: Build branch preview under isolated URL prefix
+        run: bunx vite build --base=/ashkghalamsite-1405-7/preview/ --outDir dist-preview
+      - name: Checkout main site source separately
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-source
+      - name: Install main site dependencies
+        working-directory: main-source
+        run: bun install --frozen-lockfile
+      - name: Build unchanged main site for the public root
+        working-directory: main-source
         run: bunx vite build --base=/ashkghalamsite-1405-7/
-      - name: Prepare static Pages output and SPA fallback
+      - name: Combine main site and branch preview without replacing the main root
         run: |
-          test -f dist/index.html
-          cp dist/index.html dist/404.html
-          touch dist/.nojekyll
-      - name: Upload full site
+          test -f main-source/dist/index.html
+          test -f dist-preview/index.html
+          mkdir -p main-source/dist/preview/tools/dieline
+          cp -R dist-preview/. main-source/dist/preview/
+          cp dist-preview/index.html main-source/dist/preview/tools/dieline/index.html
+          cp main-source/dist/index.html main-source/dist/404.html
+          touch main-source/dist/.nojekyll
+      - name: Upload combined Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
-      - name: Deploy preview
+          path: main-source/dist
+      - name: Deploy main site with isolated branch preview
         id: deployment
         uses: actions/deploy-pages@v4
