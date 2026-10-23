@@ -41,7 +41,7 @@ interface PackagingModel {
   id: string;
   name: string;
   code: string; 
-  category: 'FEFCO 0200 Series' | 'FEFCO 0300' | 'FEFCO 0400' | 'FEFCO 0700' | 'ECMA A' | 'ECMA B' | 'ECMA C' | 'ECMA D';
+  category: string;
   icon: string;
   defaultDims: { L: number, W: number, H: number };
   description: string; features?: string[]; complexity?: string;
@@ -50,17 +50,16 @@ interface PackagingModel {
 const STANDARDS_LIBRARY: PackagingModel[] = [
   // FEFCO 0200 Series
   { id: 'fefco-0201', name: 'کارتن استاندارد آمریکایی (RSC)', code: 'FEFCO 0201', category: 'FEFCO 0200 Series', icon: '📦', defaultDims: { L: 150, W: 120, H: 100 }, description: 'کارتن کارآمد حمل و نقل با درب‌های بالا و پایین متلاقی در خط وسط.' },
-  { id: 'fefco-0200', name: 'جعبه نیمه تلسکوپی روباز', code: 'FEFCO 0200', category: 'FEFCO 0200 Series', icon: '📥', defaultDims: { L: 140, W: 100, H: 80 }, description: 'کارتن فاقد درپوش، مناسب برای بارگیری سریع یا به عنوان کشو.' },
+  { id: 'fefco-0200', name: 'کارتن نیمه‌شیاردار روباز (HSC)', code: 'FEFCO 0200', category: 'FEFCO 0200 Series', icon: '📥', defaultDims: { L: 140, W: 100, H: 80 }, description: 'کارتن فاقد درپوش، مناسب برای بارگیری سریع یا به عنوان کشو.' },
   { id: 'fefco-0203', name: 'جعبه درب هم‌پوشان سنگین (FOL)', code: 'FEFCO 0203', category: 'FEFCO 0200 Series', icon: '📦', defaultDims: { L: 180, W: 140, H: 120 }, description: 'درب‌های کاملا روی هم قرار گیرنده برای تقویت کف و سقف و جلوگیری از گسیختگی.' },
-  { id: 'fefco-0215', name: 'جعبه ته قفل خودکار (Crash Lock)', code: 'FEFCO 0215', category: 'FEFCO 0200 Series', icon: '📥', defaultDims: { L: 120, W: 90, H: 150 }, description: 'ته جعبه با خطوط تا ۴۵ درجه جهت باز شدن سریع کارگاهی بدون چسب‌زنی.' },
   
   // FEFCO 0300 Series
   { id: 'fefco-0300', name: 'جعبه تلسکوبی دو تکه درب و زیره', code: 'FEFCO 0300', category: 'FEFCO 0300', icon: '🎁', defaultDims: { L: 200, W: 150, H: 60 }, description: 'فرمت جعبه کفش کلاسیک شامل کفه مجزا و درب جداگانه با لبه‌های منگنه یا چسب.' },
-  { id: 'fefco-0320', name: 'کارتن کیبوردی با قفل مجاور ته‌بسته', code: 'FEFCO 0320', category: 'FEFCO 0300', icon: '📂', defaultDims: { L: 160, W: 120, H: 45 }, description: 'دیواره‌های دوجداره تاشو برای محصولات فشرده لوکس.' },
+  { id: 'fefco-0320', name: 'جعبه تلسکوپی دو‌تکه (مدل 0320)', code: 'FEFCO 0320', category: 'FEFCO 0300', icon: '📂', defaultDims: { L: 160, W: 120, H: 45 }, description: 'دیواره‌های دوجداره تاشو برای محصولات فشرده لوکس.' },
 
   // FEFCO 0400 Series
-  { id: 'fefco-pizza', name: 'جعبه پیتزا کلاسیک (Pizza Box - FEFCO 0426)', code: 'FEFCO 0426', category: 'FEFCO 0400', icon: '🍕', defaultDims: { L: 300, W: 300, H: 40 }, description: 'جعبه پیتزای کلاسیک دایکاتی با سوراخ‌های تهویه هوا، دیواره‌های دوبل و زبانه‌های قفل‌شونده بغل.' },
-  { id: 'fefco-0427', name: 'جعبه پستی کیبوردی (Mailer Pro)', code: 'FEFCO 0427', category: 'FEFCO 0400', icon: '✉️', defaultDims: { L: 200, W: 150, H: 50 }, description: 'جعبه پاکتی بی‌نیاز از چسب‌کاری با زبانه گرد پشتیبان، ایده اساسی لجستیک تجارت الکترونیک.' },
+  { id: 'fefco-pizza', name: 'جعبه پیتزا یک‌تکه (الگوی پارامتریک اختصاصی)', code: 'CUSTOM-PIZZA-01', category: 'Custom Food Packaging', icon: '🍕', defaultDims: { L: 300, W: 300, H: 40 }, description: 'الگوی اختصاصی یک‌تکه با درب لولایی، کفه و دیواره‌ها؛ کد رسمی FEFCO برای این هندسه ادعا نمی‌شود و جزئیات قفل/تهویه نیازمند تنظیم قالب است.' },
+  { id: 'fefco-0427', name: 'جعبه کیبوردی/پستی (Mailer — FEFCO 0427)', code: 'FEFCO 0427', category: 'FEFCO 0400', icon: '✉️', defaultDims: { L: 200, W: 150, H: 50 }, description: 'جعبه پاکتی بی‌نیاز از چسب‌کاری با زبانه گرد پشتیبان، ایده اساسی لجستیک تجارت الکترونیک.' },
   { id: 'fefco-0409', name: 'جعبه لفافه‌ پیچ کلوش دار', code: 'FEFCO 0409', category: 'FEFCO 0400', icon: '📑', defaultDims: { L: 280, W: 200, H: 30 }, description: 'شیت مسطح مایکرو که دورتادور کالاهای مسطح مانند کتاب و تابلو رول می‌شود.' },
   { id: 'fefco-0470', name: 'جعبه زبانه سرخود دایکاتی', code: 'FEFCO 0470', category: 'FEFCO 0400', icon: '💼', defaultDims: { L: 220, W: 160, H: 60 }, description: 'بسته‌بندی باز شونده از بالا با شیار جفت در بغل، دوام بسیار بالا در حمل بار.' },
 
@@ -129,7 +128,7 @@ export const PRODUCT_CATEGORIES: ProductCategoryOption[] = [
     name: 'فست‌فود و غذایی',
     icon: '🍕',
     recommendedModelId: 'fefco-pizza',
-    recommendationReason: 'جعبه پیتزا و فست‌فود دایکاتی FEFCO 0426 با منافذ تهویه بخار، دیواره دوبل و مقاومت در برابر رطوبت',
+    recommendationReason: 'الگوی اختصاصی جعبه پیتزا با درب لولایی؛ سوراخ تهویه، زبانه‌های قفل و تلرانس خط تولید باید طبق سفارش اضافه و تأیید شوند.',
     defaultDims: { L: 300, W: 300, H: 45 }
   },
   {
@@ -145,8 +144,28 @@ export const PRODUCT_CATEGORIES: ProductCategoryOption[] = [
     name: 'کادویی و نفیس',
     icon: '🎁',
     recommendedModelId: 'ecma-c1020',
-    recommendationReason: 'جعبه کشویی ریلی دو تکه (Drawer Box) فوق‌العاده شیک با حس لوکس بسته‌بندی هدیه',
+    recommendationReason: 'جعبه کشویی ریلی دو تکه (Drawer Box)؛ برای ساختار نهایی باید زیره و غلاف با هم بررسی شوند.',
     defaultDims: { L: 140, W: 100, H: 50 }
+  },
+  {
+    id: 'pizza', name: 'جعبه پیتزا و غذای بیرون‌بر', icon: '🍕', recommendedModelId: 'fefco-pizza',
+    recommendationReason: 'قالب پیتزای اختصاصی با درب لولایی؛ قفل‌ها، منافذ تهویه و جنس مقاوم به چربی باید طبق محصول نهایی تنظیم شوند.',
+    defaultDims: { L: 300, W: 300, H: 45 }
+  },
+  {
+    id: 'keyboard', name: 'جعبه کیبوردی و پستی', icon: '📮', recommendedModelId: 'fefco-0427',
+    recommendationReason: 'جعبه فولدر یک‌تکه FEFCO 0427 برای تجارت الکترونیک؛ عمق گوشواره‌ها و قفل باید با ضخامت ورق هماهنگ شود.',
+    defaultDims: { L: 220, W: 160, H: 60 }
+  },
+  {
+    id: 'telescopic', name: 'جعبه تلسکوپی درب و زیره', icon: '🎁', recommendedModelId: 'fefco-0300',
+    recommendationReason: 'قالب دو‌تکه با درب جدا و زیره جدا؛ لقی درب متناسب با کالیپر ورق باید کنترل شود.',
+    defaultDims: { L: 200, W: 150, H: 60 }
+  },
+  {
+    id: 'retail_display', name: 'نمایشی و قفسه‌ای', icon: '🛍️', recommendedModelId: 'ecma-d50',
+    recommendationReason: 'الگوی پایه نمایش محصول؛ قبل از تولید باید قفل، بارگذاری و پایداری استند تأیید شود.',
+    defaultDims: { L: 160, W: 160, H: 180 }
   }
 ];
 
@@ -476,7 +495,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     const { L, W, H } = dims;
 
     if (key === 'glueTab') {
-      const isGlueless = id === 'fefco-0427' || id === 'fefco-pizza' || id === 'fefco-0320';
+      const isGlueless = id === 'fefco-0427';
       if (isGlueless && val > 0) {
         showCustomAlert(
           'تداخل در ساختار بدون چسب',
@@ -1739,13 +1758,13 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
         return m.id === 'ecma-a2020' || m.id === 'snap-lock-123' || m.id === 'ecma-c1020' || m.category.includes('ECMA A');
       }
       if (selectedCategory === 'pharma') {
-        return m.id === 'snap-lock-123' || m.id === 'ecma-a2020' || m.id === 'fefco-0215' || m.category.includes('ECMA A');
+        return m.id === 'snap-lock-123' || m.id === 'ecma-a2020' || m.category.includes('ECMA A');
       }
       if (selectedCategory === 'ecommerce') {
-        return m.id === 'fefco-0427' || m.id === 'fefco-0320' || m.id === 'fefco-0470' || m.category.includes('FEFCO 0400');
+        return m.id === 'fefco-0427' || m.id === 'fefco-0470' || m.category.includes('FEFCO 0400');
       }
       if (selectedCategory === 'food_bakery') {
-        return m.id === 'fefco-pizza' || m.id === 'ecma-b10' || m.id === 'snap-lock-123' || m.category.includes('FEFCO 0400');
+        return m.id === 'fefco-pizza' || m.id === 'ecma-b10' || m.id === 'snap-lock-123' || m.category.includes('FEFCO 0400') || m.category.includes('Custom Food');
       }
       if (selectedCategory === 'industrial') {
         return m.id === 'fefco-0201' || m.id === 'fefco-0200' || m.id === 'fefco-0203' || m.category.includes('FEFCO 0200');
@@ -1753,6 +1772,10 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       if (selectedCategory === 'luxury_gift') {
         return m.id === 'fefco-0300' || m.id === 'ecma-c1020' || m.category.includes('ECMA C') || m.category.includes('FEFCO 0300');
       }
+      if (selectedCategory === 'pizza') return m.id === 'fefco-pizza';
+      if (selectedCategory === 'keyboard') return m.id === 'fefco-0427';
+      if (selectedCategory === 'telescopic') return m.id === 'fefco-0300' || m.id === 'fefco-0320' || m.category.includes('FEFCO 0300');
+      if (selectedCategory === 'retail_display') return m.id === 'ecma-d50' || m.category.includes('FEFCO 0800');
 
       return true;
     });
@@ -1936,7 +1959,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     if (tuck > effW * 0.8) constraintAlerts.push(`زبانه درب (${tuck}mm) بیش از حد بلند است و ممکن است با کف تداخل کند.`);
     if (dustFlap + tuck > effW && id.includes('tuck')) constraintAlerts.push(`مجموع طول زبانه و گوشواره (${dustFlap + tuck}mm) از عرض جعبه بیشتر است و تداخل فیزیکی ایجاد می‌کند!`);
 
-    const isAutoBottomModel = id === 'fefco-0215' || id === 'snap-lock-123' || id.includes('auto-bottom') || id.includes('crash-lock');
+    const isAutoBottomModel = id === 'snap-lock-123' || id.includes('auto-bottom') || id.includes('crash-lock');
     if (isAutoBottomModel) {
       if (effL <= effW) {
         constraintAlerts.push(`⛔ خطای بحرانی ساختار ته قفلی: طول (L=${effL}mm) باید حتماً از عرض (W=${effW}mm) بزرگتر باشد (حداقل L ≥ W + 10mm). در حالت L ≤ W زبانه‌های ۴۵ درجه کف دچار هم‌پوشانی ناممکن شده و جعبه به صورت خوابیده (Flat-pack) چسب‌خوری یا تا نمی‌شود.`);
@@ -2940,7 +2963,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       ];
     }
     
-    if (code.includes('fefco-0215') || code.includes('crash-lock') || code.includes('auto-bottom')) {
+    if (code.includes('crash-lock') || code.includes('auto-bottom')) {
       return [
         {
           title: 'گام ۱: تاشدن لبه چسب جانبی و اتصال تیوپ',
@@ -3502,7 +3525,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             </div>
 
             {/* Accordion Item 2: Bottom Lock Flap Settings (Conditional) */}
-            {(selectedModel.id === 'fefco-0215' || selectedModel.id === 'snap-lock-123' || selectedModel.id.includes('auto-bottom') || selectedModel.id.includes('crash-lock')) && (
+            {(selectedModel.id === 'snap-lock-123' || selectedModel.id.includes('auto-bottom') || selectedModel.id.includes('crash-lock')) && (
               <div className="border border-slate-800/60 rounded-xl overflow-hidden bg-[#070a0f]/40">
                 <button
                   onClick={() => setIsLockAnglesOpen(!isLockAnglesOpen)}
@@ -6621,7 +6644,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                       type="button"
                     >
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>استاندارد: {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110 / FEFCO 0711' : selectedModel.code || 'ECMA'}</span>
+                      <span>استاندارد: {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110' : selectedModel.code || 'ECMA'}</span>
                       <ChevronDown className="w-3 h-3 text-slate-400" />
                     </button>
                   ) : (
@@ -6633,7 +6656,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                         </div>
                         <div className="flex items-center gap-1">
                           <span className="px-2 py-0.5 rounded-lg bg-sky-500/15 border border-sky-500/40 text-cyan-300 font-mono text-[9.5px] font-bold">
-                            {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110 / FEFCO 0711' : selectedModel.id === 'fefco-0215' ? 'FEFCO 0215' : selectedModel.id === 'fefco-0201' ? 'FEFCO 0201' : selectedModel.id === 'fefco-0427' ? 'FEFCO 0427' : 'ECMA Standard'}
+                            {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110 / FEFCO 0711' : selectedModel.id === 'fefco-0201' ? 'FEFCO 0201' : selectedModel.id === 'fefco-0427' ? 'FEFCO 0427' : 'ECMA Standard'}
                           </span>
                           <button
                             onClick={() => setIsStandardHudCollapsed(true)}
