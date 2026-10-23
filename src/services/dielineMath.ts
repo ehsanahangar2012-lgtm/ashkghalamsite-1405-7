@@ -144,6 +144,8 @@ export interface DielineEngineParams {
   slotGap?: number;
   dimensionConvention?: 'inside' | 'outside';
   lidHeight?: number;
+  /** Total plan-view size difference added to the lid over the base outside size (mm). */
+  lidClearance?: number;
   autoLockAngle?: number;
   autoLockGlueWidth?: number;
 }
@@ -619,13 +621,13 @@ const createPizzaBoxEngine = () => {
  */
 const createTelescopicEngine = () => {
   return ({
-    L, W, H, lidHeight, thickness = 1.5, glueTab = 30,
+    L, W, H, lidHeight, lidClearance, thickness = 1.5, glueTab = 30,
     slotGap, x0 = 50,
   }: DielineEngineParams): DielineEngineResult => {
     const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 1.5);
     const G = Math.max(5, Math.min(200, Number.isFinite(glueTab) ? glueTab : 30));
     const lidH = Math.max(5, Number.isFinite(lidHeight) ? lidHeight as number : H * 0.5);
-    const fit = Math.max(0.8, t * 0.5);
+    const fit = Math.max(0.1, Number.isFinite(lidClearance) ? lidClearance as number : Math.max(0.8, t * 0.5));
     const layoutGap = Math.max(24, t * 10);
     const base = fefco0200Engine({
       L, W, H, thickness: t, glueTab: G, slotGap,
@@ -665,11 +667,11 @@ const createTelescopicEngine = () => {
 /** FEFCO 0300/0301-family baseline: separate tray-shaped base and lid. */
 const createTelescopicTrayEngine = () => {
   return ({
-    L, W, H, lidHeight, thickness = 1.5, glueTab = 30,
+    L, W, H, lidHeight, lidClearance, thickness = 1.5, glueTab = 30,
     x0 = 50, dimensionConvention = 'inside',
   }: DielineEngineParams): DielineEngineResult => {
     const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 1.5);
-    const fit = Math.max(0.8, t * 0.5);
+    const fit = Math.max(0.1, Number.isFinite(lidClearance) ? lidClearance as number : Math.max(0.8, t * 0.5));
     const lidH = Math.max(5, Number.isFinite(lidHeight) ? lidHeight as number : H * 0.5);
     const layoutGap = Math.max(24, t * 10);
     const base = trayEngine({
