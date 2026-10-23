@@ -34,7 +34,6 @@ function makeGeometry(L: number, W: number, H: number, glue: number, allowance: 
   for (let i = 0; i < 4; i++) {
     const x0 = xs[i], x1 = xs[i + 1], panelW = x1 - x0;
     const depth = flap;
-    const inset = Math.min(10, panelW * 0.12, depth * 0.25);
     const isMajor = i === 0 || i === 2;
     const sideInset = isMajor ? 0 : Math.min(8, panelW * 0.18);
     // top flap outer cut contour
