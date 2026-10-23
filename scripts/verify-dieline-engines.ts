@@ -217,7 +217,9 @@ if (JSON.stringify(crashLock30.cuts) === JSON.stringify(crashLock60.cuts)) {
 }
 
 const lockBottom = STANDARD_DIELINE_ENGINES['snap-lock-123']({
-  L: 70, W: 70, H: 80, thickness: 0.45, glueTab: 15, tuck: 25, dustFlap: 33, x0: 40,
+  // Use engine defaults here: the reference dimensions must emerge from ratios,
+  // not from the UI passing hard-coded 25/33/17.5 mm values.
+  L: 70, W: 70, H: 80, thickness: 0.45, glueTab: 15, x0: 40,
 });
 if (lockBottom.cuts.some(path => /\bZ\s*$/.test(path))) {
   fail('snap-lock receiver must use an edge-open half-moon notch, not an isolated rectangular slot');
@@ -240,6 +242,27 @@ if (Math.abs(lockBottom.totalW - referenceWidth) > 1e-8) {
 }
 if (Math.abs(lockBottom.totalH - 226) > 0.1) {
   fail(`snap-lock blank envelope must match the reference generator's 70×70×80 mm benchmark (296.8×226 mm), got ${lockBottom.totalW}×${lockBottom.totalH} mm`);
+}
+const dimensionFromLabel = (result: typeof lockBottom, labelPart: string, pattern: RegExp): number => {
+  const text = result.labels.find(label => label.text.includes(labelPart))?.text ?? '';
+  const match = text.match(pattern);
+  return match ? Number(match[1]) : Number.NaN;
+};
+const scaledLockBottom = STANDARD_DIELINE_ENGINES['snap-lock-123']({
+  L: 140, W: 140, H: 160, thickness: 0.45, glueTab: 20, x0: 40,
+});
+const scaledPanelW = 140 + 0.45;
+const scaledChecks = [
+  ['top dust flap', dimensionFromLabel(scaledLockBottom, 'گردگیر بالایی', /گردگیر بالایی\\s+(\\d+)mm/), Math.round(scaledPanelW * 33 / (70 + 0.45))],
+  ['bottom side flap', dimensionFromLabel(scaledLockBottom, 'فلپ کناری کف', /فلپ کناری کف\\s+(\\d+)mm/), Math.round(scaledPanelW * 33 / (70 + 0.45))],
+  ['top tuck extension', dimensionFromLabel(scaledLockBottom, 'زبانه درب', /زبانه درب\\s+(\\d+)mm/), Math.round(scaledPanelW * 25 / (70 + 0.45))],
+  ['lock tongue projection', dimensionFromLabel(scaledLockBottom, 'زبانه قفل', /بیرون‌زدگی\\s+(\\d+)mm/), Math.round(scaledPanelW * 17.5 / (70 + 0.45))],
+] as const;
+for (const [part, actual, expected] of scaledChecks) {
+  if (actual !== expected) fail(`snap-lock ${part} must scale with carton width; expected ${expected} mm, got ${actual} mm`);
+}
+if (STANDARD_DIELINE_ENGINES['snap-lock-123'] !== STANDARD_DIELINE_ENGINES['fefco-0215']) {
+  fail('snap-lock-123 and the custom fefco-0215 alias must resolve to the same parametric engine');
 }
 const expectedTuckSlitY = lockBottom.yMin + 25 * 0.42;
 if (!lockBottom.cuts.some(path => {
