@@ -537,7 +537,6 @@ const createPizzaBoxEngine = () => {
   return ({ L, W, H, tuck = 24, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
     const wall = Math.max(12, H);
     const T = Math.max(12, Math.min(tuck || 24, Math.min(L, W) * 0.35));
-    const sideTab = Math.max(8, Math.min(wall * 0.45, W * 0.22));
     const xB = x0 + wall;
     const yTuck = 30;
     const yLidTop = yTuck + T;
@@ -553,10 +552,10 @@ const createPizzaBoxEngine = () => {
     // One continuous blank: front tuck + lid + back wall + base + front wall,
     // with side walls attached to the base. Side locking details are simplified.
     cuts.push(
-      `M ${xB + 3} ${yTuck} L ${xR - 3} ${yTuck} L ${xR} ${yLidTop} L ${xR} ${yBackBottom - sideTab} L ${xR + wall} ${yBackBottom - sideTab} L ${xR + wall} ${yBackBottom} L ${xR + wall} ${yBaseBottom} L ${xR + wall} ${yBaseBottom + sideTab} L ${xR} ${yBaseBottom + sideTab} L ${xR} ${yBaseBottom} L ${xR} ${yFrontBottom} L ${xB} ${yFrontBottom} L ${xB} ${yBaseBottom} L ${xB} ${yBaseBottom + sideTab} L ${xB - wall} ${yBaseBottom + sideTab} L ${xB - wall} ${yBaseBottom} L ${xB - wall} ${yBackBottom} L ${xB - wall} ${yBackBottom - sideTab} L ${xB} ${yBackBottom - sideTab} L ${xB} ${yBackBottom} L ${xB} ${yLidTop} Z`
+      `M ${xB} ${yTuck} L ${xR} ${yTuck} L ${xR} ${yBackBottom} L ${xR + wall} ${yBackBottom} L ${xR + wall} ${yBaseBottom} L ${xR} ${yBaseBottom} L ${xR} ${yFrontBottom} L ${xB} ${yFrontBottom} L ${xB} ${yBaseBottom} L ${xB - wall} ${yBaseBottom} L ${xB - wall} ${yBackBottom} L ${xB} ${yBackBottom} Z`
     );
 
-    // Side tabs fold inward against the front/back walls to close the corners.
+    // Side-wall hinges are scored along the left and right edges of the base panel.
     creases.push(`M ${xB - wall} ${yBackBottom} L ${xB} ${yBackBottom}`);
     creases.push(`M ${xB - wall} ${yBaseBottom} L ${xB} ${yBaseBottom}`);
     creases.push(`M ${xR} ${yBackBottom} L ${xR + wall} ${yBackBottom}`);
