@@ -1,4 +1,6 @@
 import { calculateDielineParameters, STANDARD_DIELINE_ENGINES } from '../src/services/dielineMath.ts';
+import { parseDxfToEntities, scaleCustomDieline } from '../src/services/customDielineEngine.ts';
+import { validateDxfDieline, runComprehensiveGeometryCheck } from '../src/services/geometryValidator.ts';
 
 const requiredEngines = [
   'default-rsc',
@@ -106,5 +108,34 @@ const thickMetrics = calculateDielineParameters(120, 90, 100, 2.5, 'snap-lock-12
 if (thinMetrics.cutLength === thickMetrics.cutLength && thinMetrics.sheetHeight === thickMetrics.sheetHeight) {
   fail('caliper must be passed through to geometry-derived manufacturing metrics');
 }
+
+
+const sampleDxf = [
+  '0','SECTION','2','ENTITIES',
+  '0','LINE','8','CUT','10','0','20','0','11','100','21','0',
+  '0','LINE','8','CREASE','10','100','20','0','11','100','21','50',
+  '0','LWPOLYLINE','8','CUT','90','4','70','1',
+  '10','0','20','0','10','100','20','0','10','100','20','50','10','0','20','50',
+  '0','ENDSEC','0','EOF'
+].join('\\n');
+const parsedDxf = parseDxfToEntities(sampleDxf);
+if (parsedDxf.length !== 6) fail(`DXF parser should extract six line segments, got ${parsedDxf.length}`);
+if (!parsedDxf.some(entity => entity.isCrease)) fail('DXF parser must preserve crease layer classification');
+const parsedValidation = validateDxfDieline(parsedDxf);
+if (!parsedValidation.valid || parsedValidation.totalLength <= 0 || parsedValidation.totalLength === 1250) {
+  fail('DXF validation must calculate real lengths from parsed coordinates');
+}
+const scaledImported = scaleCustomDieline(parsedDxf, 100, 50, 50);
+if (scaledImported.cuts.length !== 5 || scaledImported.creases.length !== 1 || scaledImported.totalW !== 100 || scaledImported.totalH !== 50) {
+  fail('imported DXF must produce cut/crease paths and real source bounds');
+}
+const badGeometry = runComprehensiveGeometryCheck(
+  ['M 0 0 L 100 100 L 0 100 L 100 0 Z'],
+  ['M 0 50 L 100 50'],
+  100, 100, 50, 'test', 20, 10, 100, 100, 1000, 1000, 20
+);
+if (!badGeometry.hasSelfIntersection) fail('geometry validator must detect non-adjacent cut path crossings');
+const emptyValidation = validateDxfDieline([]);
+if (emptyValidation.valid || emptyValidation.errors.length === 0) fail('empty DXF geometry must fail validation');
 
 console.log(`Dieline geometry checks passed: ${requiredEngines.length} engines × ${dimensions.length} dimension sets.`);
