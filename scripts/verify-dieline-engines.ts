@@ -366,7 +366,7 @@ for (const id of requiredEngines) {
       result.totalW + 1, result.totalH + 1, dims.glueTab
     );
     if (!audit.passed || audit.hasSelfIntersection) {
-      fail(`${id}: engine output fails the export structural audit for ${JSON.stringify(dims)}: ${[...audit.errors, ...(audit.hasSelfIntersection ? ['self-intersection'] : [])].join('; ')}`);
+      fail(`${id}: engine output fails the export structural audit for ${JSON.stringify(dims)}: ${[...audit.errors, ...audit.warnings.filter(w => /تقاطع|تماس|هم‌پوشانی/.test(w))].join('; ')}`);
     }
   }
 }
