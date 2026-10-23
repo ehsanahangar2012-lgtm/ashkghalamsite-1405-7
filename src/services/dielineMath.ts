@@ -21,9 +21,16 @@ export const calculateDielineParameters = (
   caliper: number = 3
 ): DielineCalculationResult => {
   const normalizedCode = fefcoCode.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const engineId = normalizedCode.startsWith('fefco-') || normalizedCode.startsWith('ecma-') || normalizedCode === 'default-rsc' || normalizedCode === 'snap-lock-123'
+  const aliases: Record<string, string> = {
+    'ecma-a20-20': 'ecma-a2020',
+    'ecma-a-20-20': 'ecma-a2020',
+    'ecma-reverse-tuck-end': 'ecma-a2020',
+    'fefco-0201-rsc': 'fefco-0201',
+  };
+  const candidateId = normalizedCode.startsWith('fefco-') || normalizedCode.startsWith('ecma-') || normalizedCode === 'default-rsc' || normalizedCode === 'snap-lock-123'
     ? normalizedCode
     : `fefco-${normalizedCode.replace(/^fefco-/, '')}`;
+  const engineId = aliases[candidateId] || candidateId;
   const engine = STANDARD_DIELINE_ENGINES[engineId] || STANDARD_DIELINE_ENGINES['default-rsc'];
   const geometry = engine({
     L: Math.max(1, l),
