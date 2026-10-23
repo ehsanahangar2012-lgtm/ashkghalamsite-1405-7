@@ -175,19 +175,21 @@ const createRscEngine = (flapRatioTop = 0.5, flapRatioBottom = 0.5) => {
 
       if (topDepth > 0) {
         cuts.push(`M ${left} ${yTop} L ${left} ${yTop - topDepth} L ${right} ${yTop - topDepth} L ${right} ${yTop}`);
+      } else {
+        cuts.push(`M ${left} ${yTop} L ${right} ${yTop}`);
       }
 
       if (bottomDepth > 0) {
         cuts.push(`M ${left} ${yBottom} L ${left} ${yBottom + bottomDepth} L ${right} ${yBottom + bottomDepth} L ${right} ${yBottom}`);
+      } else {
+        cuts.push(`M ${left} ${yBottom} L ${right} ${yBottom}`);
       }
     }
 
     // Outer right wall cut; the three interior panel boundaries are creases.
     cuts.push(`M ${xP4} ${yTop} L ${xP4} ${yBottom}`);
     if (topMax > 0) creases.push(`M ${xG} ${yTop} L ${xP4} ${yTop}`);
-    else cuts.push(`M ${xG} ${yTop} L ${xP4} ${yTop}`);
     if (bottomMax > 0) creases.push(`M ${xG} ${yBottom} L ${xP4} ${yBottom}`);
-    else cuts.push(`M ${xG} ${yBottom} L ${xP4} ${yBottom}`);
     creases.push(`M ${xP1} ${yTop} L ${xP1} ${yBottom}`);
     creases.push(`M ${xP2} ${yTop} L ${xP2} ${yBottom}`);
     creases.push(`M ${xP3} ${yTop} L ${xP3} ${yBottom}`);
