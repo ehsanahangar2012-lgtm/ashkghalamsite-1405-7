@@ -1,4 +1,4 @@
-import { calculateDielineParameters, STANDARD_DIELINE_ENGINES } from '../src/services/dielineMath.ts';
+import { calculateDielineParameters, getRscFlapDepths, STANDARD_DIELINE_ENGINES } from '../src/services/dielineMath.ts';
 import { parseDxfToEntities, scaleCustomDieline } from '../src/services/customDielineEngine.ts';
 import { validateDxfDieline, runComprehensiveGeometryCheck } from '../src/services/geometryValidator.ts';
 
@@ -55,6 +55,17 @@ for (const id of requiredEngines) {
       }
     }
   }
+}
+
+// Regression: FEFCO 0201 must use different flap depths for L- and W-wide panels.
+const rscDepths = getRscFlapDepths(240, 160, 0.5, 0.5);
+if (rscDepths.top[0] !== 78 || rscDepths.top[1] !== 118 || rscDepths.top[2] !== 78 || rscDepths.top[3] !== 118) {
+  fail(`RSC panel flap depths must follow the perpendicular box dimension, got ${JSON.stringify(rscDepths.top)}`);
+}
+const rscGeometry = STANDARD_DIELINE_ENGINES['fefco-0201']({ L: 240, W: 160, H: 100, glueTab: 30, x0: 40 });
+if (!rscGeometry.cuts.some(path => path.includes('M 310 158 L 310 40 L 470 40 L 470 158')) ||
+    !rscGeometry.cuts.some(path => path.includes('M 70 158 L 70 80 L 310 80 L 310 158'))) {
+  fail('FEFCO 0201 must render visibly different side-flap and main-flap depths');
 }
 
 const telescope = STANDARD_DIELINE_ENGINES['fefco-0320']({
