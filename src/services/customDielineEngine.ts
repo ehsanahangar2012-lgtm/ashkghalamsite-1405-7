@@ -138,21 +138,65 @@ export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
       continue;
     }
     if (entity.type === 'LWPOLYLINE') {
-      const pts: Point[] = [];
+      // Keep group 42 bulge values attached to their vertex. DXF bulge is
+      // tan(includedAngle / 4); non-zero bulges describe circular arc segments.
+      const vertices: Array<{ point: Point; bulge: number }> = [];
       let x: number | null = null;
+      let y: number | null = null;
+      let bulge = 0;
+      const flushVertex = () => {
+        if (x !== null && y !== null && Number.isFinite(x) && Number.isFinite(y)) {
+          vertices.push({ point: { x, y }, bulge });
+        }
+        x = null;
+        y = null;
+        bulge = 0;
+      };
       for (const pair of p) {
         if (pair.code === 10) {
-          if (x !== null) pts.push({ x, y: Number.NaN });
+          flushVertex();
           x = Number(pair.value);
         } else if (pair.code === 20 && x !== null) {
-          pts.push({ x, y: Number(pair.value) });
-          x = null;
+          y = Number(pair.value);
+        } else if (pair.code === 42 && x !== null) {
+          const parsedBulge = Number(pair.value);
+          bulge = Number.isFinite(parsedBulge) ? parsedBulge : 0;
         }
       }
-      if (x !== null) pts.push({ x, y: Number.NaN });
-      const valid = pts.filter(pt => Number.isFinite(pt.x) && Number.isFinite(pt.y));
-      for (let i=0;i<valid.length-1;i++) addLine(valid[i],valid[i+1],layer);
-      if ((groupByCode(p,70)[0] || 0) & 1 && valid.length > 2) addLine(valid[valid.length-1],valid[0],layer);
+      flushVertex();
+      const closed = (((groupByCode(p, 70)[0] || 0) & 1) === 1);
+      const segmentCount = closed ? vertices.length : Math.max(0, vertices.length - 1);
+      for (let i = 0; i < segmentCount; i++) {
+        const current = vertices[i];
+        const next = vertices[(i + 1) % vertices.length];
+        const a = current.point, b = next.point;
+        if (Math.abs(current.bulge) < 1e-10) {
+          addLine(a, b, layer);
+          continue;
+        }
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const chord = Math.hypot(dx, dy);
+        if (chord < 1e-9) continue;
+        const theta = 4 * Math.atan(current.bulge);
+        const radius = chord * (1 + current.bulge * current.bulge) / (4 * Math.abs(current.bulge));
+        const offset = chord * (1 - current.bulge * current.bulge) / (4 * current.bulge);
+        const center = {
+          x: (a.x + b.x) / 2 - (dy / chord) * offset,
+          y: (a.y + b.y) / 2 + (dx / chord) * offset,
+        };
+        const startAngle = Math.atan2(a.y - center.y, a.x - center.x);
+        const steps = Math.max(2, Math.ceil(Math.abs(theta) / (Math.PI / 18)));
+        let previous = a;
+        for (let step = 1; step <= steps; step++) {
+          const angle = startAngle + theta * step / steps;
+          const point = step === steps ? b : {
+            x: center.x + radius * Math.cos(angle),
+            y: center.y + radius * Math.sin(angle),
+          };
+          addLine(previous, point, layer);
+          previous = point;
+        }
+      }
       continue;
     }
     if (entity.type === 'ARC' || entity.type === 'CIRCLE') {
