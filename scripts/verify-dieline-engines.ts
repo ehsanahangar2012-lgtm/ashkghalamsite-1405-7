@@ -412,7 +412,7 @@ if (Math.abs((rscInside.totalH - rscLargeGap.totalH) - (6 - 2.4)) > 1e-8) {
 // On the slotted case baseline, glue-tab corner relief is the only diagonal cut;
 // flap edges and shared slots must be orthogonal and each exact cut segment unique.
 const extractSimpleSegments = (path: string) => {
-  const points = [...path.matchAll(/[ML]\\s*(-?\\d+(?:\\.\\d+)?)\\s+(-?\\d+(?:\\.\\d+)?)/g)]
+  const points = [...path.matchAll(/[ML]\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g)]
     .map(match => [Number(match[1]), Number(match[2])] as const);
   return points.slice(1).map((point, i) => [points[i][0], points[i][1], point[0], point[1]] as const);
 };
