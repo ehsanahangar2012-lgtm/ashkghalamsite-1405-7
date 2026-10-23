@@ -44,6 +44,7 @@ export const createRteEngine = (straightTuck = false) => {
       const tongueY = outerY + direction * tongue;
       const shoulderY = outerY + direction * tongue * 0.55;
       cuts.push('M ' + xa + ' ' + outerY + ' L ' + baseL + ' ' + outerY + ' L ' + neckL + ' ' + shoulderY + ' L ' + tipL + ' ' + tongueY + ' L ' + tipR + ' ' + tongueY + ' L ' + neckR + ' ' + shoulderY + ' L ' + baseR + ' ' + outerY + ' L ' + xb + ' ' + outerY);
+      creases.push(line(baseL, outerY, baseR, outerY)); // Tongue hinge: fold line, not a cut.
     };
 
     const addEnd = (edgeY: number, depths: number[], direction: -1 | 1) => {
