@@ -5,51 +5,81 @@ type Segment = { x1: number; y1: number; x2: number; y2: number; kind: 'cut' | '
 
 const clamp = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
 
-function makeGeometry(L: number, W: number, H: number, glue: number, allowance: number) {
+type BoxTemplate = 'rsc' | 'mailer' | 'tray';
+
+function makeGeometry(L: number, W: number, H: number, glue: number, allowance: number, template: BoxTemplate) {
+  const lines: Segment[] = [];
+  const line = (x1: number, y1: number, x2: number, y2: number, kind: Segment['kind']) => {
+    if (![x1, y1, x2, y2].every(Number.isFinite)) return;
+    if (Math.hypot(x2 - x1, y2 - y1) < 0.001) return;
+    lines.push({ x1, y1, x2, y2, kind });
+  };
+
+  if (template === 'tray' || template === 'mailer') {
+    // Conceptual one-piece tray / mailer blank: base, folding walls and a lid extension for mailers.
+    const wall = Math.max(10, H + allowance);
+    const x0 = wall + 18, y0 = (template === 'mailer' ? L : wall) + wall + 28;
+    const x1 = x0 + L, y1 = y0 + W;
+    line(x0, y0, x1, y0, 'fold');
+    line(x1, y0, x1, y1, 'fold');
+    line(x1, y1, x0, y1, 'fold');
+    line(x0, y1, x0, y0, 'fold');
+    line(x0, y0, x0, y0 - wall, 'cut');
+    line(x0, y0 - wall, x1, y0 - wall, 'cut');
+    line(x1, y0 - wall, x1, y0, 'cut');
+    line(x0, y1, x0, y1 + wall, 'cut');
+    line(x0, y1 + wall, x1, y1 + wall, 'cut');
+    line(x1, y1 + wall, x1, y1, 'cut');
+    line(x0, y0, x0 - wall, y0, 'cut');
+    line(x0 - wall, y0, x0 - wall, y1, 'cut');
+    line(x0 - wall, y1, x0, y1, 'cut');
+    line(x1, y0, x1 + wall, y0, 'cut');
+    line(x1 + wall, y0, x1 + wall, y1, 'cut');
+    line(x1 + wall, y1, x1, y1, 'cut');
+    line(x0 - wall, y0, x0, y0 + Math.min(wall, 12), 'cut');
+    line(x0 - wall, y1, x0, y1 - Math.min(wall, 12), 'cut');
+    line(x1 + wall, y0, x1, y0 + Math.min(wall, 12), 'cut');
+    line(x1 + wall, y1, x1, y1 - Math.min(wall, 12), 'cut');
+    if (template === 'mailer') {
+      // Lid panel and a small tuck lip, attached to the rear wall.
+      line(x0, y0 - wall, x0, y0 - wall - L, 'cut');
+      line(x0, y0 - wall - L, x1, y0 - wall - L, 'cut');
+      line(x1, y0 - wall - L, x1, y0 - wall, 'cut');
+      line(x0, y0 - wall - L, x0 + Math.min(wall, 18), y0 - wall - L + Math.min(wall, 18), 'cut');
+      line(x1 - Math.min(wall, 18), y0 - wall - L + Math.min(wall, 18), x1, y0 - wall - L, 'cut');
+    }
+    return { lines, totalW: x1 + wall + 18, totalH: y1 + wall + 18 + (template === 'mailer' ? L : 0), yTop: y0, yBottom: y1, xs: [x0, x1], flap: wall };
+  }
+
+  // FEFCO 0201-style regular slotted carton (RSC), parametric concept.
   const flap = Math.max(8, W / 2 + allowance);
   const yTop = flap + 18;
   const yBottom = yTop + H;
   const xs = [glue, glue + L, glue + L + W, glue + 2 * L + W, glue + 2 * L + 2 * W];
   const totalW = xs[4];
   const totalH = yBottom + flap + 18;
-  const lines: Segment[] = [];
-  const line = (x1: number, y1: number, x2: number, y2: number, kind: Segment['kind']) => {
-    lines.push({ x1, y1, x2, y2, kind });
-  };
-
-  // Glue flap: tapered outer edge, joined to the first body panel.
   line(0, yTop + 8, 0, yBottom - 8, 'cut');
   line(0, yTop + 8, glue, yTop, 'cut');
   line(0, yBottom - 8, glue, yBottom, 'cut');
   line(glue, yTop, glue, yBottom, 'fold');
-
-  // Main body perimeter and structural crease lines.
   line(xs[0], yTop, xs[4], yTop, 'fold');
   line(xs[0], yBottom, xs[4], yBottom, 'fold');
   line(xs[0], yTop, xs[0], yBottom, 'cut');
   line(xs[4], yTop, xs[4], yBottom, 'cut');
   [xs[1], xs[2], xs[3]].forEach(x => line(x, yTop, x, yBottom, 'fold'));
-
-  // Four dust/major flaps, with eased corners for practical die cutting.
   for (let i = 0; i < 4; i++) {
     const x0 = xs[i], x1 = xs[i + 1], panelW = x1 - x0;
-    const depth = flap;
-    const isMajor = i === 0 || i === 2;
-    const sideInset = isMajor ? 0 : Math.min(8, panelW * 0.18);
-    // top flap outer cut contour
-    line(x0, yTop, x0, yTop - depth + (sideInset ? 7 : 0), 'cut');
-    if (sideInset) line(x0, yTop - depth + 7, x0 + sideInset, yTop - depth, 'cut');
-    line(x0 + sideInset, yTop - depth, x1 - sideInset, yTop - depth, 'cut');
-    if (sideInset) line(x1 - sideInset, yTop - depth, x1, yTop - depth + 7, 'cut');
-    line(x1, yTop - depth + (sideInset ? 7 : 0), x1, yTop, 'cut');
-
-    // bottom flap outer cut contour
-    line(x0, yBottom, x0, yBottom + depth - (sideInset ? 7 : 0), 'cut');
-    if (sideInset) line(x0, yBottom + depth - 7, x0 + sideInset, yBottom + depth, 'cut');
-    line(x0 + sideInset, yBottom + depth, x1 - sideInset, yBottom + depth, 'cut');
-    if (sideInset) line(x1 - sideInset, yBottom + depth, x1, yBottom + depth - 7, 'cut');
-    line(x1, yBottom + depth - (sideInset ? 7 : 0), x1, yBottom, 'cut');
-
+    const sideInset = (i === 0 || i === 2) ? 0 : Math.min(8, panelW * 0.18);
+    line(x0, yTop, x0, yTop - flap + (sideInset ? 7 : 0), 'cut');
+    if (sideInset) line(x0, yTop - flap + 7, x0 + sideInset, yTop - flap, 'cut');
+    line(x0 + sideInset, yTop - flap, x1 - sideInset, yTop - flap, 'cut');
+    if (sideInset) line(x1 - sideInset, yTop - flap, x1, yTop - flap + 7, 'cut');
+    line(x1, yTop - flap + (sideInset ? 7 : 0), x1, yTop, 'cut');
+    line(x0, yBottom, x0, yBottom + flap - (sideInset ? 7 : 0), 'cut');
+    if (sideInset) line(x0, yBottom + flap - 7, x0 + sideInset, yBottom + flap, 'cut');
+    line(x0 + sideInset, yBottom + flap, x1 - sideInset, yBottom + flap, 'cut');
+    if (sideInset) line(x1 - sideInset, yBottom + flap, x1, yBottom + flap - 7, 'cut');
+    line(x1, yBottom + flap - (sideInset ? 7 : 0), x1, yBottom, 'cut');
   }
   return { lines, totalW, totalH, yTop, yBottom, xs, flap };
 }
