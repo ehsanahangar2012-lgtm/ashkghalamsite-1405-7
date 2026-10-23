@@ -908,12 +908,21 @@ const createSnapLockBottomEngine = () => {
     // Top closure: front tuck, two tapered dust flaps, and an exposed rear edge.
     const tuckCenter = (xs[0] + xs[1]) / 2;
     const tuckInset = Math.min(panelL * 0.12, tuckDepth * 0.3);
-    const thumbW = Math.min(panelL * 0.2, 18);
-    const thumbD = Math.min(4, tuckDepth * 0.16);
+    const backThumbWidth = Math.min(panelW * 0.28, 18);
+    const backThumbDepth = Math.min(4, panelW * 0.06);
     const lidOuterY = yBodyTop - panelW;
     const tuckOuterY = yBodyTop - topTuckDepth;
     cuts.push(
-      `M ${xs[0]} ${yBodyTop} L ${xs[0]} ${lidOuterY} L ${xs[0] + tuckInset} ${tuckOuterY} L ${tuckCenter - thumbW / 2} ${tuckOuterY} L ${tuckCenter - thumbW / 2} ${tuckOuterY + thumbD} L ${tuckCenter + thumbW / 2} ${tuckOuterY + thumbD} L ${tuckCenter + thumbW / 2} ${tuckOuterY} L ${xs[1] - tuckInset} ${tuckOuterY} L ${xs[1]} ${lidOuterY} L ${xs[1]} ${yBodyTop}`
+      `M ${xs[0]} ${yBodyTop} L ${xs[0]} ${lidOuterY} L ${xs[0] + tuckInset} ${tuckOuterY} L ${xs[1] - tuckInset} ${tuckOuterY} L ${xs[1]} ${lidOuterY} L ${xs[1]} ${yBodyTop}`
+    );
+    // A separate slit cut locks the tuck tongue; the back panel receives its
+    // own open thumb notch at the exposed top edge, matching the reference layout.
+    const tuckSlitY = tuckOuterY + tuckDepth * 0.42;
+    const tuckSlitWidth = Math.min(panelL * 0.26, 22);
+    cuts.push(line(tuckCenter - tuckSlitWidth / 2, tuckSlitY, tuckCenter + tuckSlitWidth / 2, tuckSlitY));
+    const backCenter = (xs[2] + xs[3]) / 2;
+    cuts.push(
+      `M ${xs[2]} ${yBodyTop} L ${backCenter - backThumbWidth / 2} ${yBodyTop} L ${backCenter - backThumbWidth * 0.2} ${yBodyTop + backThumbDepth * 0.75} L ${backCenter} ${yBodyTop + backThumbDepth} L ${backCenter + backThumbWidth * 0.2} ${yBodyTop + backThumbDepth * 0.75} L ${backCenter + backThumbWidth / 2} ${yBodyTop} L ${xs[3]} ${yBodyTop}`
     );
     creases.push(line(xs[0], yBodyTop, xs[1], yBodyTop));
     for (const i of [1, 3]) {
