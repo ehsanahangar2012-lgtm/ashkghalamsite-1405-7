@@ -222,7 +222,7 @@ const createMailerEngine = () => {
 };
 
 // 3. ECMA A20.20 (Tuck End Folding Carton) Engine
-const createTuckEndEngine = (isCrashLock = false) => {
+const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
   return ({ L, W, H, glueTab = 15, tuck = 20, dustFlap = 15, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
     const G = Math.max(12, glueTab || 15);
     const T = Math.max(15, tuck || 20);
@@ -233,8 +233,8 @@ const createTuckEndEngine = (isCrashLock = false) => {
     const yTopFlap = yTopTuck + T;
     const yBodyTop = yTopFlap + W;
     const yBodyBtm = yBodyTop + H;
-    const yBtmFlap = yBodyBtm + (isCrashLock ? W * 0.75 : W);
-    const yBtmTuck = isCrashLock ? yBtmFlap : yBtmFlap + T;
+    const yBtmFlap = yBodyBtm + (isCrashLock ? W * 0.75 : isStraightTuck ? T : W);
+    const yBtmTuck = isCrashLock || isStraightTuck ? yBtmFlap : yBtmFlap + T;
 
     const xG = x0 + G;
     const xP1 = xG + L;
@@ -266,7 +266,17 @@ const createTuckEndEngine = (isCrashLock = false) => {
     creases.push(`M ${xP3} ${yBodyTop} L ${xP4} ${yBodyTop}`);
 
     // Bottom Flaps
-    if (!isCrashLock) {
+    if (isStraightTuck) {
+      // Straight-tuck variant: top and bottom tuck flaps are on the same main panel.
+      cuts.push(`M ${xG} ${yBodyBtm} L ${xG} ${yBtmFlap} L ${xP1} ${yBtmFlap} L ${xP1} ${yBodyBtm}`);
+      creases.push(`M ${xG} ${yBodyBtm} L ${xP1} ${yBodyBtm}`);
+      creases.push(`M ${xG} ${yBtmFlap} L ${xP1} ${yBtmFlap}`);
+      cuts.push(`M ${xP1} ${yBodyBtm} L ${xP1} ${yBodyBtm + DF} L ${xP2} ${yBodyBtm + DF} L ${xP2} ${yBodyBtm}`);
+      creases.push(`M ${xP1} ${yBodyBtm} L ${xP2} ${yBodyBtm}`);
+      cuts.push(`M ${xP2} ${yBodyBtm} L ${xP3} ${yBodyBtm}`);
+      cuts.push(`M ${xP3} ${yBodyBtm} L ${xP3} ${yBodyBtm + DF} L ${xP4} ${yBodyBtm + DF} L ${xP4} ${yBodyBtm}`);
+      creases.push(`M ${xP3} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
+    } else if (!isCrashLock) {
       // Panel 3 bottom tuck flap
       cuts.push(`M ${xG} ${yBodyBtm} L ${xG} ${yBodyBtm + DF} L ${xP1} ${yBodyBtm + DF} L ${xP1} ${yBodyBtm}`);
       creases.push(`M ${xG} ${yBodyBtm} L ${xP1} ${yBodyBtm}`);
@@ -593,6 +603,7 @@ const openTopEngine = createRscEngine(0, 0.5);
 const folEngine = createRscEngine(1.0, 1.0);
 const mailerEngine = createMailerEngine();
 const tuckEndEngine = createTuckEndEngine(false);
+const straightTuckEngine = createTuckEndEngine(false, true);
 const crashLockEngine = createTuckEndEngine(true);
 const trayEngine = createTrayEngine();
 const sleeveEngine = createSleeveEngine();
@@ -625,6 +636,7 @@ export const STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEnginePara
 
   // ECMA Standard Cartons
   'ecma-a2020': tuckEndEngine,
+  'ecma-ste': straightTuckEngine,
   'snap-lock-123': crashLockEngine,
   'ecma-a30': tuckEndEngine,
   'ecma-b10': sleeveEngine,
