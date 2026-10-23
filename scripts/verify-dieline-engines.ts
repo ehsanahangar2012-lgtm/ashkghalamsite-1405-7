@@ -227,6 +227,13 @@ if (!lockBottom.cuts.some(path => path.includes('M') && path.split(' L ').length
     !lockBottom.labels.some(label => label.text.includes('نیم‌ماه'))) {
   fail('snap-lock blank must contain the integral tongue and edge-open half-moon receiver notch');
 }
+const tongueLabel = lockBottom.labels.find(label => label.text.includes('زبانه قفل'))?.text ?? '';
+const receiverLabel = lockBottom.labels.find(label => label.text.includes('نیم‌ماه'))?.text ?? '';
+const tongueWidth = Number(tongueLabel.match(/قفل\s+(\d+)/)?.[1]);
+const receiverWidth = Number(receiverLabel.match(/عرض\s+(\d+)/)?.[1]);
+if (!Number.isFinite(tongueWidth) || !Number.isFinite(receiverWidth) || receiverWidth <= tongueWidth) {
+  fail(`snap-lock receiver opening must be wider than the locking tongue; tongue=${tongueWidth}, opening=${receiverWidth}`);
+}
 const referenceWidth = 15 + 4 * (70 + 0.45);
 if (Math.abs(lockBottom.totalW - referenceWidth) > 1e-8) {
   fail(`snap-lock inside-size panel width must match the reference convention: expected ${referenceWidth}, got ${lockBottom.totalW}`);
