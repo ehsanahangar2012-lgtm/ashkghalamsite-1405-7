@@ -411,7 +411,7 @@ const createTuckEndEngine = (isCrashLock = false, isStraightTuck = false) => {
       creases.push(`M ${xP2} ${yBodyBtm} L ${xP3} ${yBodyBtm}`);
       creases.push(`M ${xP2} ${yBtmFlap} L ${xP3} ${yBtmFlap}`);
 
-      cuts.push(`M ${xP3} ${yBodyBtm} L ${xP3} ${yBodyBtm + DF} L ${xP4} ${yBodyBtm + DF} L ${xP4} ${yBodyBtm}`);
+      cuts.push(dustFlapPath(xP3, xP4, yBodyBtm, DF, 1));
       creases.push(`M ${xP3} ${yBodyBtm} L ${xP4} ${yBodyBtm}`);
     } else {
       // Experimental crash-lock-inspired bottom. The long-panel shoulders scale
