@@ -37,7 +37,8 @@ for (const id of requiredEngines) {
 
     const geometryReport = runComprehensiveGeometryCheck(
       result.cuts, result.creases, dims.L, dims.W, dims.H, id,
-      dims.L * 0.18, dims.W * 0.42, result.totalW, result.totalH, 100000, 100000, dims.glueTab
+      dims.L * 0.18, dims.W * 0.42, result.totalW, result.totalH, 100000, 100000, dims.glueTab,
+      { xMin: result.xMin, yMin: result.yMin, xMax: result.xMax, yMax: result.yMax }
     );
     if (geometryReport.errors.length > 0) {
       fail(`${id}: geometry validator errors for ${JSON.stringify(dims)}: ${geometryReport.errors.join('; ')}`);
@@ -55,6 +56,41 @@ for (const id of requiredEngines) {
       }
     }
   }
+}
+
+
+// Cross-path topology regressions: each case deliberately isolates one failure mode.
+const crossCutReport = runComprehensiveGeometryCheck(
+  ['M 0 0 L 10 10', 'M 0 10 L 10 0'], ['M 0 0 L 0 10'],
+  10, 10, 10, 'fixture-cross-cut', 2, 2, 20, 20, 100, 100, 5,
+  { xMin: 0, yMin: 0, xMax: 20, yMax: 20 },
+);
+if (crossCutReport.topology.cutCutCrossings < 1 || crossCutReport.passed) {
+  fail('cross-path audit must reject proper crossings between separate cut paths');
+}
+const cutCreaseCrossReport = runComprehensiveGeometryCheck(
+  ['M 0 0 L 10 0'], ['M 5 -5 L 5 5'],
+  10, 10, 10, 'fixture-cut-crease-cross', 2, 2, 10, 10, 100, 100, 5,
+  { xMin: 0, yMin: -5, xMax: 10, yMax: 5 },
+);
+if (cutCreaseCrossReport.topology.cutCreaseCrossings < 1 || cutCreaseCrossReport.passed) {
+  fail('cross-path audit must reject a crease continuing through the interior of a cut segment');
+}
+const validScoreTermination = runComprehensiveGeometryCheck(
+  ['M 0 0 L 10 0'], ['M 5 0 L 5 5'],
+  10, 10, 10, 'fixture-valid-score-termination', 2, 2, 10, 5, 100, 100, 5,
+  { xMin: 0, yMin: 0, xMax: 10, yMax: 5 },
+);
+if (!validScoreTermination.passed) {
+  fail('a crease terminating at the edge of the blank must not be treated as a through-crossing');
+}
+const outOfBoundsReport = runComprehensiveGeometryCheck(
+  ['M -1 0 L 10 0'], ['M 0 0 L 0 5'],
+  10, 10, 10, 'fixture-out-of-bounds', 2, 2, 11, 5, 100, 100, 5,
+  { xMin: 0, yMin: 0, xMax: 10, yMax: 5 },
+);
+if (outOfBoundsReport.topology.boundsViolations < 1 || outOfBoundsReport.passed) {
+  fail('bounds audit must reject path segments beyond the reported dieline envelope');
 }
 
 // Regression: FEFCO 0201 flap height is W/2 (with clearance) on all four panels.
