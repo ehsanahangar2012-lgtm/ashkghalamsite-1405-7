@@ -19,7 +19,7 @@ import { CatalogItemPage } from './components/catalog/CatalogItemPage';
 import { Button, Card, Badge } from './components/UIComponents';
 import { generateSupportResponse, analyzeDesignStyle } from './services/geminiService';
 import { DesignStudio } from './components/DesignStudio';
-import { BoxStudio } from './components/BoxStudio';
+import { DielineGenerator } from './components/DielineGenerator';
 import { ThreeDProductSlider } from './components/ThreeDProductSlider';
 import { ContentProvider, useContent } from './contexts/ContentContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -1541,7 +1541,7 @@ const AppContent = () => {
           <Route path="/services/:slug" element={<ServicesHub />} />
           <Route path="/products" element={<ProductsHub />} />
           <Route path="/products/:slug" element={<ProductsHub />} />
-          <Route path="/tools/dieline" element={<><SeoHead view={AppView.DIELINE_GENERATOR} canonicalPath="/tools/dieline" /><BoxStudio /></>} />
+          <Route path="/tools/dieline" element={<><SeoHead view={AppView.DIELINE_GENERATOR} canonicalPath="/tools/dieline" /><DielineGenerator onSaveProject={handleSaveProject} /></>} />
           <Route path="/dieline" element={<Navigate to="/tools/dieline" replace />} />
           <Route path="/tools/design-studio" element={<><SeoHead view={AppView.DESIGN_STUDIO} canonicalPath="/tools/design-studio" /><DesignStudio isDarkMode={isDarkMode} /></>} />
           <Route path="/design-studio" element={<Navigate to="/tools/design-studio" replace />} />
