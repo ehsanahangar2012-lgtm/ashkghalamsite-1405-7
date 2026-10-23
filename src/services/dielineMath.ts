@@ -52,7 +52,7 @@ export const calculateDielineParameters = (
         current = first;
         continue;
       }
-      const values = raw.slice(1).match(/-?\\d*\\.?\\d+(?:e[-+]?\\d+)?/gi)?.map(Number) || [];
+      const values = raw.slice(1).match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)?.map(Number) || [];
       for (let i = 0; i + 1 < values.length; i += 2) {
         const point: [number, number] = [values[i], values[i + 1]];
         if (command === 'M' && i === 0) {
