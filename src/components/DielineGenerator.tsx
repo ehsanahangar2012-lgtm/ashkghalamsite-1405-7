@@ -5206,7 +5206,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   return (
     <div 
       ref={dielineRootRef}
-      className={`dieline-generator-container flex flex-col overflow-hidden bg-[#090b11] text-slate-100 select-none transition-all duration-300 ${
+      className={`dieline-generator-container flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top_right,_rgba(14,165,233,0.09),_transparent_38%),linear-gradient(135deg,#070b12_0%,#0b1220_48%,#080d16_100%)] text-slate-100 select-none transition-all duration-300 ${
         isFullScreen ? 'fixed inset-0 z-50 w-screen h-screen' : 'h-screen'
       }`} 
       dir="rtl"
@@ -5248,17 +5248,17 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       `}</style>
 
       {/* 1. SUITE HEADER BAR */}
-      <header className="h-14 bg-[#0c0f14]/90 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between px-4 md:px-6 shrink-0 shadow-lg z-30 animate-in fade-in slide-in-from-top-4 duration-300">
+      <header className="min-h-16 bg-gradient-to-l from-[#111c2d]/95 via-[#0c1422]/95 to-[#090e17]/95 backdrop-blur-xl border-b border-sky-500/20 flex items-center justify-between gap-3 px-4 md:px-6 py-2 shrink-0 shadow-[0_8px_30px_rgba(0,0,0,0.24)] z-30 animate-in fade-in slide-in-from-top-4 duration-300">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="bg-gradient-to-tr from-sky-600 to-indigo-750 p-2 rounded-xl text-white shadow-md shrink-0 border border-sky-500/10">
             <Cpu className="h-4 w-4 md:h-5 md:w-5 animate-pulse" />
           </div>
           <div className="truncate">
             <div className="flex items-center gap-1.5">
-              <h1 className="text-white font-black text-[11px] md:text-[13px] tracking-tight uppercase truncate font-sans">اشک‌قلم CAD (بی‌کران)</h1>
+              <h1 className="text-white font-black text-sm md:text-base tracking-tight truncate font-sans">استودیوی مهندسی بسته‌بندی اشک‌قلم</h1>
               <Badge color="blue" className="text-[8px] md:text-[9px] px-1.5 py-0 font-mono bg-sky-950 text-sky-450 border border-sky-800 shrink-0">v3.5.3</Badge>
             </div>
-            <p className="hidden md:block text-[9px] text-slate-500 font-mono tracking-wider">سیستم پیشرفته تولید قالب</p>
+            <p className="hidden md:block text-[10px] text-sky-200/70 tracking-wide mt-0.5">طراحی قالب، تحلیل سازه، چیدمان ورق و آماده‌سازی خروجی</p>
           </div>
         </div>
 
@@ -5375,6 +5375,42 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
           </button>
         </div>
       </header>
+
+      {/* LIVE WORKSPACE SUMMARY — presentation only; all existing controls and calculations remain unchanged */}
+      <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 px-3 md:px-5 py-2.5 bg-[#0a111d]/95 border-b border-slate-800/80 shrink-0" aria-label="خلاصه زنده پروژه">
+        <div className="rounded-xl border border-sky-500/20 bg-gradient-to-br from-sky-950/45 to-slate-950/80 px-3 py-2 shadow-inner">
+          <div className="flex items-center gap-2 text-sky-300"><Shapes className="w-4 h-4" /><span className="text-[10px] font-bold">قالب فعال</span></div>
+          <div className="mt-1 text-xs md:text-sm font-black text-white truncate">{selectedModel.code || selectedModel.name}</div>
+          <div className="mt-0.5 text-[10px] text-slate-400 truncate">{selectedModel.name}</div>
+        </div>
+        <div className="rounded-xl border border-slate-700/80 bg-slate-900/65 px-3 py-2">
+          <div className="flex items-center gap-2 text-indigo-300"><Ruler className="w-4 h-4" /><span className="text-[10px] font-bold">ابعاد محصول (mm)</span></div>
+          <div className="mt-1 text-sm font-black text-white font-mono" dir="ltr">{dims.L} × {dims.W} × {dims.H}</div>
+          <div className="mt-0.5 text-[10px] text-slate-400">طول × عرض × ارتفاع</div>
+        </div>
+        <div className="rounded-xl border border-slate-700/80 bg-slate-900/65 px-3 py-2">
+          <div className="flex items-center gap-2 text-amber-300"><Layers className="w-4 h-4" /><span className="text-[10px] font-bold">جنس و ضخامت</span></div>
+          <div className="mt-1 text-sm font-black text-white truncate">{material.name}</div>
+          <div className="mt-0.5 text-[10px] text-slate-400">{material.thickness} mm · {material.weight} gsm</div>
+        </div>
+        <div className="rounded-xl border border-rose-500/15 bg-slate-900/65 px-3 py-2">
+          <div className="flex items-center gap-2 text-rose-300"><Scissors className="w-4 h-4" /><span className="text-[10px] font-bold">مسیرهای برش</span></div>
+          <div className="mt-1 text-lg font-black text-white font-mono">{(dieline.cuts || []).length}</div>
+          <div className="mt-0.5 text-[10px] text-slate-400">Cut paths</div>
+        </div>
+        <div className="rounded-xl border border-indigo-500/15 bg-slate-900/65 px-3 py-2">
+          <div className="flex items-center gap-2 text-indigo-300"><Activity className="w-4 h-4" /><span className="text-[10px] font-bold">مسیرهای خط تا</span></div>
+          <div className="mt-1 text-lg font-black text-white font-mono">{(dieline.creases || []).length}</div>
+          <div className="mt-0.5 text-[10px] text-slate-400">Crease paths</div>
+        </div>
+        <div className={validatorIssues.some(issue => issue.type === "error") ? "rounded-xl border border-rose-500/30 bg-rose-950/20 px-3 py-2" : validatorIssues.some(issue => issue.type === "warning") ? "rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2" : "rounded-xl border border-emerald-500/25 bg-emerald-950/20 px-3 py-2"}>
+          <div className="flex items-center gap-2 text-slate-300"><ShieldCheck className="w-4 h-4" /><span className="text-[10px] font-bold">وضعیت بررسی</span></div>
+          <div className={validatorIssues.some(issue => issue.type === "error") ? "mt-1 text-sm font-black text-rose-300" : validatorIssues.some(issue => issue.type === "warning") ? "mt-1 text-sm font-black text-amber-300" : "mt-1 text-sm font-black text-emerald-300"}>
+            {validatorIssues.some(issue => issue.type === "error") ? "نیازمند اصلاح" : validatorIssues.some(issue => issue.type === "warning") ? "نیازمند بازبینی" : "بدون هشدار ثبت‌شده"}
+          </div>
+          <div className="mt-0.5 text-[10px] text-slate-400">امتیاز گزارش هندسی: {geometryReport.score}%</div>
+        </div>
+      </section>
 
       {/* SECONDARY CAD TOOLBOX RIBBON BAR REMOVED -> REPLACED BY FLOATING ACTION BUTTONS */}
 
@@ -5842,7 +5878,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id as any)}
-                          className={`flex-1 min-w-[50px] py-2 px-1 text-[9px] font-black rounded-md flex flex-col items-center gap-1 transition-all ${activeTab === tab.id ? 'bg-[#1f2937] text-sky-400 font-bold' : 'text-slate-500 hover:text-slate-350'}`}
+                          className={`flex-1 min-w-[64px] py-2.5 px-2 text-[10px] font-black rounded-lg flex flex-col items-center gap-1.5 transition-all border ${activeTab === tab.id ? 'bg-gradient-to-br from-sky-500/15 to-indigo-500/10 text-sky-300 border-sky-400/25 shadow-inner' : 'text-slate-400 border-transparent hover:text-white hover:bg-slate-800/70'}`}
                         >
                           <IconComp className="w-3.5 h-3.5" />
                           <span>{tab.label}</span>
