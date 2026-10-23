@@ -60,6 +60,10 @@ for (const id of requiredEngines) {
         if (numbers.length < 8 || numbers[3] !== expectedOuterYs[index] || numbers[5] !== expectedOuterYs[index]) {
           fail(`fefco-0713: bottom flap ${index + 1} must use its axis-specific depth; expected outer Y=${expectedOuterYs[index]}, got ${contour}`);
         }
+        if ((index === 0 || index === 2) &&
+            (numbers.length < 16 || numbers[7] >= expectedOuterYs[index] || numbers[9] !== numbers[7])) {
+          fail(`fefco-0713: long-wall bottom flap ${index + 1} must have the stepped central edge relief from the reference outline: ${contour}`);
+        }
       });
     }
     if (!Array.isArray(result.cuts) || result.cuts.length === 0) fail(`${id}: no cut paths`);
