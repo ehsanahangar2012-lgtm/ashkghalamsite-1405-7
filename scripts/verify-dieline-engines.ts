@@ -306,6 +306,17 @@ for (const id of Object.keys(STANDARD_DIELINE_ENGINES)) {
     if (result.totalW <= 0 || result.totalH <= 0) fail(`${id}: non-positive bounds from registry sweep`);
   }
 }
+// Board caliper must influence opposing-flap clearance for slotted-case templates.
+// This is a parameter-sensitivity regression, not a claim that the allowance is machine-certified.
+for (const id of ['fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'default-rsc']) {
+  const engine = STANDARD_DIELINE_ENGINES[id];
+  const thin = engine({ L: 240, W: 160, H: 100, thickness: 0.45, x0: 0 });
+  const thick = engine({ L: 240, W: 160, H: 100, thickness: 4.8, x0: 0 });
+  if (Math.abs(thin.totalH - thick.totalH) < 1) {
+    fail(`${id}: board caliper change must affect flap-clearance geometry`);
+  }
+}
+
 for (const [l, w, h, caliper] of [
   [Number.NaN, 0, -10, Number.NaN],
   [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 1, Number.POSITIVE_INFINITY],
