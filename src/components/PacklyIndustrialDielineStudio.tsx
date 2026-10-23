@@ -79,6 +79,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [lidHeight, setLidHeight] = useState(50);
   const [thickness, setThickness] = useState(1.5);
   const [slotGap, setSlotGap] = useState(2.25);
+  const [autoLockAngle, setAutoLockAngle] = useState(45);
   const [dimensionConvention, setDimensionConvention] = useState<'inside' | 'outside'>('inside');
   const [materialPreset, setMaterialPreset] = useState('corrugated-e');
   const [glueTab, setGlueTab] = useState(30);
@@ -89,15 +90,17 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [saved, setSaved] = useState(false);
 
   const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
+  const supportsLockAngle = templateId === 'snap-lock-123';
   const validInputs = numeric(length, 10, 2000) && numeric(width, 10, 2000) && numeric(height, 10, 2000) &&
-    numeric(thickness, 0.2, 10) && numeric(glueTab, 5, 200) && numeric(slotGap, 1, 10) && numeric(lidHeight, 5, 2000);
+    numeric(thickness, 0.2, 10) && numeric(glueTab, 5, 200) && numeric(slotGap, 1, 10) && numeric(lidHeight, 5, 2000) &&
+    (!supportsLockAngle || numeric(autoLockAngle, 25, 65));
   const engine = STANDARD_DIELINE_ENGINES[templateId];
   const supportsLidHeight = ['fefco-0300', 'fefco-0301', 'fefco-0320'].includes(templateId);
   const supportsDimensionConvention = ['fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'default-rsc'].includes(templateId);
   const geometryState = useMemo(() => {
     if (!validInputs || typeof engine !== 'function') return { geometry: null as DielineEngineResult | null, error: 'ابعاد باید عدد معتبر باشند و در محدوده مجاز قرار گیرند.' };
     try {
-      const g = engine({ L: length, W: width, H: height, lidHeight, thickness, glueTab, slotGap, dimensionConvention, x0: 40 });
+      const g = engine({ L: length, W: width, H: height, lidHeight, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, x0: 40 });
       const allValues = [g.xMin, g.yMin, g.xMax, g.yMax, g.totalW, g.totalH];
       const pathsValid = Array.isArray(g.cuts) && g.cuts.length > 0 &&
         Array.isArray(g.creases) && g.creases.length > 0 &&
@@ -110,7 +113,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     } catch (error) {
       return { geometry: null, error: error instanceof Error ? error.message : 'خطای ناشناخته در موتور تولید قالب.' };
     }
-  }, [engine, length, width, height, lidHeight, thickness, glueTab, slotGap, dimensionConvention, validInputs]);
+  }, [engine, length, width, height, lidHeight, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, validInputs]);
 
   const geometry = geometryState.geometry;
   const geometryAudit = useMemo(() => {
@@ -218,13 +221,14 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                   <option value="custom">ضخامت سفارشی</option>
                 </select>
               </label>
-              <div className={`mt-3 grid ${supportsDimensionConvention ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
+              <div className={`mt-3 grid ${(supportsDimensionConvention || supportsLockAngle) ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
                 <label className="text-[11px] font-bold text-slate-700">ضخامت واقعی (mm)<input type="number" min={0.2} max={10} step={0.1} value={Number.isFinite(thickness) ? thickness : ''} onChange={e => { setThickness(e.target.value === '' ? NaN : Number(e.target.value)); setMaterialPreset('custom'); }} className={inputClass}/></label>
                 <label className="text-[11px] font-bold text-slate-700">لبه چسب (mm)<input type="number" min={5} max={200} value={Number.isFinite(glueTab) ? glueTab : ''} onChange={e => setGlueTab(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
                 {supportsDimensionConvention && <label className="text-[11px] font-bold text-slate-700">فاصله شیار (mm)<input type="number" min={1} max={10} step={0.1} value={Number.isFinite(slotGap) ? slotGap : ''} onChange={e => setSlotGap(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>}
+                {supportsLockAngle && <label className="text-[11px] font-bold text-slate-700">زاویه شانه قفل (درجه)<input type="number" min={25} max={65} step={1} value={Number.isFinite(autoLockAngle) ? autoLockAngle : ''} onChange={e => setAutoLockAngle(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>}
               </div>
-              <p className="mt-2 text-[10px] leading-5 text-slate-600">{supportsDimensionConvention ? 'برای خانواده FEFCO 0200، ابعاد داخلی پیش‌فرض است؛ کالیپر به ابعاد پنل و بدنه افزوده می‌شود و فاصله شیار بین فلپ‌ها جداگانه تنظیم می‌شود. اصلاح دقیق خطوط تا باید با روش قالب‌ساز کالیبره شود.' : 'برای این ساختار پارامتریک، تفسیر دقیق ابعاد داخل/خارج و جبران کامل خطوط تا هنوز تأیید نشده است.'}</p>
-              {!validInputs && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm · فاصله شیار: ۱ تا ۱۰ mm. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
+              <p className="mt-2 text-[10px] leading-5 text-slate-600">{supportsDimensionConvention ? 'برای خانواده FEFCO 0200، ابعاد داخلی پیش‌فرض است؛ کالیپر به ابعاد پنل و بدنه افزوده می‌شود و فاصله شیار بین فلپ‌ها جداگانه تنظیم می‌شود. اصلاح دقیق خطوط تا باید با روش قالب‌ساز کالیبره شود.' : supportsLockAngle ? 'زاویه شانه در هندسه برش اعمال می‌شود؛ شیار بر اساس ضخامت ورق تنظیم اولیه دارد. این قفل پارامتریک است و برای تولید باید با نمونه تاخورده و مشخصات قالب‌ساز تأیید شود.' : 'برای این ساختار پارامتریک، تفسیر دقیق ابعاد داخل/خارج و جبران کامل خطوط تا هنوز تأیید نشده است.'}</p>
+              {!validInputs && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm · فاصله شیار: ۱ تا ۱۰ mm · زاویه قفل (در صورت نمایش): ۲۵ تا ۶۵ درجه. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
             </div>
             <details className="rounded-xl border border-slate-200 bg-slate-50 p-2">
               <summary className="cursor-pointer px-2 py-1 text-xs font-bold text-slate-700">مرور همه قالب‌ها و توضیحات</summary>
@@ -241,7 +245,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             <div className="grid grid-cols-2 gap-2">
               <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className={buttonClass + ' bg-sky-600 text-white hover:bg-sky-500'}><Download className="h-4 w-4"/>خروجی SVG</button>
               <button disabled={!exportReady} onClick={exportDxf} className={buttonClass + ' bg-indigo-600 text-white hover:bg-indigo-500'}><Download className="h-4 w-4"/>خروجی DXF</button>
-              <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height, lidHeight: supportsLidHeight ? lidHeight : null, convention: supportsDimensionConvention ? dimensionConvention : 'template-default' }, material: { thickness, glueTab, slotGap: supportsDimensionConvention ? slotGap : null }, geometry, units: 'mm' }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-200 hover:bg-slate-300'}><Download className="h-4 w-4"/>پروژه JSON</button>
+              <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height, lidHeight: supportsLidHeight ? lidHeight : null, convention: supportsDimensionConvention ? dimensionConvention : 'template-default', lockAngle: supportsLockAngle ? autoLockAngle : null }, material: { thickness, glueTab, slotGap: supportsDimensionConvention ? slotGap : null }, geometry, units: 'mm' }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-200 hover:bg-slate-300'}><Download className="h-4 w-4"/>پروژه JSON</button>
               <button disabled={!exportReady || !onSaveProject} onClick={saveProject} className={buttonClass + ' border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}><Save className="h-4 w-4"/>ثبت پروژه</button>
             </div>
             {saved && <p className="text-center text-xs text-emerald-700"><CheckCircle2 className="ml-1 inline h-4 w-4"/>پروژه به تابع ذخیره‌سازی تحویل شد.</p>}
