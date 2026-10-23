@@ -207,7 +207,8 @@ const createRscEngine = (flapRatioTop = 0.5, flapRatioBottom = 0.5) => {
     cuts.push(`M ${x0 + 4} ${yBottom} L ${xG} ${yBottom}`);
     creases.push(`M ${xG} ${yTop} L ${xG} ${yBottom}`);
 
-    // Top and bottom flaps use the dimension perpendicular to the wall, not one shared depth.
+    // Draw the flap perimeter as unique knife segments. A hinge is a crease,
+    // never a cut; shared panel boundaries are emitted once to avoid duplicate knife paths.
     for (let i = 0; i < 4; i++) {
       const left = panelXs[i];
       const right = panelXs[i + 1];
@@ -215,15 +216,31 @@ const createRscEngine = (flapRatioTop = 0.5, flapRatioBottom = 0.5) => {
       const bottomDepth = depths.bottom[i];
 
       if (topDepth > 0) {
-        cuts.push(`M ${left} ${yTop} L ${left} ${yTop - topDepth} L ${right} ${yTop - topDepth} L ${right} ${yTop}`);
-      } else {
-        cuts.push(`M ${left} ${yTop} L ${right} ${yTop}`);
+        const outerY = yTop - topDepth;
+        cuts.push(`M ${left} ${outerY} L ${right} ${outerY}`);
+      }
+      if (bottomDepth > 0) {
+        const outerY = yBottom + bottomDepth;
+        cuts.push(`M ${left} ${outerY} L ${right} ${outerY}`);
+      }
+    }
+
+    // Left/right edges and the four panel seams. Each seam is one continuous
+    // cut to the deepest adjoining flap; this separates flaps without drawing
+    // the same segment twice when adjacent flaps have equal depth.
+    for (let seam = 0; seam <= 4; seam++) {
+      const leftDepthTop = seam > 0 ? depths.top[seam - 1] : 0;
+      const rightDepthTop = seam < 4 ? depths.top[seam] : 0;
+      const topDepth = Math.max(leftDepthTop, rightDepthTop);
+      if (topDepth > 0) {
+        cuts.push(`M ${panelXs[seam]} ${yTop} L ${panelXs[seam]} ${yTop - topDepth}`);
       }
 
+      const leftDepthBottom = seam > 0 ? depths.bottom[seam - 1] : 0;
+      const rightDepthBottom = seam < 4 ? depths.bottom[seam] : 0;
+      const bottomDepth = Math.max(leftDepthBottom, rightDepthBottom);
       if (bottomDepth > 0) {
-        cuts.push(`M ${left} ${yBottom} L ${left} ${yBottom + bottomDepth} L ${right} ${yBottom + bottomDepth} L ${right} ${yBottom}`);
-      } else {
-        cuts.push(`M ${left} ${yBottom} L ${right} ${yBottom}`);
+        cuts.push(`M ${panelXs[seam]} ${yBottom} L ${panelXs[seam]} ${yBottom + bottomDepth}`);
       }
     }
 
