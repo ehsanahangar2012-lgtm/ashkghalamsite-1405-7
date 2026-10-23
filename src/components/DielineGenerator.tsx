@@ -5,7 +5,7 @@ import { ThreeDPreview, FlapDirections } from './ThreeDPreview';
 import { Project } from '../types';
 import { 
   Download, Check, Rotate3d, Layers, LogOut, Pin, ArrowRight,
-  Shapes, Ruler as RulerIcon, Ruler, ShieldCheck, ArrowDownToLine, Maximize, Minimize, Upload, ImageIcon, Trash2, Box, Info, Sparkles, 
+  Shapes, Scissors, Ruler as RulerIcon, Ruler, ShieldCheck, ArrowDownToLine, Maximize, Minimize, Upload, ImageIcon, Trash2, Box, Info, Sparkles, 
   Share2, Printer, Calculator, Cpu, ShieldAlert, FileText, Database, Settings, HelpCircle, Save, CheckCircle2, AlertTriangle, Send, RefreshCw, RotateCcw, Layers3, Flame, Clock, X, Camera, ChevronDown, MapPin, Eye, BookOpen, Search, Sliders, Magnet, Activity
 , Orbit } from 'lucide-react';
 import { SmartHelpButton } from './SmartHelpModal';
