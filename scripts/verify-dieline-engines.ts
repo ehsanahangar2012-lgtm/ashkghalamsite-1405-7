@@ -214,7 +214,7 @@ const insertedBlockDxf = [
   '0','SECTION','2','ENTITIES',
   '0','INSERT','8','CUT','2','TEST_BLOCK','10','100','20','200','41','2','42','2','50','90',
   '0','ENDSEC','0','EOF'
-].join('\\n');
+].join('\n');
 const insertedBlockEntities = parseDxfToEntities(insertedBlockDxf);
 if (insertedBlockEntities.length !== 1) {
   fail(`DXF INSERT should expand one block edge, got ${insertedBlockEntities.length}`);
