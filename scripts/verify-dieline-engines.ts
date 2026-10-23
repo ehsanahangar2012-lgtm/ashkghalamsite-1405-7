@@ -116,8 +116,8 @@ const rteGeometry = STANDARD_DIELINE_ENGINES['ecma-a2020']({
 });
 const complexTuckContours = rteGeometry.cuts.filter(path => path.split(' L ').length >= 11);
 const taperedFlapContours = rteGeometry.cuts.filter(path => path.split(' L ').length === 4);
-if (Math.abs(rteGeometry.totalW - (30 + 2 * 240 + 2 * 160)) > 1e-8 ||
-    Math.abs(rteGeometry.totalH - (100 + 2 * (160 + 20))) > 1e-8) {
+if (Math.abs(rteGeometry.totalW - (30 + 2 * (240 + 0.45) + 2 * (160 + 0.45))) > 1e-8 ||
+    Math.abs(rteGeometry.totalH - ((100 + 0.45) + 2 * ((160 + 0.45) + 20))) > 1e-8) {
   fail('ECMA reverse-tuck-end must use the correct four-panel body width and opposing closure depths');
 }
 if (complexTuckContours.length < 2 || taperedFlapContours.length < 4 || rteGeometry.creases.length < 10) {
