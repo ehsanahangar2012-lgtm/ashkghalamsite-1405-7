@@ -124,75 +124,77 @@ export interface DielineEngineResult {
 }
 
 // 1. FEFCO 0201 (RSC) and Standard Slotted Containers Engine
+// Panel-specific flap depths follow the parametric panel model used in PackBox Studio
+// (MIT; see THIRD_PARTY_NOTICES.md). Long walls fold over half the box width;
+// short walls fold over half the box length. A small opposing-flap clearance avoids
+// treating the two flaps as a single overlapping sheet.
+export const getRscFlapDepths = (L: number, W: number, topRatio = 0.5, bottomRatio = 0.5, clearance = 2) => {
+  const depth = (dimension: number, ratio: number) => ratio <= 0 ? 0 : Math.max(0, dimension * ratio - clearance);
+  return {
+    top: [depth(W, topRatio), depth(L, topRatio), depth(W, topRatio), depth(L, topRatio)],
+    bottom: [depth(W, bottomRatio), depth(L, bottomRatio), depth(W, bottomRatio), depth(L, bottomRatio)],
+  };
+};
+
 const createRscEngine = (flapRatioTop = 0.5, flapRatioBottom = 0.5) => {
   return ({ L, W, H, glueTab = 35, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
-    const G = Math.max(25, glueTab || 35);
-    const topFlapH = W * flapRatioTop;
-    const btmFlapH = W * flapRatioBottom;
+    const G = Math.max(12, glueTab || 35);
+    const depths = getRscFlapDepths(L, W, flapRatioTop, flapRatioBottom);
+    const topMax = Math.max(...depths.top);
+    const bottomMax = Math.max(...depths.bottom);
 
-    const y0 = 40;
-    const yTopCrease = y0 + topFlapH;
-    const yBtmCrease = yTopCrease + H;
-    const yBottom = yBtmCrease + btmFlapH;
+    // Body crease lines stay level; individual flap depths create the correct stepped outline.
+    const yTop = 40 + topMax;
+    const yBottom = yTop + H;
+    const yMin = yTop - topMax;
+    const yMax = yBottom + bottomMax;
 
     const xG = x0 + G;
     const xP1 = xG + L;
     const xP2 = xP1 + W;
     const xP3 = xP2 + L;
     const xP4 = xP3 + W;
+    const panelXs = [xG, xP1, xP2, xP3, xP4];
 
     const cuts: string[] = [];
     const creases: string[] = [];
     const labels: { x: number; y: number; text: string }[] = [];
 
-    // Glue Tab Perimeter
-    cuts.push(`M ${x0 + 4} ${yTopCrease} L ${x0} ${yTopCrease + 4} L ${x0} ${yBtmCrease - 4} L ${x0 + 4} ${yBtmCrease}`);
-    creases.push(`M ${xG} ${yTopCrease} L ${xG} ${yBtmCrease}`);
+    // Glue flap and its trimmed outside corners.
+    cuts.push(`M ${x0 + 4} ${yTop} L ${x0} ${yTop + 4} L ${x0} ${yBottom - 4} L ${x0 + 4} ${yBottom}`);
+    cuts.push(`M ${x0 + 4} ${yTop} L ${xG} ${yTop}`);
+    cuts.push(`M ${x0 + 4} ${yBottom} L ${xG} ${yBottom}`);
+    creases.push(`M ${xG} ${yTop} L ${xG} ${yBottom}`);
 
-    // Top Flaps (if flapRatioTop > 0)
-    if (topFlapH > 0) {
-      cuts.push(`M ${x0 + 4} ${yTopCrease} L ${xG} ${yTopCrease}`);
-      // Panel 1 flap
-      cuts.push(`M ${xG} ${yTopCrease} L ${xG} ${y0} L ${xP1} ${y0} L ${xP1} ${yTopCrease}`);
-      // Panel 2 flap
-      cuts.push(`M ${xP1} ${yTopCrease} L ${xP1} ${y0} L ${xP2} ${y0} L ${xP2} ${yTopCrease}`);
-      // Panel 3 flap
-      cuts.push(`M ${xP2} ${yTopCrease} L ${xP2} ${y0} L ${xP3} ${y0} L ${xP3} ${yTopCrease}`);
-      // Panel 4 flap
-      cuts.push(`M ${xP3} ${yTopCrease} L ${xP3} ${y0} L ${xP4} ${y0} L ${xP4} ${yTopCrease}`);
-      // Top horizontal crease
-      creases.push(`M ${xG} ${yTopCrease} L ${xP4} ${yTopCrease}`);
-    } else {
-      cuts.push(`M ${x0 + 4} ${yTopCrease} L ${xP4} ${yTopCrease}`);
+    // Top and bottom flaps use the dimension perpendicular to the wall, not one shared depth.
+    for (let i = 0; i < 4; i++) {
+      const left = panelXs[i];
+      const right = panelXs[i + 1];
+      const topDepth = depths.top[i];
+      const bottomDepth = depths.bottom[i];
+
+      if (topDepth > 0) {
+        cuts.push(`M ${left} ${yTop} L ${left} ${yTop - topDepth} L ${right} ${yTop - topDepth} L ${right} ${yTop}`);
+      } else if (i === 0) {
+        cuts.push(`M ${left} ${yTop} L ${right} ${yTop}`);
+      }
+
+      if (bottomDepth > 0) {
+        cuts.push(`M ${left} ${yBottom} L ${left} ${yBottom + bottomDepth} L ${right} ${yBottom + bottomDepth} L ${right} ${yBottom}`);
+      } else if (i === 0) {
+        cuts.push(`M ${left} ${yBottom} L ${right} ${yBottom}`);
+      }
     }
 
-    // Bottom Flaps (if flapRatioBottom > 0)
-    if (btmFlapH > 0) {
-      cuts.push(`M ${x0 + 4} ${yBtmCrease} L ${xG} ${yBtmCrease}`);
-      // Panel 1 flap
-      cuts.push(`M ${xG} ${yBtmCrease} L ${xG} ${yBottom} L ${xP1} ${yBottom} L ${xP1} ${yBtmCrease}`);
-      // Panel 2 flap
-      cuts.push(`M ${xP1} ${yBtmCrease} L ${xP1} ${yBottom} L ${xP2} ${yBottom} L ${xP2} ${yBtmCrease}`);
-      // Panel 3 flap
-      cuts.push(`M ${xP2} ${yBtmCrease} L ${xP2} ${yBottom} L ${xP3} ${yBottom} L ${xP3} ${yBtmCrease}`);
-      // Panel 4 flap
-      cuts.push(`M ${xP3} ${yBtmCrease} L ${xP3} ${yBottom} L ${xP4} ${yBottom} L ${xP4} ${yBtmCrease}`);
-      // Bottom horizontal crease
-      creases.push(`M ${xG} ${yBtmCrease} L ${xP4} ${yBtmCrease}`);
-    } else {
-      cuts.push(`M ${x0 + 4} ${yBtmCrease} L ${xP4} ${yBtmCrease}`);
-    }
+    // Outer right wall cut; the three interior panel boundaries are creases.
+    cuts.push(`M ${xP4} ${yTop} L ${xP4} ${yBottom}`);
+    creases.push(`M ${xG} ${yTop} L ${xP4} ${yTop}`);
+    creases.push(`M ${xG} ${yBottom} L ${xP4} ${yBottom}`);
+    creases.push(`M ${xP1} ${yTop} L ${xP1} ${yBottom}`);
+    creases.push(`M ${xP2} ${yTop} L ${xP2} ${yBottom}`);
+    creases.push(`M ${xP3} ${yTop} L ${xP3} ${yBottom}`);
 
-    // Outer Right Wall Cut
-    cuts.push(`M ${xP4} ${yTopCrease} L ${xP4} ${yBtmCrease}`);
-
-    // Vertical Fold Creases between Body Panels
-    creases.push(`M ${xP1} ${yTopCrease} L ${xP1} ${yBtmCrease}`);
-    creases.push(`M ${xP2} ${yTopCrease} L ${xP2} ${yBtmCrease}`);
-    creases.push(`M ${xP3} ${yTopCrease} L ${xP3} ${yBtmCrease}`);
-
-    // Standard Dimension Labels
-    const yMid = (yTopCrease + yBtmCrease) / 2;
+    const yMid = (yTop + yBottom) / 2;
     labels.push({ x: (xG + xP1) / 2, y: yMid, text: `طول ${Math.round(L)}mm` });
     labels.push({ x: (xP1 + xP2) / 2, y: yMid, text: `عرض ${Math.round(W)}mm` });
     labels.push({ x: (xP2 + xP3) / 2, y: yMid, text: `طول ${Math.round(L)}mm` });
@@ -204,11 +206,11 @@ const createRscEngine = (flapRatioTop = 0.5, flapRatioBottom = 0.5) => {
       creases,
       labels,
       xMin: x0,
-      yMin: y0,
+      yMin,
       xMax: xP4,
-      yMax: yBottom,
+      yMax,
       totalW: xP4 - x0,
-      totalH: yBottom - y0,
+      totalH: yMax - yMin,
     };
   };
 };
