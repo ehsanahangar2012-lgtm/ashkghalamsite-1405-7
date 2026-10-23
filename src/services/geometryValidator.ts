@@ -138,8 +138,9 @@ export const runComprehensiveGeometryCheck = (
   if(hasSelfIntersection)warnings.push('تقاطع بین قطعات غیرمجاور در یک مسیر برش شناسایی شد؛ مسیر را بازبینی کنید.');
 
   const closedCutPaths=parsed.slice(0,cuts.length).filter(p=>!p.malformed&&p.segments.length>0);
-  const isClosedLoop=closedCutPaths.length>0&&closedCutPaths.every(p=>p.closed);
-  if(closedCutPaths.some(p=>!p.closed))warnings.push('برخی مسیرهای برش باز هستند؛ این حالت ممکن است برای خطوط پیرامونی قالب مناسب نباشد.');
+  // Engines may legitimately represent a perimeter as several open SVG subpaths;
+  // do not mark those individual fragments as an error or warning.
+  const isClosedLoop=closedCutPaths.some(p=>p.closed);
   if(!segments.length)errors.push('هیچ قطعه خط معتبر برای محاسبه هندسه استخراج نشد.');
 
   const passed=errors.length===0;
