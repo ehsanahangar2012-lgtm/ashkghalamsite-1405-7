@@ -888,8 +888,12 @@ const createSnapLockBottomEngine = () => {
     const tongueBaseY = yBodyBottom + bottomSideDepth;
     const tongueTipY = tongueBaseY + tongueProjection;
     const receiverY = yBodyBottom + lockDepth;
-    const notchWidth = Math.max(10, Math.min(panelL * 0.2, panelW * 0.32));
-    const notchDepth = Math.max(3, Math.min(t * 5, panelW * 0.1, 7));
+    // The receiver notch must actually accept the locking tongue. The previous
+    // fixed 20%-of-panel width was narrower than the ~34%-wide tongue on the
+    // 70 mm reference carton, so the nominal lock could not physically engage.
+    const notchClearance = Math.max(2, t * 2);
+    const notchWidth = Math.max(10, Math.min(panelL * 0.58, tongueWidth + notchClearance));
+    const notchDepth = Math.max(4, Math.min(t * 5, panelW * 0.1, 7));
     const angleRise = Math.max(2, Math.min(bottomSideDepth * 0.18, panelW * 0.12, 8));
     const angleRun = Math.min(panelL * 0.2, angleRise / Math.tan(angleRad));
     const cuts: string[] = [];
@@ -974,7 +978,7 @@ const createSnapLockBottomEngine = () => {
     labels.push({ x: (xs[0] + xs[1]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `بدنه L=${Math.round(safeL)}mm` });
     labels.push({ x: (xs[1] + xs[2]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: `پهنا W=${Math.round(safeW)}mm` });
     labels.push({ x: tongueCenter, y: (yBodyBottom + tongueTipY) / 2, text: `زبانه قفل ${Math.round(tongueWidth)}mm` });
-    labels.push({ x: receiverCenter, y: receiverY - notchDepth - 4, text: `دریچه نیم‌ماه قفل · عمق ${Math.round(lockDepth)}mm` });
+    labels.push({ x: receiverCenter, y: receiverY - notchDepth - 4, text: `دریچه نیم‌ماه قفل · عرض ${Math.round(notchWidth)} × عمق ${Math.round(notchDepth)}mm` });
 
     const xMin = x0;
     const yMin = yBodyTop - topMax;
