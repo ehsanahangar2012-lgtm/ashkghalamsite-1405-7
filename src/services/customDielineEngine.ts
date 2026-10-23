@@ -136,7 +136,7 @@ export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
     const pairsCopy = record.pairs.map(pair => ({ ...pair }));
     const uniformScale = Math.abs(Math.abs(sx) - Math.abs(sy)) < 1e-8;
     if ((record.type === 'ARC' || record.type === 'CIRCLE') && !uniformScale) return null;
-    if (!['LINE', 'LWPOLYLINE', 'POLYLINE', 'VERTEX', 'SEQEND', 'ARC', 'CIRCLE'].includes(record.type)) return null;
+    if (!['LINE', 'LWPOLYLINE', 'POLYLINE', 'VERTEX', 'SEQEND', 'ARC', 'CIRCLE', 'SPLINE'].includes(record.type)) return null;
     const layerPair = pairsCopy.find(pair => pair.code === 8);
     if (layerPair?.value === '0') layerPair.value = insertLayer;
     // Transform each coordinate pair (10,20) and (11,21); preserve all other groups.
@@ -295,6 +295,71 @@ export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
           };
           addLine(previous, point, layer);
           previous = point;
+        }
+      }
+      continue;
+    }
+    if (entity.type === 'SPLINE') {
+      const degree = Math.trunc(groupByCode(p, 71)[0] ?? 3);
+      const xs = groupByCode(p, 10), ys = groupByCode(p, 20);
+      const controlPoints = xs.map((x, index) => ({ x, y: ys[index] }))
+        .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+      const knots = groupByCode(p, 40);
+      const rawWeights = groupByCode(p, 41);
+      const closed = (((groupByCode(p, 70)[0] || 0) & 1) === 1);
+      if (degree < 1 || controlPoints.length < degree + 1 ||
+          knots.length < controlPoints.length + degree + 1) continue;
+      const lastDomain = controlPoints.length;
+      const startU = knots[degree];
+      const endU = knots[lastDomain];
+      if (!Number.isFinite(startU) || !Number.isFinite(endU) || endU <= startU) continue;
+      const evaluateSpline = (u: number): Point => {
+        const n = controlPoints.length - 1;
+        let span = n;
+        if (u < endU) {
+          for (let k = degree; k <= n; k++) {
+            if (u >= knots[k] && u < knots[k + 1]) { span = k; break; }
+          }
+        }
+        const d: Array<{ x: number; y: number; w: number }> = [];
+        for (let j = 0; j <= degree; j++) {
+          const index = span - degree + j;
+          const weight = rawWeights[index] > 0 && Number.isFinite(rawWeights[index]) ? rawWeights[index] : 1;
+          d[j] = {
+            x: controlPoints[index].x * weight,
+            y: controlPoints[index].y * weight,
+            w: weight,
+          };
+        }
+        for (let r = 1; r <= degree; r++) {
+          for (let j = degree; j >= r; j--) {
+            const knotIndex = span - degree + j;
+            const denominator = knots[knotIndex + degree - r + 1] - knots[knotIndex];
+            const alpha = Math.abs(denominator) < 1e-12 ? 0 : (u - knots[knotIndex]) / denominator;
+            d[j] = {
+              x: (1 - alpha) * d[j - 1].x + alpha * d[j].x,
+              y: (1 - alpha) * d[j - 1].y + alpha * d[j].y,
+              w: (1 - alpha) * d[j - 1].w + alpha * d[j].w,
+            };
+          }
+        }
+        const result = d[degree];
+        return result.w > 1e-12
+          ? { x: result.x / result.w, y: result.y / result.w }
+          : { x: Number.NaN, y: Number.NaN };
+      };
+      const steps = Math.max(16, controlPoints.length * 12);
+      let previous = evaluateSpline(startU);
+      for (let step = 1; step <= steps; step++) {
+        const u = startU + (endU - startU) * step / steps;
+        const point = evaluateSpline(u);
+        addLine(previous, point, layer);
+        previous = point;
+      }
+      if (closed) {
+        const first = evaluateSpline(startU);
+        if (Math.hypot(previous.x - first.x, previous.y - first.y) > 1e-8) {
+          addLine(previous, first, layer);
         }
       }
       continue;
