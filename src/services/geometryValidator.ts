@@ -48,9 +48,6 @@ const parsePathSegments = (path: string, pathIndex: number): { segments: Segment
 };
 
 const orientation = (a:Point,b:Point,c:Point) => (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
-const onSegment = (a:Point,b:Point,p:Point) =>
-  Math.min(a.x,b.x)-1e-8<=p.x&&p.x<=Math.max(a.x,b.x)+1e-8&&
-  Math.min(a.y,b.y)-1e-8<=p.y&&p.y<=Math.max(a.y,b.y)+1e-8;
 // Only count strict interior crossings here. Shared endpoints and collinear
 // contacts are common at legitimate dieline corners and are not self-crossings.
 const intersects = (s1:Segment,s2:Segment) => {
