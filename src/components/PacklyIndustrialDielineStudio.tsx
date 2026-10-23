@@ -267,7 +267,8 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 <p className="mt-1">کنترل تقاطع: برش/برش {geometryAudit.topology.cutCutCrossings} · برش/خط‌تا {geometryAudit.topology.cutCreaseCrossings} · هم‌پوشانی {geometryAudit.topology.overlaps} · اتصال T نیازمند بازبینی {geometryAudit.topology.teeContacts} · خارج از محدوده {geometryAudit.topology.boundsViolations}</p>
                 {geometryAudit.errors.map((message, i) => <p key={`audit-error-${i}`} className="mt-1">• {message}</p>)}
                 {geometryAudit.warnings.map((message, i) => <p key={`audit-warning-${i}`} className="mt-1">• {message}</p>)}
-                {geometryAudit.hasSelfIntersection && <p className="mt-1 font-bold">به‌دلیل تقاطع مسیر برش در یک مسیر، خروجی فایل و ثبت پروژه موقتاً غیرفعال است.</p>}
+                {geometryAudit.suggestions.map((message, i) => <p key={`audit-suggestion-${i}`} className="mt-1 text-slate-700">• {message}</p>)}
+                {(geometryAudit.hasSelfIntersection || geometryAudit.topology.cutCutCrossings > 0 || geometryAudit.topology.cutCreaseCrossings > 0 || geometryAudit.topology.overlaps > 0 || geometryAudit.topology.boundsViolations > 0) && <p className="mt-1 font-bold">به‌دلیل تقاطع، هم‌پوشانی یا خروج از محدودهٔ گسترده، خروجی فایل و ثبت پروژه غیرفعال است.</p>}
               </div>}
               {geometryState.error && <div role="alert" className="mb-3 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><XCircle className="mt-0.5 h-5 w-5 shrink-0"/><div><strong>تولید دایلاین متوقف شد.</strong><p className="mt-1 text-xs leading-5">{geometryState.error}</p></div></div>}
               {geometry && <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-2">
@@ -303,7 +304,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             </section>
             <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs leading-6 text-slate-600 sm:p-4">
               <h4 className="mb-1 flex items-center gap-2 font-bold text-slate-800"><Scissors className="h-4 w-4 text-rose-700"/>یادداشت تولید</h4>
-              <p>نام یا شماره قالب به‌تنهایی تضمین‌کننده تطابق با نقشه رسمی نیست. در این نسخه، ضخامت ورق روی خلاصی فلپ‌ها اثر می‌گذارد، اما جبران کامل ابعاد داخل/خارج و اصلاحات هر خط تا هنوز برای همه قالب‌ها پیاده‌سازی نشده است؛ ابعاد را پیش از تولید با نقشه مرجع، جهت الیاف، تلرانس ماشین و نمونه تاخورده تطبیق دهید. این استودیو علاوه بر کنترل ابعاد و مسیرهای خالی، مسیرهای SVG تولیدشده را از نظر ساختار و تقاطع‌های آشکار بررسی می‌کند؛ این بررسی جایگزین تأیید نقشه مرجع یا نمونه فیزیکی نیست.</p>
+              <p>نام یا شماره قالب به‌تنهایی تضمین‌کننده تطابق با نقشه رسمی نیست. در این نسخه، ضخامت ورق روی خلاصی فلپ‌ها اثر می‌گذارد، اما جبران کامل ابعاد داخل/خارج و اصلاحات هر خط تا هنوز برای همه قالب‌ها پیاده‌سازی نشده است؛ ابعاد را پیش از تولید با نقشه مرجع، جهت الیاف، تلرانس ماشین و نمونه تاخورده تطبیق دهید. این استودیو علاوه بر کنترل ابعاد و ساختار مسیرها، تقاطع و هم‌پوشانی میان مسیرهای مستقل برش، برخورد برش با خط‌تا و خروج مسیر از محدودهٔ گسترده را بررسی می‌کند؛ اتصال T در بعضی شیارهای مشترک فقط هشدار است و باید تصویری بازبینی شود. این بررسی جایگزین شبیه‌سازی کامل تاخوردن، نقشهٔ مرجع یا نمونهٔ فیزیکی نیست.</p>
               <p className="mt-1">* برچسب ستاره‌دار یا «قالب سفارشی» به معنی هندسه پایه داخلی است، نه تأیید رسمی FEFCO/ECMA.</p>
             </section>
           </main>
