@@ -259,6 +259,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               </div>
               {supportsAutoLockDimensions && <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <h5 className="mb-2 text-xs font-bold text-slate-800">۳. تنظیمات درب و فلپ‌های کف Auto-Lock (mm)</h5>
+                <button type="button" onClick={() => { setLength(90); setWidth(90); setHeight(320); setThickness(0.45); setMaterialPreset('folding-carton'); setGlueTab(15); setSlotGap(1); setDimensionConvention('inside'); setAutoLockTuckDepth(25); setAutoLockDustDepth(43); setAutoLockSideDepth(40.5); }} className="mb-3 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50">بارگذاری نمونهٔ مرجع ۹۰×۹۰×۳۲۰ میلی‌متر</button>
                 <div className="grid grid-cols-3 gap-2">
                   <label className="text-[11px] font-bold text-slate-700">عمق زبانه درب<input type="number" min={4} max={60} step={0.5} value={Number.isFinite(autoLockTuckDepth) ? autoLockTuckDepth : ''} onChange={e => setAutoLockTuckDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
                   <label className="text-[11px] font-bold text-slate-700">عمق گردگیر بالا<input type="number" min={4} max={43} step={0.5} value={Number.isFinite(autoLockDustDepth) ? autoLockDustDepth : ''} onChange={e => setAutoLockDustDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
