@@ -214,7 +214,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"><Ruler className="ml-1 inline h-4 w-4 text-sky-300"/>{geometry ? `${(geometry.xMax - geometry.xMin).toFixed(1)} × ${(geometry.yMax - geometry.yMin).toFixed(1)} mm` : '—'}</span></div>
               </div>
               {geometryAudit && <div className={`mb-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-900 bg-emerald-950/30 text-emerald-100' : 'border-amber-900 bg-amber-950/30 text-amber-100'}`}>
-                <div className="flex items-center gap-2 font-bold"><{ 'CheckCircle2' } className="h-4 w-4"/>{exportReady ? 'بررسی ساختاری مسیرها گذشت' : 'خروجی به بررسی بیشتر نیاز دارد'}</div>
+                <div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4"/>{exportReady ? 'بررسی ساختاری مسیرها گذشت' : 'خروجی به بررسی بیشتر نیاز دارد'}</div>
                 <p className="mt-1">طول برش تقریبی: {geometryAudit.cutLength} mm · طول خط‌تا: {geometryAudit.creaseLength} mm · امتیاز بررسی ساختاری: {geometryAudit.score}/100</p>
                 {geometryAudit.errors.map((message, i) => <p key={`audit-error-${i}`} className="mt-1">• {message}</p>)}
                 {geometryAudit.warnings.map((message, i) => <p key={`audit-warning-${i}`} className="mt-1">• {message}</p>)}
