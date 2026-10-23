@@ -234,6 +234,14 @@ if (Math.abs(lockBottom.totalW - referenceWidth) > 1e-8) {
 if (Math.abs(lockBottom.totalH - 226) > 0.1) {
   fail(`snap-lock blank envelope must match the reference generator's 70×70×80 mm benchmark (296.8×226 mm), got ${lockBottom.totalW}×${lockBottom.totalH} mm`);
 }
+const expectedTuckSlitY = lockBottom.yMin + 25 * 0.42;
+if (!lockBottom.cuts.some(path => {
+  const values = (path.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+  return values.length === 4 && Math.abs(values[1] - expectedTuckSlitY) < 1e-8 &&
+    Math.abs(values[3] - expectedTuckSlitY) < 1e-8;
+})) {
+  fail('snap-lock top must contain a separate locking slit inside the extended tuck flap');
+}
 const lowAngleLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
   L: 120, W: 90, H: 100, thickness: 0.45, glueTab: 22, autoLockAngle: 30, x0: 40,
 });
