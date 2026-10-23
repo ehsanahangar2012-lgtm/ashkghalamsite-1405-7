@@ -42,7 +42,8 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(45, widthPx / heightPx, 0.1, 2000);
-    camera.position.set(300, 250, 400);
+    const modelScale = Math.max(width || 200, height || 150, depth || 100, 100);
+    camera.position.set(modelScale * 1.8, modelScale * 1.4, modelScale * 2.2);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(widthPx, heightPx);
