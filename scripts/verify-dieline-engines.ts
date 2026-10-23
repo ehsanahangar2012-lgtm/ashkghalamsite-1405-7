@@ -231,6 +231,9 @@ const referenceWidth = 15 + 4 * (70 + 0.45);
 if (Math.abs(lockBottom.totalW - referenceWidth) > 1e-8) {
   fail(`snap-lock inside-size panel width must match the reference convention: expected ${referenceWidth}, got ${lockBottom.totalW}`);
 }
+if (Math.abs(lockBottom.totalH - 226) > 0.1) {
+  fail(`snap-lock blank envelope must match the reference generator's 70×70×80 mm benchmark (296.8×226 mm), got ${lockBottom.totalW}×${lockBottom.totalH} mm`);
+}
 const lowAngleLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
   L: 120, W: 90, H: 100, thickness: 0.45, glueTab: 22, autoLockAngle: 30, x0: 40,
 });
