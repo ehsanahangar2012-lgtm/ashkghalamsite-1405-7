@@ -842,97 +842,126 @@ const fefco0204Engine = createSlottedCaseEngine('0204');
  */
 const createSnapLockBottomEngine = () => {
   return ({
-    L, W, H, glueTab = 22, thickness = 0.45, tuck = 20, dustFlap = 12,
-    x0 = 50, autoLockAngle = 45, autoLockGlueWidth,
+    L, W, H, glueTab = 15, thickness = 0.5, tuck = 25, dustFlap = 33,
+    x0 = 50, autoLockAngle = 45, autoLockGlueWidth, dimensionConvention = 'inside',
   }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 0.5);
     const safeL = Math.max(20, Number.isFinite(L) ? L : 20);
     const safeW = Math.max(20, Number.isFinite(W) ? W : 20);
     const safeH = Math.max(10, Number.isFinite(H) ? H : 10);
-    const G = Math.max(5, Math.min(Number.isFinite(glueTab) ? glueTab : 22, safeH * 0.8));
-    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 0.45);
-    const tuckDepth = Math.max(12, Math.min(Number.isFinite(tuck) ? tuck : 20, safeW * 0.95));
-    const dustDepth = Math.max(8, Math.min(Number.isFinite(dustFlap) ? dustFlap : 12, safeW * 0.42));
+    const inside = dimensionConvention !== 'outside';
+    // Match the reference generator's inside-size convention: each crease-to-crease
+    // panel receives a caliper allowance, and the stacked bottom receives 3 calipers.
+    const panelL = safeL + (inside ? t : 0);
+    const panelW = safeW + (inside ? t : 0);
+    const panelH = safeH + (inside ? 3 * t : 0);
+    const G = Math.max(6, Math.min(Number.isFinite(glueTab) ? glueTab : 15, panelH * 0.8));
+    const tuckDepth = Math.max(4, Math.min(Number.isFinite(tuck) ? tuck : 25, panelW * 0.8));
+    const topDustDepth = Math.max(4, Math.min(Number.isFinite(dustFlap) ? dustFlap : 33, panelW * 0.48));
+    const bottomSideDepth = Math.max(6, Math.min(panelW * 0.48, Number.isFinite(dustFlap) ? dustFlap : 33));
     const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45));
     const angleRad = angleDeg * Math.PI / 180;
-    const xs = [x0 + G, x0 + G + safeL, x0 + G + safeL + safeW, x0 + G + 2 * safeL + safeW, x0 + G + 2 * safeL + 2 * safeW];
-    const topDepths = [tuckDepth, dustDepth, 0, dustDepth];
-    const maxTop = Math.max(...topDepths);
-    const yTop = 40 + maxTop;
-    const yBottom = yTop + safeH;
-    const lockDepth = Math.max(safeW * 0.48, 14);
-    const requestedTongue = Number.isFinite(autoLockGlueWidth) ? autoLockGlueWidth as number : safeL * 0.34;
-    const tongueWidth = Math.max(10, Math.min(requestedTongue, safeL * 0.42, safeW * 0.42));
-    const tongueNeck = Math.max(7, tongueWidth * 0.72);
-    const tongueProjection = Math.max(5, Math.min(safeW * 0.13, 18));
-    const slotLength = tongueWidth + Math.max(1.2, t * 1.5);
-    const slotWidth = Math.max(1.2, t * 2.2);
-    const primaryOuter = yBottom + lockDepth;
-    const receiverEdgeMargin = Math.max(3, t * 2);
-    const receivingOuter = primaryOuter + tongueProjection + receiverEdgeMargin;
-    const slotY = primaryOuter + tongueProjection - slotWidth / 2;
-    const cornerRise = Math.max(2, Math.min(lockDepth * 0.18, safeW * 0.12, 8));
-    const cornerRun = Math.min(safeL * 0.2, cornerRise / Math.tan(angleRad));
+    const xs = [x0 + G, x0 + G + panelL, x0 + G + panelL + panelW,
+      x0 + G + 2 * panelL + panelW, x0 + G + 2 * panelL + 2 * panelW];
+    const topDepths = [tuckDepth, topDustDepth, 0, topDustDepth];
+    const topMax = Math.max(...topDepths);
+    const yBodyTop = 40 + topMax;
+    const yBodyBottom = yBodyTop + panelH;
+
+    // A 1-2-3 base has two short side flaps, a deeper receiver flap with a
+    // half-moon edge notch, and an opposing flap with an integral lock tongue.
+    const lockDepth = Math.max(14, panelW * 2 / 3);
+    const requestedTongue = Number.isFinite(autoLockGlueWidth) ? autoLockGlueWidth as number : 17.5;
+    const tongueWidth = Math.max(8, Math.min(requestedTongue, panelL * 0.42, panelW * 0.42));
+    const tongueNeck = tongueWidth * 0.72;
+    const tongueProjection = Math.max(4, Math.min(Number.isFinite(autoLockGlueWidth) ? requestedTongue : 17.5, panelW * 0.35));
+    const tongueBaseY = yBodyBottom + bottomSideDepth;
+    const tongueTipY = tongueBaseY + tongueProjection;
+    const receiverY = yBodyBottom + lockDepth;
+    const notchWidth = Math.max(10, Math.min(panelL * 0.2, panelW * 0.32));
+    const notchDepth = Math.max(3, Math.min(t * 5, panelW * 0.1, 7));
+    const angleRise = Math.max(2, Math.min(bottomSideDepth * 0.18, panelW * 0.12, 8));
+    const angleRun = Math.min(panelL * 0.2, angleRise / Math.tan(angleRad));
     const cuts: string[] = [];
     const creases: string[] = [];
     const labels: { x: number; y: number; text: string }[] = [];
+    const line = (x1: number, y1: number, x2: number, y2: number) => \`M \${x1} \${y1} L \${x2} \${y2}\`;
 
-    cuts.push(`M ${x0 + 4} ${yTop} L ${x0} ${yTop + 4} L ${x0} ${yBottom - 4} L ${x0 + 4} ${yBottom}`);
-    cuts.push(`M ${xs[4]} ${yTop} L ${xs[4]} ${yBottom}`);
-    creases.push(`M ${x0 + G} ${yTop} L ${x0 + G} ${yBottom}`);
-    for (let i = 1; i < 4; i++) creases.push(`M ${xs[i]} ${yTop} L ${xs[i]} ${yBottom}`);
-    creases.push(`M ${xs[0]} ${yBottom} L ${xs[4]} ${yBottom}`);
+    // Manufacturer's joint and outside right edge.
+    cuts.push(\`M \${x0 + 4} \${yBodyTop} L \${x0} \${yBodyTop + 4} L \${x0} \${yBodyBottom - 4} L \${x0 + 4} \${yBodyBottom}\`);
+    cuts.push(line(x0 + 4, yBodyTop, xs[0], yBodyTop));
+    cuts.push(line(x0 + 4, yBodyBottom, xs[0], yBodyBottom));
+    cuts.push(line(xs[4], yBodyTop, xs[4], yBodyBottom));
+    creases.push(line(xs[0], yBodyTop, xs[0], yBodyBottom));
+    for (let i = 1; i < 4; i++) creases.push(line(xs[i], yBodyTop, xs[i], yBodyBottom));
 
-    for (let i = 0; i < 4; i++) {
-      const xa = xs[i], xb = xs[i + 1], depth = topDepths[i];
-      if (depth <= 0) {
-        cuts.push(`M ${xa} ${yTop} L ${xb} ${yTop}`);
-        continue;
-      }
-      const inset = Math.min(7, Math.max(2, (xb - xa) * 0.06));
-      const outerY = yTop - depth;
-      cuts.push(`M ${xa} ${yTop} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${yTop}`);
-      creases.push(`M ${xa} ${yTop} L ${xb} ${yTop}`);
+    // Top closure: front tuck, two tapered dust flaps, and an exposed rear edge.
+    const tuckCenter = (xs[0] + xs[1]) / 2;
+    const tuckInset = Math.min(panelL * 0.12, tuckDepth * 0.3);
+    const thumbW = Math.min(panelL * 0.2, 18);
+    const thumbD = Math.min(4, tuckDepth * 0.16);
+    const tuckOuterY = yBodyTop - tuckDepth;
+    cuts.push(
+      \`M \${xs[0]} \${yBodyTop} L \${xs[0] + tuckInset} \${tuckOuterY} L \${tuckCenter - thumbW / 2} \${tuckOuterY} L \${tuckCenter - thumbW / 2} \${tuckOuterY + thumbD} L \${tuckCenter + thumbW / 2} \${tuckOuterY + thumbD} L \${tuckCenter + thumbW / 2} \${tuckOuterY} L \${xs[1] - tuckInset} \${tuckOuterY} L \${xs[1]} \${yBodyTop}\`
+    );
+    creases.push(line(xs[0], yBodyTop, xs[1], yBodyTop));
+    for (const i of [1, 3]) {
+      const xa = xs[i], xb = xs[i + 1], outerY = yBodyTop - topDustDepth;
+      const inset = Math.min(8, topDustDepth * 0.28, panelW * 0.12);
+      cuts.push(\`M \${xa} \${yBodyTop} L \${xa + inset} \${outerY} L \${xb - inset} \${outerY} L \${xb} \${yBodyTop}\`);
+      creases.push(line(xa, yBodyTop, xb, yBodyTop));
     }
+    cuts.push(line(xs[2], yBodyTop, xs[3], yBodyTop));
 
+    // Bottom tongue flap. The tongue is part of the flap contour, not a
+    // decorative rectangle or a separate overlapping knife path.
     const tongueCenter = (xs[0] + xs[1]) / 2;
     const tongueLeft = tongueCenter - tongueWidth / 2;
-    const tongueRight = tongueLeft + tongueWidth;
+    const tongueRight = tongueCenter + tongueWidth / 2;
     const neckLeft = tongueCenter - tongueNeck / 2;
-    const neckRight = neckLeft + tongueNeck;
-    const tipInset = Math.max(2, Math.min(t * 1.5, tongueWidth * 0.12));
+    const neckRight = tongueCenter + tongueNeck / 2;
+    const tipInset = Math.max(1.5, Math.min(t * 1.5, tongueWidth * 0.1));
     cuts.push(
-      `M ${xs[0]} ${yBottom} L ${xs[0]} ${primaryOuter - cornerRise} L ${xs[0] + cornerRun} ${primaryOuter} L ${neckLeft} ${primaryOuter} L ${tongueLeft} ${primaryOuter + tongueProjection * 0.45} L ${tongueLeft + tipInset} ${primaryOuter + tongueProjection} L ${tongueRight - tipInset} ${primaryOuter + tongueProjection} L ${tongueRight} ${primaryOuter + tongueProjection * 0.45} L ${neckRight} ${primaryOuter} L ${xs[1] - cornerRun} ${primaryOuter} L ${xs[1]} ${primaryOuter - cornerRise} L ${xs[1]} ${yBottom}`
+      \`M \${xs[0]} \${yBodyBottom} L \${xs[0] + angleRun} \${tongueBaseY} L \${neckLeft} \${tongueBaseY} L \${tongueLeft} \${tongueBaseY + tongueProjection * 0.42} L \${tongueLeft + tipInset} \${tongueTipY} L \${tongueRight - tipInset} \${tongueTipY} L \${tongueRight} \${tongueBaseY + tongueProjection * 0.42} L \${neckRight} \${tongueBaseY} L \${xs[1] - angleRun} \${tongueBaseY} L \${xs[1]} \${yBodyBottom}\`
     );
-    creases.push(`M ${xs[0]} ${yBottom} L ${xs[1]} ${yBottom}`);
+    creases.push(line(xs[0], yBodyBottom, xs[1], yBodyBottom));
 
+    // Two side flaps fold first. Each has its own tapered perimeter.
     for (const i of [1, 3]) {
-      const xa = xs[i], xb = xs[i + 1];
-      const inset = Math.min(6, Math.max(2, safeW * 0.07));
-      const outerY = yBottom + dustDepth;
-      cuts.push(`M ${xa} ${yBottom} L ${xa + inset} ${outerY} L ${xb - inset} ${outerY} L ${xb} ${yBottom}`);
-      creases.push(`M ${xa} ${yBottom} L ${xb} ${yBottom}`);
+      const xa = xs[i], xb = xs[i + 1], outerY = yBodyBottom + bottomSideDepth;
+      const inset = Math.min(7, bottomSideDepth * 0.22, panelW * 0.1);
+      cuts.push(\`M \${xa} \${yBodyBottom} L \${xa + inset} \${outerY} L \${xb - inset} \${outerY} L \${xb} \${yBodyBottom}\`);
+      creases.push(line(xa, yBodyBottom, xb, yBodyBottom));
     }
 
-    const receiveLeft = xs[2] + (safeL - slotLength) / 2;
-    const receiveRight = receiveLeft + slotLength;
+    // Receiver flap: a two-thirds-depth flap with a half-moon notch in its
+    // outer edge. The notch is open to the edge; it is not a closed slot.
+    const receiverLeft = xs[2], receiverRight = xs[3];
+    const receiverCenter = (receiverLeft + receiverRight) / 2;
+    const notchL = receiverCenter - notchWidth / 2, notchR = receiverCenter + notchWidth / 2;
+    const receiverInset = Math.min(angleRun, panelL * 0.15);
+    const notchPoints = [
+      [notchL + notchWidth * 0.18, receiverY - notchDepth * 0.72],
+      [receiverCenter - notchWidth * 0.18, receiverY - notchDepth],
+      [receiverCenter + notchWidth * 0.18, receiverY - notchDepth],
+      [notchR - notchWidth * 0.18, receiverY - notchDepth * 0.72],
+    ];
     cuts.push(
-      `M ${xs[2]} ${yBottom} L ${xs[2]} ${receivingOuter - cornerRise} L ${xs[2] + cornerRun} ${receivingOuter} L ${xs[3] - cornerRun} ${receivingOuter} L ${xs[3]} ${receivingOuter - cornerRise} L ${xs[3]} ${yBottom}`
+      \`M \${receiverLeft} \${yBodyBottom} L \${receiverLeft + receiverInset} \${receiverY} L \${notchL} \${receiverY} L \${notchPoints[0][0]} \${notchPoints[0][1]} L \${notchPoints[1][0]} \${notchPoints[1][1]} L \${notchPoints[2][0]} \${notchPoints[2][1]} L \${notchPoints[3][0]} \${notchPoints[3][1]} L \${notchR} \${receiverY} L \${receiverRight - receiverInset} \${receiverY} L \${receiverRight} \${yBodyBottom}\`
     );
-    cuts.push(`M ${receiveLeft} ${slotY} L ${receiveRight} ${slotY} L ${receiveRight} ${slotY + slotWidth} L ${receiveLeft} ${slotY + slotWidth} Z`);
-    creases.push(`M ${xs[2]} ${yBottom} L ${xs[3]} ${yBottom}`);
+    creases.push(line(receiverLeft, yBodyBottom, receiverRight, yBodyBottom));
 
-    labels.push({ x: tongueCenter, y: (yTop + yBottom) / 2, text: 'بدنه L=' + Math.round(safeL) + 'mm' });
-    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yTop + yBottom) / 2, text: 'پهنا W=' + Math.round(safeW) + 'mm' });
-    labels.push({ x: tongueCenter, y: primaryOuter + tongueProjection + 12, text: 'زبانه قفل ' + Math.round(tongueWidth) + 'mm · زاویه ' + Math.round(angleDeg) + '°' });
-    labels.push({ x: (xs[2] + xs[3]) / 2, y: receivingOuter + 14, text: 'شیار دریافت‌کننده · خلاصی ' + slotWidth.toFixed(1) + 'mm' });
-    labels.push({ x: (xs[0] + xs[4]) / 2, y: receivingOuter + 30, text: 'قفل پارامتریک؛ نمونه تاخورده و خلاصی واقعی ورق باید تأیید شود' });
+    labels.push({ x: (xs[0] + xs[1]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: \`بدنه L=\${Math.round(safeL)}mm\` });
+    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yBodyTop + yBodyBottom) / 2, text: \`پهنا W=\${Math.round(safeW)}mm\` });
+    labels.push({ x: tongueCenter, y: (yBodyBottom + tongueTipY) / 2, text: \`زبانه قفل \${Math.round(tongueWidth)}mm\` });
+    labels.push({ x: receiverCenter, y: receiverY - notchDepth - 4, text: \`دریچه نیم‌ماه قفل · عمق \${Math.round(lockDepth)}mm\` });
+    labels.push({ x: (xs[0] + xs[4]) / 2, y: receiverY + 14, text: 'ته قفلی ۱-۲-۳؛ نمونه تاخورده و خلاصی واقعی ورق باید تأیید شود' });
 
     const xMin = x0;
-    const yMin = yTop - maxTop;
-    const yMax = receivingOuter + 30;
+    const yMin = yBodyTop - topMax;
+    const yMax = Math.max(tongueTipY, receiverY) + 4;
     return {
-      cuts, creases, labels,
-      xMin, yMin, xMax: xs[4], yMax,
+      cuts, creases, labels, xMin, yMin, xMax: xs[4], yMax,
       totalW: xs[4] - xMin, totalH: yMax - yMin,
     };
   };
