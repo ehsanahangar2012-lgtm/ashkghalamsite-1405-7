@@ -48,13 +48,27 @@ const parsePathSegments = (path: string, pathIndex: number): { segments: Segment
 };
 
 const orientation = (a:Point,b:Point,c:Point) => (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
-// Only count strict interior crossings here. Shared endpoints and collinear
-// contacts are common at legitimate dieline corners and are not self-crossings.
+const GEOMETRY_EPSILON = 1e-8;
+
+const pointOnSegment = (p:Point,a:Point,b:Point) => {
+  const length=Math.hypot(b.x-a.x,b.y-a.y);
+  if(Math.abs(orientation(a,b,p))>GEOMETRY_EPSILON*Math.max(1,length))return false;
+  return p.x>=Math.min(a.x,b.x)-GEOMETRY_EPSILON&&p.x<=Math.max(a.x,b.x)+GEOMETRY_EPSILON&&
+    p.y>=Math.min(a.y,b.y)-GEOMETRY_EPSILON&&p.y<=Math.max(a.y,b.y)+GEOMETRY_EPSILON;
+};
+
+// Segment pairs reaching this function are non-adjacent. Therefore a shared
+// endpoint or collinear overlap is a genuine non-adjacent contact, while normal
+// adjoining corners are filtered by the caller before this test.
 const intersects = (s1:Segment,s2:Segment) => {
   const {a,b}=s1,{a:c,b:d}=s2;
   const o1=orientation(a,b,c),o2=orientation(a,b,d),o3=orientation(c,d,a),o4=orientation(c,d,b);
-  return ((o1>1e-8&&o2< -1e-8)||(o1< -1e-8&&o2>1e-8))&&
-    ((o3>1e-8&&o4< -1e-8)||(o3< -1e-8&&o4>1e-8));
+  const properCrossing=
+    ((o1>GEOMETRY_EPSILON&&o2< -GEOMETRY_EPSILON)||(o1< -GEOMETRY_EPSILON&&o2>GEOMETRY_EPSILON))&&
+    ((o3>GEOMETRY_EPSILON&&o4< -GEOMETRY_EPSILON)||(o3< -GEOMETRY_EPSILON&&o4>GEOMETRY_EPSILON));
+  return properCrossing||
+    pointOnSegment(c,a,b)||pointOnSegment(d,a,b)||
+    pointOnSegment(a,c,d)||pointOnSegment(b,c,d);
 };
 
 export const validateDxfDieline = (entities: any[]): DxfValidationResult => {
@@ -124,16 +138,25 @@ export const runComprehensiveGeometryCheck = (
 
   // Detect proper crossings between non-adjacent segments belonging to the same cut path.
   let hasSelfIntersection=false,checked=0;
-  const byPath=new Map<number,Segment[]>();
-  segments.forEach(s=>{if(s.pathIndex<cuts.length){const a=byPath.get(s.pathIndex)||[];a.push(s);byPath.set(s.pathIndex,a);}});
-  outer: for(const pathSegments of byPath.values()){
+  const byPath=new Map<number,{segments:Segment[];closed:boolean}>();
+  segments.forEach(s=>{
+    if(s.pathIndex<cuts.length){
+      const record=byPath.get(s.pathIndex)||{segments:[],closed:parsed[s.pathIndex]?.closed??false};
+      record.segments.push(s);
+      byPath.set(s.pathIndex,record);
+    }
+  });
+  outer: for(const pathRecord of byPath.values()){
+    const pathSegments=pathRecord.segments;
     for(let i=0;i<pathSegments.length;i++)for(let j=i+2;j<pathSegments.length;j++){
-      if(i===0&&j===pathSegments.length-1)continue;
+      // Only a genuinely closed path has a legitimate first/last adjacent pair.
+      if(pathRecord.closed&&i===0&&j===pathSegments.length-1)continue;
       if(++checked>20000)break outer;
       if(intersects(pathSegments[i],pathSegments[j])){hasSelfIntersection=true;break outer;}
     }
   }
-  if(hasSelfIntersection)warnings.push('تقاطع بین قطعات غیرمجاور در یک مسیر برش شناسایی شد؛ مسیر را بازبینی کنید.');
+  if(checked>20000)warnings.push('برای جلوگیری از کندشدن پیش‌نمایش، بررسی تقاطع پس از ۲۰۰۰۰ جفت قطعه متوقف شد؛ این نقشه به بررسی کامل‌تر نیاز دارد.');
+  if(hasSelfIntersection)warnings.push('تقاطع، تماس غیرمجاور یا هم‌پوشانی بین قطعات یک مسیر برش شناسایی شد؛ مسیر را بازبینی کنید.');
 
   const closedCutPaths=parsed.slice(0,cuts.length).filter(p=>!p.malformed&&p.segments.length>0);
   // Engines may legitimately represent a perimeter as several open SVG subpaths;
