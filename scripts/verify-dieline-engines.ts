@@ -249,6 +249,18 @@ const thickBoardLock = STANDARD_DIELINE_ENGINES['snap-lock-123']({
 if (JSON.stringify(lockBottom.cuts) === JSON.stringify(thickBoardLock.cuts)) {
   fail('snap-lock geometry must respond to board caliper');
 }
+const longerLockTongue = STANDARD_DIELINE_ENGINES['snap-lock-123']({
+  L: 70, W: 70, H: 80, thickness: 0.45, glueTab: 15, tuck: 25, dustFlap: 33, lockTongueDepth: 24, x0: 40,
+});
+if (JSON.stringify(lockBottom.cuts) === JSON.stringify(longerLockTongue.cuts)) {
+  fail('snap-lock tongue projection must be independently adjustable');
+}
+const deeperSideFlaps = STANDARD_DIELINE_ENGINES['snap-lock-123']({
+  L: 70, W: 70, H: 80, thickness: 0.45, glueTab: 15, tuck: 25, dustFlap: 33, bottomFlapDepth: 25, x0: 40,
+});
+if (JSON.stringify(lockBottom.cuts) === JSON.stringify(deeperSideFlaps.cuts)) {
+  fail('snap-lock bottom side-flap depth must be independently adjustable');
+}
 
 
 
