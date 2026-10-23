@@ -16,6 +16,7 @@ const TEMPLATES: TemplateOption[] = [
   { id: 'fefco-0300', name: 'جعبه تلسکوپی درب و زیره', code: 'FEFCO 0300' },
   { id: 'fefco-0320', name: 'جعبه دو‌تکه تلسکوپی', code: 'FEFCO 0320' },
   { id: 'fefco-0427', name: 'جعبه کیبوردی/پستی', code: 'FEFCO 0427' },
+  { id: 'fefco-0713', name: 'کارتن آماده‌چسب‌شده با درب زبانه‌ای', code: 'FEFCO 0713', note: 'هندسه فعلی الگوی پایه است و باید با نقشه رسمی 0713 تطبیق داده شود.' },
   { id: 'fefco-pizza', name: 'جعبه پیتزا یک‌تکه', code: 'قالب اختصاصی', note: 'کد استاندارد رسمی برای این نسخه ادعا نمی‌شود؛ قفل و تهویه نیازمند بازبینی است.' },
   { id: 'ecma-a2020', name: 'جعبه دارویی Reverse Tuck End', code: 'ECMA A20.20' },
   { id: 'ecma-ste', name: 'جعبه Straight Tuck End', code: 'ECMA STE — الگوی پایه', note: 'شناسه توصیفی است، نه کد رسمی ECMA.' },
