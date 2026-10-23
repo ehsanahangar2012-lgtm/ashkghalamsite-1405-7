@@ -5245,6 +5245,105 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             stroke-dasharray: 4,4 !important;
           }
         }
+
+        /* Calm, light application chrome. Keep the actual CAD/SVG drawing colors intact. */
+        .dieline-generator-container {
+          background: #f4f7fb !important;
+          color: #172033 !important;
+          color-scheme: light;
+        }
+        .dieline-generator-container > header {
+          background: rgba(255,255,255,.97) !important;
+          color: #172033 !important;
+          border-bottom: 1px solid #dbe3ee !important;
+          box-shadow: 0 2px 12px rgba(15,23,42,.05) !important;
+        }
+        .dieline-generator-container > header h1 { color: #172033 !important; }
+        .dieline-generator-container > header p { color: #64748b !important; }
+        .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] {
+          background: #eef2f7 !important;
+          border-color: #dbe3ee !important;
+        }
+        .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] > div {
+          background: #fff !important;
+          border: 1px solid #e1e7ef !important;
+          box-shadow: 0 1px 2px rgba(15,23,42,.025) !important;
+        }
+        .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] > div > div:first-child {
+          color: #52637a !important;
+        }
+        .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] > div > div:nth-child(2) {
+          color: #172033 !important;
+        }
+        .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] > div > div:nth-child(3) {
+          color: #64748b !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper {
+          background: #fff !important;
+          color: #1e293b !important;
+          border-color: #dbe3ee !important;
+          box-shadow: 0 8px 28px rgba(15,23,42,.08) !important;
+        }
+        .dieline-generator-container .skinny-icon-rail {
+          background: #fff !important;
+          border-color: #e2e8f0 !important;
+          box-shadow: 0 2px 10px rgba(15,23,42,.04) !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#030"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#050"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#070"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#080"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#090"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#0a0"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#0c"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-slate-950"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-slate-900"] {
+          background: #f8fafc !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-100"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-200"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-300"] {
+          color: #263449 !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-400"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-500"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-550"] {
+          color: #64748b !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-800"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-850"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-900"] {
+          border-color: #e2e8f0 !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper input,
+        .dieline-generator-container .responsive-sidebar-wrapper select,
+        .dieline-generator-container .responsive-sidebar-wrapper textarea {
+          background-color: #fff;
+          color: #172033;
+          border-color: #cbd5e1;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper input:focus,
+        .dieline-generator-container .responsive-sidebar-wrapper select:focus,
+        .dieline-generator-container .responsive-sidebar-wrapper textarea:focus {
+          outline: 2px solid #93c5fd;
+          outline-offset: 1px;
+          border-color: #2563eb;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper button {
+          transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="rounded-2xl"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="rounded-xl"] {
+          box-shadow: none;
+        }
+        @media (max-width: 767px) {
+          .dieline-generator-container > header { flex-wrap: wrap; }
+          .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .5rem;
+            padding: .625rem;
+          }
+        }
       `}</style>
 
       {/* 1. SUITE HEADER BAR */}
