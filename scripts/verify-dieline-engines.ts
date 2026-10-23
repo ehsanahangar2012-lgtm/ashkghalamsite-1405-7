@@ -253,10 +253,10 @@ const scaledLockBottom = STANDARD_DIELINE_ENGINES['snap-lock-123']({
 });
 const scaledPanelW = 140 + 0.45;
 const scaledChecks = [
-  ['top dust flap', dimensionFromLabel(scaledLockBottom, 'گردگیر بالایی', /گردگیر بالایی\\s+(\\d+)mm/), Math.round(scaledPanelW * 33 / (70 + 0.45))],
-  ['bottom side flap', dimensionFromLabel(scaledLockBottom, 'فلپ کناری کف', /فلپ کناری کف\\s+(\\d+)mm/), Math.round(scaledPanelW * 33 / (70 + 0.45))],
-  ['top tuck extension', dimensionFromLabel(scaledLockBottom, 'زبانه درب', /زبانه درب\\s+(\\d+)mm/), Math.round(scaledPanelW * 25 / (70 + 0.45))],
-  ['lock tongue projection', dimensionFromLabel(scaledLockBottom, 'زبانه قفل', /بیرون‌زدگی\\s+(\\d+)mm/), Math.round(scaledPanelW * 17.5 / (70 + 0.45))],
+  ['top dust flap', dimensionFromLabel(scaledLockBottom, 'گردگیر بالایی', /گردگیر بالایی\s+(\d+)mm/), Math.round(scaledPanelW * 33 / (70 + 0.45))],
+  ['bottom side flap', dimensionFromLabel(scaledLockBottom, 'فلپ کناری کف', /فلپ کناری کف\s+(\d+)mm/), Math.round(scaledPanelW * 33 / (70 + 0.45))],
+  ['top tuck extension', dimensionFromLabel(scaledLockBottom, 'زبانه درب', /زبانه درب\s+(\d+)mm/), Math.round(scaledPanelW * 25 / (70 + 0.45))],
+  ['lock tongue projection', dimensionFromLabel(scaledLockBottom, 'زبانه قفل', /بیرون‌زدگی\s+(\d+)mm/), Math.round(scaledPanelW * 17.5 / (70 + 0.45))],
 ] as const;
 for (const [part, actual, expected] of scaledChecks) {
   if (actual !== expected) fail(`snap-lock ${part} must scale with carton width; expected ${expected} mm, got ${actual} mm`);
