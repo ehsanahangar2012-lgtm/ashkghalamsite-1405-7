@@ -89,7 +89,6 @@ export function BoxStudio() {
   const geom = useMemo(() => makeGeometry(L, W, H, G, Number(allowance) || 0), [L, W, H, G, allowance]);
   const viewW = geom.totalW + 50;
   const viewH = geom.totalH + 50;
-  const scaleFactor = Math.min(1, 1000 / Math.max(viewW, viewH));
   const sheetWidth = 2 * L + 2 * W + G + 2 * thickness;
   const sheetHeight = H + 2 * (W / 2 + Number(allowance)) + 36 + 2 * thickness;
   const materialArea = (sheetWidth * sheetHeight) / 1_000_000;
