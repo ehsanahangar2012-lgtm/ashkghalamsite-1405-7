@@ -51,13 +51,6 @@ function makeGeometry(L: number, W: number, H: number, glue: number, allowance: 
     if (sideInset) line(x1 - sideInset, yBottom + depth, x1, yBottom + depth - 7, 'cut');
     line(x1, yBottom + depth - (sideInset ? 7 : 0), x1, yBottom, 'cut');
 
-    // Minor short relief lines on major flap shoulders improve fold clearance.
-    if (isMajor && inset > 0) {
-      line(x0, yTop - depth + inset, x0 + inset, yTop - depth, 'cut');
-      line(x1 - inset, yTop - depth, x1, yTop - depth + inset, 'cut');
-      line(x0, yBottom + depth - inset, x0 + inset, yBottom + depth, 'cut');
-      line(x1 - inset, yBottom + depth, x1, yBottom + depth - inset, 'cut');
-    }
   }
   return { lines, totalW, totalH, yTop, yBottom, xs, flap };
 }
@@ -221,6 +214,29 @@ export function BoxStudio() {
               <div className="flex flex-wrap items-center gap-4 border-t border-slate-100 px-5 py-3 text-[11px] text-slate-500"><span className="flex items-center gap-2"><i className="h-0.5 w-5 bg-[#e44747]"/> برش (CUT)</span><span className="flex items-center gap-2"><i className="h-0.5 w-5 border-t-2 border-dashed border-[#2878cf]"/> خط تا (CREASE)</span><span className="mr-auto">ابعاد بر حسب میلی‌متر</span></div>
             </section>
 
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-5 py-4"><h2 className="font-extrabold">پیش‌نمایش سه‌بعدی مفهومی</h2><p className="mt-1 text-[11px] text-slate-500">نمای حجمی تناسبات جعبه بر اساس ابعاد ورودی؛ برای بررسی بصری، نه تأیید نهایی ساخت</p></div>
+              <div className="flex min-h-[300px] items-center justify-center overflow-hidden bg-gradient-to-br from-slate-50 to-indigo-50 p-5">
+                <svg viewBox="0 0 560 360" role="img" aria-label="نمای سه‌بعدی مفهومی جعبه" className="h-auto w-full max-w-[680px]">
+                  <defs><linearGradient id="box-front" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#e8d8b8"/><stop offset="100%" stopColor="#d3bd91"/></linearGradient><linearGradient id="box-side" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#bca77f"/><stop offset="100%" stopColor="#9e8a65"/></linearGradient><linearGradient id="box-top" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#f2e6cc"/><stop offset="100%" stopColor="#d9c6a2"/></linearGradient></defs>
+                  <ellipse cx="280" cy="292" rx="190" ry="22" fill="#64748b" opacity=".12"/>
+                  <g stroke="#8b7654" strokeWidth="1.4" strokeLinejoin="round">
+                    <polygon points="100,110 205,55 435,55 330,110" fill="url(#box-top)"/>
+                    <polygon points="330,110 435,55 435,235 330,290" fill="url(#box-side)"/>
+                    <polygon points="100,110 330,110 330,290 100,290" fill="url(#box-front)"/>
+                    <path d="M100 110 L205 55 M330 110 L435 55" fill="none" strokeDasharray="5 4" opacity=".6"/>
+                    <path d="M215 110 L215 290 M100 200 L330 200" fill="none" stroke="#b09a72" opacity=".45"/>
+                    <path d="M122 133 H306" fill="none" stroke="#fff7e8" strokeWidth="2" opacity=".65"/>
+                  </g>
+                  <g fill="#766344" fontSize="12" fontWeight="700">
+                    <text x="215" y="316" textAnchor="middle">{L} mm</text>
+                    <text x="450" y="150" textAnchor="middle" transform="rotate(-28 450 150)">{W} mm</text>
+                    <text x="75" y="205" textAnchor="middle" transform="rotate(-90 75 205)">{H} mm</text>
+                  </g>
+                  <text x="280" y="340" textAnchor="middle" fill="#64748b" fontSize="11">جعبه بسته — تصویر شماتیک</text>
+                </svg>
+              </div>
+            </section>
             <section className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-2 flex items-center gap-2"><Layers3 size={18} className="text-indigo-600"/><h3 className="font-extrabold">خلاصه ساختار</h3></div><p className="text-xs leading-6 text-slate-600">الگوی چهار پنل با لبه چسب، دو جفت فلپ بالا و پایین و خطوط تا مستقل. تمام هندسه با تغییر ابعاد دوباره محاسبه می‌شود؛ فایل‌های SVG و DXF به صورت محلی ساخته می‌شوند و به سرویس خارجی نیاز ندارند.</p></div>
               <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-2 flex items-center gap-2"><ShieldCheck size={18} className="text-emerald-600"/><h3 className="font-extrabold">کنترل قبل از تولید</h3></div><ul className="space-y-1.5 text-xs leading-5 text-slate-600"><li>• تطبیق ابعاد داخلی/خارجی با ضخامت ورق</li><li>• کنترل هم‌پوشانی فلپ‌ها و عرض لبه چسب</li><li>• بررسی جهت فلوت و محدودیت‌های قالب دایکات</li><li>• تست نمونه فیزیکی پیش از تیراژ</li></ul></div>
