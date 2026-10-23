@@ -1,3 +1,4 @@
+import { createRteEngine } from './rteGeometry';
 export interface DielineCalculationResult {
   sheetWidth: number;
   sheetHeight: number;
@@ -922,8 +923,8 @@ const rscStandardEngine = createRscEngine(0.5, 0.5);
 const openTopEngine = createRscEngine(0, 0.5);
 const folEngine = createRscEngine(1.0, 1.0);
 const mailerEngine = createMailerEngine();
-const tuckEndEngine = createTuckEndEngine(false);
-const straightTuckEngine = createTuckEndEngine(false, true);
+const tuckEndEngine = createRteEngine(false);
+const straightTuckEngine = createRteEngine(true);
 const crashLockEngine = createTuckEndEngine(true);
 const trayEngine = createTrayEngine();
 const telescopicTrayEngine = createTelescopicTrayEngine();
