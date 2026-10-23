@@ -196,9 +196,9 @@ export function BoxStudio() {
               <div className="mb-4 flex items-center gap-2"><Settings2 size={18} className="text-indigo-600" /><h2 className="font-extrabold">پارامترهای جعبه</h2></div>
               <label className="mb-4 block"><span className="mb-1.5 block text-xs font-bold text-slate-600">نوع ساختار</span><select value={template} onChange={e => setTemplate(e.target.value as BoxTemplate)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-500"><option value="0200">FEFCO 0200 — کارتن نیمه‌شیاردار (یک سمت باز)</option><option value="0201">FEFCO 0201 — کارتن چهارلَت استاندارد (RSC)</option><option value="0203">FEFCO 0203 — کارتن با فلپ‌های بیرونی هم‌پوشان (FOL)</option><option value="0204">FEFCO 0204 — کارتن فلپ‌مرکزی (CSSC)</option></select></label>
               <div className="grid grid-cols-2 gap-3">
-                {field('طول', length, setLength, 20, 2000)}
-                {field('عرض', width, setWidth, 20, 2000)}
-                {field('ارتفاع', height, setHeight, 20, 2000)}
+                {field('طول داخلی', length, setLength, 20, 2000)}
+                {field('عرض داخلی', width, setWidth, 20, 2000)}
+                {field('ارتفاع داخلی', height, setHeight, 20, 2000)}
                 {field('لبه چسب', glue, setGlue, 10, 120)}
               </div>
               <label className="mt-4 block"><span className="mb-1.5 block text-xs font-bold text-slate-600">نوع ورق</span>
@@ -206,7 +206,7 @@ export function BoxStudio() {
                   <option value="E">فلوت E — میکرو (حدود ۱٫۵ mm)</option><option value="B">فلوت B — حدود ۳ mm</option><option value="C">فلوت C — حدود ۴ mm</option><option value="F">مقوای تخت — حدود ۰٫۴۵ mm</option>
                 </select>
               </label>
-              <label className="mt-4 block"><span className="mb-1.5 flex justify-between text-xs font-bold text-slate-600"><span>تلرانس عمق لبه‌ها</span><span>{allowance} mm</span></span>
+              <label className="mt-4 block"><span className="mb-1.5 flex justify-between text-xs font-bold text-slate-600"><span>اصلاح عمق فلپ نسبت به مقدار پایه</span><span>{allowance} mm</span></span>
                 <input type="range" min="-5" max="15" step="0.5" value={allowance} onChange={e => setAllowance(Number(e.target.value))} className="w-full accent-indigo-600" />
                 <span className="mt-1 flex justify-between text-[10px] text-slate-400"><span>۵- mm</span><span>۱۵+ mm</span></span>
               </label>
@@ -221,7 +221,7 @@ export function BoxStudio() {
                 <div className="flex justify-between border-b border-slate-100 pb-2"><span className="text-slate-500">مساحت هندسی تقریبی</span><strong>{materialArea.toFixed(3)} m²</strong></div>
                 <div className="flex justify-between"><span className="text-slate-500">ضخامت اسمی ورق</span><strong>{thickness} mm</strong></div>
               </div>
-              <p className="mt-3 rounded-xl bg-amber-50 p-3 text-[11px] leading-5 text-amber-800">مساحت از محدوده هندسی خطوط محاسبه می‌شود و پرت ورق، جهت فلوت، شیارزنی و تلرانس دستگاه را شامل نمی‌شود.</p>
+              <p className="mt-3 rounded-xl bg-amber-50 p-3 text-[11px] leading-5 text-amber-800">ابعاد ورودی، ابعاد داخلی اسمی هستند. محاسبه خودکار جبران ضخامت در طول/عرض پنل‌ها، جهت فلوت، شیارزنی، پرت ورق و تلرانس دستگاه انجام نمی‌شود؛ این موارد باید طبق مشخصات خط تولید تعیین شوند.</p>
             </section>
           </aside>
 
