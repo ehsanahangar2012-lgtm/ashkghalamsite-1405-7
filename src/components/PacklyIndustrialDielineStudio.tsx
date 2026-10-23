@@ -130,8 +130,9 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     const cuts = geometry.cuts.map(d => `<path d="${d}" fill="none" stroke="#dc2626" stroke-width="0.25"/>`).join('');
     const creases = geometry.creases.map(d => `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="0.25" stroke-dasharray="2 1"/>`).join('');
     const labels = showLabels ? geometry.labels.map(label => `<text x="${label.x}" y="${label.y}" font-size="4" text-anchor="middle" fill="#64748b">${label.text.replace(/[&<>"]/g, '')}</text>`).join('') : '';
+    const dimensions = showLabels ? `<g id="DIMENSIONS" fill="#475569" stroke="#64748b" stroke-width=".25"><path d="M ${geometry.xMin} ${geometry.yMin - 5} L ${geometry.xMax} ${geometry.yMin - 5} M ${geometry.xMin} ${geometry.yMin - 7} L ${geometry.xMin} ${geometry.yMin - 3} M ${geometry.xMax} ${geometry.yMin - 7} L ${geometry.xMax} ${geometry.yMin - 3} M ${geometry.xMax + 5} ${geometry.yMin} L ${geometry.xMax + 5} ${geometry.yMax} M ${geometry.xMax + 3} ${geometry.yMin} L ${geometry.xMax + 7} ${geometry.yMin} M ${geometry.xMax + 3} ${geometry.yMax} L ${geometry.xMax + 7} ${geometry.yMax}"/><text x="${(geometry.xMin + geometry.xMax) / 2}" y="${geometry.yMin - 6}" font-size="4" text-anchor="middle" stroke="none">${(geometry.xMax - geometry.xMin).toFixed(1)} mm</text><text x="${geometry.xMax + 6}" y="${(geometry.yMin + geometry.yMax) / 2}" font-size="4" text-anchor="middle" stroke="none" transform="rotate(90 ${geometry.xMax + 6} ${(geometry.yMin + geometry.yMax) / 2)">${(geometry.yMax - geometry.yMin).toFixed(1)} mm</text></g>` : '';
     const grid = showGrid ? `<defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" stroke-opacity=".35" stroke-width=".15"/></pattern></defs><rect x="${geometry.xMin}" y="${geometry.yMin}" width="${viewW}" height="${viewH}" fill="url(#grid)"/>` : '';
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW}mm" height="${viewH}mm" viewBox="${geometry.xMin} ${geometry.yMin} ${viewW} ${viewH}">${grid}<g id="CUT">${cuts}</g><g id="CREASE">${creases}</g>${labels}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW}mm" height="${viewH}mm" viewBox="${geometry.xMin - 8} ${geometry.yMin - 8} ${viewW + 16} ${viewH + 16}">${grid}<g id="CUT">${cuts}</g><g id="CREASE">${creases}</g>${labels}${dimensions}</svg>`;
   }, [geometry, showLabels, showGrid]);
 
   const exportDxf = () => {
@@ -254,6 +255,11 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                   {geometry.cuts.map((d, i) => <path key={`cut-${i}`} d={d} fill="none" stroke="#dc2626" strokeWidth="0.8" vectorEffect="non-scaling-stroke"/>)}
                   {geometry.creases.map((d, i) => <path key={`crease-${i}`} d={d} fill="none" stroke="#2563eb" strokeWidth="0.8" strokeDasharray="5 3" vectorEffect="non-scaling-stroke"/>)}
                   {showLabels && geometry.labels.map((label, i) => <text key={`label-${i}`} x={label.x} y={label.y} fill="#475569" fontSize="5" textAnchor="middle">{label.text}</text>)}
+                  {showLabels && <g fill="#475569" stroke="#64748b" strokeWidth="0.25">
+                    <path d={`M ${geometry.xMin} ${geometry.yMin - 5} L ${geometry.xMax} ${geometry.yMin - 5} M ${geometry.xMin} ${geometry.yMin - 7} L ${geometry.xMin} ${geometry.yMin - 3} M ${geometry.xMax} ${geometry.yMin - 7} L ${geometry.xMax} ${geometry.yMin - 3} M ${geometry.xMax + 5} ${geometry.yMin} L ${geometry.xMax + 5} ${geometry.yMax} M ${geometry.xMax + 3} ${geometry.yMin} L ${geometry.xMax + 7} ${geometry.yMin} M ${geometry.xMax + 3} ${geometry.yMax} L ${geometry.xMax + 7} ${geometry.yMax}`}/>
+                    <text x={(geometry.xMin + geometry.xMax) / 2} y={geometry.yMin - 6} fontSize="5" textAnchor="middle" stroke="none">{(geometry.xMax - geometry.xMin).toFixed(1)} mm</text>
+                    <text x={geometry.xMax + 6} y={(geometry.yMin + geometry.yMax) / 2} fontSize="5" textAnchor="middle" stroke="none" transform={`rotate(90 ${geometry.xMax + 6} ${(geometry.yMin + geometry.yMax) / 2})`}>{(geometry.yMax - geometry.yMin).toFixed(1)} mm</text>
+                  </g>}
                 </svg>
               </div>}
               {geometry && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
