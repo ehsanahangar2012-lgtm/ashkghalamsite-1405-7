@@ -19,7 +19,6 @@ import { CatalogItemPage } from './components/catalog/CatalogItemPage';
 import { Button, Card, Badge } from './components/UIComponents';
 import { generateSupportResponse, analyzeDesignStyle } from './services/geminiService';
 import { DesignStudio } from './components/DesignStudio';
-import { DielineGenerator } from './components/DielineGenerator';
 import { BoxStudio } from './components/BoxStudio';
 import { ThreeDProductSlider } from './components/ThreeDProductSlider';
 import { ContentProvider, useContent } from './contexts/ContentContext';
