@@ -82,6 +82,11 @@ if (!rteGeometry.cuts.some(path => path.includes('L 163.6 30 L 163.6 33.6')) ||
     !rteGeometry.cuts.some(path => path.includes('L 325 195 L 455 195'))) {
   fail('ECMA reverse-tuck-end must include a locking notch and angled dust-flap corners');
 }
+if (!rteGeometry.cuts.some(path =>
+  path.includes('L 563.6 490 L 563.6 486.4 L 616.4 486.4 L 616.4 490')
+)) {
+  fail('ECMA reverse-tuck-end bottom locking slot must follow a non-overlapping perimeter order');
+}
 
 const telescope = STANDARD_DIELINE_ENGINES['fefco-0320']({
   L: 240, W: 160, H: 100, thickness: 1.6, glueTab: 30, x0: 40,
