@@ -103,3 +103,10 @@ Updated: 2026-10-23. This records technical guidance and licensing decisions; it
 - Added a preview-only 50 mm calibration ruler, while the export PDF already includes its own scale legend. The ruler is deliberately part of the on-screen preview only, not appended to the SVG/DXF knife geometry.
 - The status chip now says `بررسی مسیرها موفق` only when the geometry audit passes and no self-intersection is flagged. A valid-looking generated object that fails the audit is marked `تولید شد؛ نیازمند بازبینی`, rather than green.
 - Replaced the color sentence with an inline visual CUT/CREASE/GLUE key, matching the reference convention of solid red cuts, dashed blue creases, and non-cutting adhesive overlays.
+
+
+## Manual Snap-Lock benchmark controls (2026-10-24)
+
+- Added a reference-size preset and independent visible controls for the manual Snap-Lock tuck, top dust flaps, side bottom flaps, and lock-tongue projection.
+- The preview now shows the published 3D Box Studio 70 × 70 × 80 mm benchmark (0.45 mm board, 15 mm seam, 25 mm tuck, 33 mm dust/side flaps, 17.5 mm tongue projection) against the generated extent (296.8 × 226 mm reference). The 0.1 mm tolerance is an envelope comparison, not proof of cut-path identity.
+- The public reference distinguishes the hand-folded no-glue 1-2-3 bottom from the pre-glued Auto-Lock bottom. A direct source-page link is included for side-by-side inspection. The official FEFCO code mapping and machine-specific allowances remain explicitly unverified.

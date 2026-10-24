@@ -62,6 +62,10 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [autoLockTuckDepth, setAutoLockTuckDepth] = useState(25);
   const [autoLockDustDepth, setAutoLockDustDepth] = useState(43);
   const [autoLockSideDepth, setAutoLockSideDepth] = useState(40.5);
+  const [snapLockTuckDepth, setSnapLockTuckDepth] = useState(25);
+  const [snapLockDustDepth, setSnapLockDustDepth] = useState(33);
+  const [snapLockSideDepth, setSnapLockSideDepth] = useState(33);
+  const [snapLockTongueDepth, setSnapLockTongueDepth] = useState(17.5);
   const [dimensionConvention, setDimensionConvention] = useState<'inside' | 'outside'>('inside');
   const [materialPreset, setMaterialPreset] = useState('corrugated-e');
   const [glueTab, setGlueTab] = useState(30);
@@ -75,16 +79,18 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [saved, setSaved] = useState(false);
 
   const template = TEMPLATES.find(t => t.id === templateId) || TEMPLATES[0];
-  const supportsLockAngle = ['snap-lock-123', 'fefco-0713'].includes(templateId);
+  const supportsLockAngle = ['snap-lock-123', 'fefco-0215', 'fefco-0713'].includes(templateId);
   const supportsLidHeight = ['fefco-0300', 'fefco-0301', 'fefco-0320'].includes(templateId);
   const supportsAutoLockDimensions = templateId === 'fefco-0713';
+  const supportsSnapLockDimensions = ['snap-lock-123', 'fefco-0215'].includes(templateId);
   const validInputs = numeric(length, 10, 2000) && numeric(width, 10, 2000) && numeric(height, 10, 2000) &&
     numeric(thickness, 0.2, 10) && numeric(glueTab, 5, 200) && numeric(slotGap, 1, 10) && numeric(lidHeight, 5, 2000) &&
     (!supportsLockAngle || numeric(autoLockAngle, 25, 65)) &&
     (!supportsAutoLockDimensions || (numeric(autoLockTuckDepth, 4, 60) && numeric(autoLockDustDepth, 4, 43) && numeric(autoLockSideDepth, 6, 43))) &&
+    (!supportsSnapLockDimensions || (numeric(snapLockTuckDepth, 4, 40) && numeric(snapLockDustDepth, 4, 33) && numeric(snapLockSideDepth, 6, 33) && numeric(snapLockTongueDepth, 4, 37.5))) &&
     (!supportsLidHeight || numeric(lidClearance, 0.1, 12));
   const engine = STANDARD_DIELINE_ENGINES[templateId];
-  const supportsDimensionConvention = ['fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'default-rsc', 'fefco-0713'].includes(templateId);
+  const supportsDimensionConvention = ['fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'default-rsc', 'snap-lock-123', 'fefco-0215', 'fefco-0713'].includes(templateId);
   const supportsSlotGap = ['fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204', 'default-rsc'].includes(templateId);
   const geometryState = useMemo(() => {
     if (!validInputs || typeof engine !== 'function') return { geometry: null as DielineEngineResult | null, error: 'ابعاد باید عدد معتبر باشند و در محدوده مجاز قرار گیرند.' };
@@ -92,6 +98,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
       const g = engine({
         L: length, W: width, H: height, lidHeight, lidClearance, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, x0: 40,
         ...(supportsAutoLockDimensions ? { tuck: autoLockTuckDepth, dustFlap: autoLockDustDepth, bottomFlapDepth: autoLockSideDepth } : {}),
+        ...(supportsSnapLockDimensions ? { tuck: snapLockTuckDepth, dustFlap: snapLockDustDepth, bottomFlapDepth: snapLockSideDepth, lockTongueDepth: snapLockTongueDepth } : {}),
       });
       const allValues = [g.xMin, g.yMin, g.xMax, g.yMax, g.totalW, g.totalH];
       const pathsValid = Array.isArray(g.cuts) && g.cuts.length > 0 &&
@@ -105,7 +112,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     } catch (error) {
       return { geometry: null, error: error instanceof Error ? error.message : 'خطای ناشناخته در موتور تولید قالب.' };
     }
-  }, [engine, length, width, height, lidHeight, lidClearance, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, autoLockTuckDepth, autoLockDustDepth, autoLockSideDepth, supportsAutoLockDimensions, validInputs]);
+  }, [engine, length, width, height, lidHeight, lidClearance, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, autoLockTuckDepth, autoLockDustDepth, autoLockSideDepth, snapLockTuckDepth, snapLockDustDepth, snapLockSideDepth, snapLockTongueDepth, supportsAutoLockDimensions, supportsSnapLockDimensions, validInputs]);
 
   const geometry = geometryState.geometry;
   const autoLockReferencePreset = supportsAutoLockDimensions &&
@@ -120,6 +127,19 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const referenceWidthDelta = geometry ? generatedWidth - 376.8 : 0;
   const referenceHeightDelta = geometry ? generatedHeight - 503 : 0;
   const referenceEnvelopeMatches = Math.abs(referenceWidthDelta) <= 0.1 && Math.abs(referenceHeightDelta) <= 0.5;
+  const snapLockReferencePreset = supportsSnapLockDimensions &&
+    length === 70 && width === 70 && height === 80 &&
+    Math.abs(thickness - 0.45) < 1e-8 && Math.abs(glueTab - 15) < 1e-8 &&
+    dimensionConvention === 'inside' &&
+    Math.abs(snapLockTuckDepth - 25) < 1e-8 &&
+    Math.abs(snapLockDustDepth - 33) < 1e-8 &&
+    Math.abs(snapLockSideDepth - 33) < 1e-8 &&
+    Math.abs(snapLockTongueDepth - 17.5) < 1e-8;
+  const snapLockGeneratedWidth = geometry ? geometry.xMax - geometry.xMin : 0;
+  const snapLockGeneratedHeight = geometry ? geometry.yMax - geometry.yMin : 0;
+  const snapLockReferenceWidthDelta = geometry ? snapLockGeneratedWidth - 296.8 : 0;
+  const snapLockReferenceHeightDelta = geometry ? snapLockGeneratedHeight - 226 : 0;
+  const snapLockReferenceEnvelopeMatches = Math.abs(snapLockReferenceWidthDelta) <= 0.1 && Math.abs(snapLockReferenceHeightDelta) <= 0.1;
   const geometryAudit = useMemo(() => {
     if (!geometry) return null;
     // Validate the actual generated SVG paths. A generous sheet envelope avoids
@@ -186,6 +206,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
         lidClearance: supportsLidHeight ? lidClearance : null,
         lockAngle: supportsLockAngle ? autoLockAngle : null,
         autoLockDimensions: supportsAutoLockDimensions ? { tuck: autoLockTuckDepth, topDustFlap: autoLockDustDepth, bottomSideFlap: autoLockSideDepth } : null,
+        snapLockDimensions: supportsSnapLockDimensions ? { tuck: snapLockTuckDepth, topDustFlap: snapLockDustDepth, bottomSideFlap: snapLockSideDepth, tongueProjection: snapLockTongueDepth } : null,
         slotGap: supportsSlotGap ? slotGap : null,
         geometry: { cutPaths: geometry.cuts.length, creasePaths: geometry.creases.length, bounds: { width: geometry.xMax - geometry.xMin, height: geometry.yMax - geometry.yMin }, units: 'mm' },
       },
@@ -216,14 +237,13 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               <select value={templateId} onChange={e => {
                 const nextId = e.target.value;
                 setTemplateId(nextId);
-                if (nextId === 'snap-lock-123') {
-                  // Load the public reference generator's reproducible benchmark
-                  // when this carton is selected, so the geometry can be compared 1:1.
+                        if (['snap-lock-123', 'fefco-0215'].includes(nextId)) {
+                  // Load the public manual Snap-Lock benchmark for both local aliases.
                   setLength(70); setWidth(70); setHeight(80);
                   setThickness(0.45); setMaterialPreset('folding-carton');
                   setGlueTab(15); setDimensionConvention('inside');
-                } else if (nextId === 'fefco-0215') {
-                  setMaterialPreset('corrugated-e'); setThickness(1.5);
+                  setSnapLockTuckDepth(25); setSnapLockDustDepth(33);
+                  setSnapLockSideDepth(33); setSnapLockTongueDepth(17.5);
                 } else if (nextId === 'fefco-0713') {
                   setAutoLockTuckDepth(25); setAutoLockDustDepth(43); setAutoLockSideDepth(40.5);
                   setGlueTab(15); setDimensionConvention('inside');
@@ -271,7 +291,18 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 </div>
                 <p className="mt-2 text-[10px] leading-5 text-slate-600">پیش‌فرض‌های مرجع: ۲۵، ۴۳ و ۴۰٫۵ میلی‌متر. عمق مؤثر بعضی فلپ‌ها بر اساس عرض جعبه محدود می‌شود تا خطوط برش از هم عبور نکنند.</p>
               </div>}
-              <p className="mt-2 text-[10px] leading-5 text-slate-600">{supportsAutoLockDimensions ? 'ابعاد داخل/خارج، ضخامت ورق و عمق فلپ‌ها بر گسترده اثر می‌گذارند. الگوی این بخش با مرجع عمومی Auto-Lock تطبیق داده شده؛ ساخت تیغ منوط به تطبیق با نقشه رسمی FEFCO و تست تا با ورق واقعی است.' : supportsDimensionConvention ? 'برای خانواده FEFCO 0200، ابعاد داخلی پیش‌فرض است؛ کالیپر به ابعاد پنل و بدنه افزوده می‌شود و فاصله شیار بین فلپ‌ها جداگانه تنظیم می‌شود. اصلاح دقیق خطوط تا باید با روش قالب‌ساز کالیبره شود.' : supportsLockAngle ? 'زاویه شانه در هندسه برش اعمال می‌شود؛ اما این‌ها الگوهای پارامتریک/آزمایشی‌اند، نه نقشهٔ رسمی تأییدشده. جای‌گیری قفل، خلاصی ورق و مونتاژ باید با نمونه تاخورده و مشخصات قالب‌ساز تأیید شود.' : 'برای این ساختار پارامتریک، تفسیر دقیق ابعاد داخل/خارج و جبران کامل خطوط تا هنوز تأیید نشده است.'}</p>
+              {supportsSnapLockDimensions && <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <h5 className="mb-2 text-xs font-bold text-slate-800">۳. تنظیمات قفل دستی Snap-Lock (mm)</h5>
+                <button type="button" onClick={() => { setLength(70); setWidth(70); setHeight(80); setThickness(0.45); setMaterialPreset('folding-carton'); setGlueTab(15); setDimensionConvention('inside'); setSnapLockTuckDepth(25); setSnapLockDustDepth(33); setSnapLockSideDepth(33); setSnapLockTongueDepth(17.5); }} className="mb-3 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50">بارگذاری نمونهٔ مرجع ۷۰×۷۰×۸۰ میلی‌متر</button>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <label className="text-[11px] font-bold text-slate-700">عمق زبانه درب<input type="number" min={4} max={40} step={0.5} value={Number.isFinite(snapLockTuckDepth) ? snapLockTuckDepth : ''} onChange={e => setSnapLockTuckDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+                  <label className="text-[11px] font-bold text-slate-700">عمق گردگیر بالا<input type="number" min={4} max={33} step={0.5} value={Number.isFinite(snapLockDustDepth) ? snapLockDustDepth : ''} onChange={e => setSnapLockDustDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+                  <label className="text-[11px] font-bold text-slate-700">عمق فلپ جانبی کف<input type="number" min={6} max={33} step={0.5} value={Number.isFinite(snapLockSideDepth) ? snapLockSideDepth : ''} onChange={e => setSnapLockSideDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+                  <label className="text-[11px] font-bold text-slate-700">بیرون‌زدگی زبانه قفل<input type="number" min={4} max={37.5} step={0.5} value={Number.isFinite(snapLockTongueDepth) ? snapLockTongueDepth : ''} onChange={e => setSnapLockTongueDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
+                </div>
+                <p className="mt-2 text-[10px] leading-5 text-slate-600">این کف با دست و به ترتیب ۱-۲-۳ بسته می‌شود و کف آن چسب پیش‌خورده ندارد؛ مکانیزم آن با Auto-Lock کارخانه‌ای یکسان نیست. مشخصات بالا از نمونه عمومی مرجع گرفته شده و تطابق با نقشه رسمی FEFCO 0215 ادعا نمی‌شود.</p>
+              </div>}
+              {manualPanelAnchor} 'ابعاد داخل/خارج، ضخامت ورق و عمق فلپ‌ها بر گسترده اثر می‌گذارند. الگوی این بخش با مرجع عمومی Auto-Lock تطبیق داده شده؛ ساخت تیغ منوط به تطبیق با نقشه رسمی FEFCO و تست تا با ورق واقعی است.' : supportsDimensionConvention ? 'برای خانواده FEFCO 0200، ابعاد داخلی پیش‌فرض است؛ کالیپر به ابعاد پنل و بدنه افزوده می‌شود و فاصله شیار بین فلپ‌ها جداگانه تنظیم می‌شود. اصلاح دقیق خطوط تا باید با روش قالب‌ساز کالیبره شود.' : supportsLockAngle ? 'زاویه شانه در هندسه برش اعمال می‌شود؛ اما این‌ها الگوهای پارامتریک/آزمایشی‌اند، نه نقشهٔ رسمی تأییدشده. جای‌گیری قفل، خلاصی ورق و مونتاژ باید با نمونه تاخورده و مشخصات قالب‌ساز تأیید شود.' : 'برای این ساختار پارامتریک، تفسیر دقیق ابعاد داخل/خارج و جبران کامل خطوط تا هنوز تأیید نشده است.'}</p>
               {!validInputs && <p className="mt-2 rounded-lg border border-red-200 bg-red-50 p-2 text-xs leading-5 text-red-800">ابعاد: ۱۰ تا ۲۰۰۰ mm · ضخامت: ۰٫۲ تا ۱۰ mm · لبه چسب: ۵ تا ۲۰۰ mm · فاصله شیار: ۱ تا ۱۰ mm · عمق درب Auto-Lock: ۴ تا ۶۰ mm · گردگیر: ۴ تا ۴۳ mm · فلپ جانبی: ۶ تا ۴۳ mm · خلاصی درب: ۰٫۱ تا ۱۲ mm · زاویه قفل: ۲۵ تا ۶۵ درجه. تا اصلاح مقادیر، خروجی غیرفعال است.</p>}
             </div>
             <details className="rounded-xl border border-slate-200 bg-slate-50 p-2">
@@ -330,7 +361,25 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 </div>
                 <p className="mt-2 text-slate-600">معیار مرجع منتشرشده: پنل‌های W/L/W/L، درب جلویی زبانه‌دار، گردگیرهای جانبی، فلپ‌های اصلی با پله‌های مکمل و خط‌تاهای ۴۵ درجه در ناحیه چسب. این آزمون، تطبیق عددی و ویژگی‌های ساختاری است؛ فایل SVG/DXF خامِ مولد بیرونی برای هم‌پوشانی مختصاتی در دسترس نبوده، بنابراین ادعای تطبیق پیکسل‌به‌پیکسل نمی‌شود.</p>
               </div>}
-              {geometryAudit && <details className="mb-3 rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5"><summary className="cursor-pointer font-bold text-slate-800">گزارش بررسی مسیرها — {exportReady ? 'ساختار قابل‌قبول' : 'نیازمند بازبینی'}</summary><div className={`mt-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+              {supportsSnapLockDimensions && <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-slate-700">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <strong className="text-sky-950">مقایسه مرجع عددی · 3D Box Studio Snap-Lock</strong>
+                  <div className="flex items-center gap-3">
+                    <span className={snapLockReferencePreset && snapLockReferenceEnvelopeMatches ? 'rounded-full bg-emerald-100 px-2 py-1 font-bold text-emerald-800' : 'rounded-full bg-white px-2 py-1 text-slate-600'}>
+                      {snapLockReferencePreset && snapLockReferenceEnvelopeMatches ? 'ابعاد گسترده در تلرانس مرجع' : 'برای تطبیق، نمونه مرجع را بارگذاری کنید'}
+                    </span>
+                    <a className="font-bold text-sky-800 underline" href="https://www.3dboxstudio.com/box-templates/snap-lock-bottom-box" target="_blank" rel="noreferrer">بازکردن مولد مرجع ↗</a>
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="rounded-lg border border-sky-100 bg-white p-2"><div className="text-slate-500">مرجع منتشرشده</div><strong dir="ltr">296.8 × 226 mm</strong></div>
+                  <div className="rounded-lg border border-sky-100 bg-white p-2"><div className="text-slate-500">گسترده تولیدشده</div><strong dir="ltr">{geometry ? snapLockGeneratedWidth.toFixed(2) + ' × ' + snapLockGeneratedHeight.toFixed(2) + ' mm' : '—'}</strong></div>
+                  <div className="rounded-lg border border-sky-100 bg-white p-2"><div className="text-slate-500">اختلاف عرض</div><strong dir="ltr">{geometry ? (snapLockReferenceWidthDelta > 0 ? '+' : '') + snapLockReferenceWidthDelta.toFixed(2) + ' mm' : '—'}</strong></div>
+                  <div className="rounded-lg border border-sky-100 bg-white p-2"><div className="text-slate-500">اختلاف ارتفاع</div><strong dir="ltr">{geometry ? (snapLockReferenceHeightDelta > 0 ? '+' : '') + snapLockReferenceHeightDelta.toFixed(2) + ' mm' : '—'}</strong></div>
+                </div>
+                <p className="mt-2 text-slate-600">معیار مرجع منتشرشده برای ابعاد داخل ۷۰×۷۰×۸۰، ضخامت ۰٫۴۵، لبه چسب ۱۵، زبانه درب ۲۵، گردگیر ۳۳ و بیرون‌زدگی قفل ۱۷٫۵ میلی‌متر است. این کارت فقط گسترده و توپولوژی مستند را مقایسه می‌کند؛ فایل خام SVG/DXF مرجع برای هم‌پوشانی مختصاتی دریافت نشده است.</p>
+              </div>}
+              {compareAnchor}"mb-3 rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5"><summary className="cursor-pointer font-bold text-slate-800">گزارش بررسی مسیرها — {exportReady ? 'ساختار قابل‌قبول' : 'نیازمند بازبینی'}</summary><div className={`mt-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
                 <div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4"/>{exportReady ? 'بررسی ساختاری مسیرها گذشت' : 'خروجی به بررسی بیشتر نیاز دارد'}</div>
                 <p className="mt-1">طول برش تقریبی: {geometryAudit.cutLength} mm · طول خط‌تا: {geometryAudit.creaseLength} mm · امتیاز بررسی ساختاری: {geometryAudit.score}/100</p>
                 <p className="mt-1">کنترل تقاطع: برش/برش {geometryAudit.topology.cutCutCrossings} · برش/خط‌تا {geometryAudit.topology.cutCreaseCrossings} · هم‌پوشانی {geometryAudit.topology.overlaps} · اتصال T نیازمند بازبینی {geometryAudit.topology.teeContacts} · خارج از محدوده {geometryAudit.topology.boundsViolations}</p>
