@@ -88,3 +88,10 @@ Updated: 2026-10-23. This records technical guidance and licensing decisions; it
 
 
 - The angle control is a real geometric parameter, not only an annotation: it changes the diagonal shoulder run on the complementary lock steps using `run = stepDepth / tan(angle)`, bounded against the panel width. The regression suite checks the 45° default topology and separately verifies that 30° and 60° settings produce different CUT geometry.
+
+
+## Snap-Lock engine isolation
+
+- Moved the manual 1-2-3/Snap-Lock builder from the monolithic geometry registry to `src/services/dielineModels/snapLockBottom.ts`. The extraction keeps its public engine parameters and existing reference regression checks intact.
+- The registry continues to share this manual model between the local `snap-lock-123` ID and the existing unverified/custom `fefco-0215` compatibility label. This is intentionally not a certified statement that the official FEFCO 0215 plate equals this model; the UI continues to mark the exact standard mapping as unverified. This engine is not the separate factory-glued Auto-Lock model.
+- Current design reference distinguishes the two bottom closures: 3D Box Studio describes Auto-Lock as pre-glued with 45° side glue tabs, while Snap-Lock/1-2-3 is manually folded in sequence without pre-gluing the bottom. Sources: `https://www.3dboxstudio.com/box-templates/auto-lock-bottom-box` and `https://www.3dboxstudio.com/box-templates/snap-lock-bottom-box`.
