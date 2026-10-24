@@ -259,7 +259,7 @@ const autoLockRectG = 55, autoLockRectPanelW = 60.45, autoLockRectPanelL = 90.45
 const autoLockRectBottomY = 30 + autoLockRectPanelW + 25 + (80 + 1.35);
 const autoLockRectPanelStarts = [autoLockRectG, autoLockRectG + autoLockRectPanelW, autoLockRectG + autoLockRectPanelW + autoLockRectPanelL,
   autoLockRectG + 2 * autoLockRectPanelW + autoLockRectPanelL];
-const autoLockRectSideDepth = Math.max(6, Math.min(90 * 0.45, autoLockRectPanelW * 0.48));
+const autoLockRectSideDepth = Math.max(6, Math.min(60 * 0.45, autoLockRectPanelW * 0.48));
 const autoLockRectSideShoulder = Math.max(0.8, Math.min(8, autoLockRectPanelW * 0.08, autoLockRectSideDepth * 0.2));
 const autoLockRectSideBoundaryY = autoLockRectBottomY + autoLockRectSideDepth - autoLockRectSideShoulder;
 const autoLockRectBottomStarts = [
