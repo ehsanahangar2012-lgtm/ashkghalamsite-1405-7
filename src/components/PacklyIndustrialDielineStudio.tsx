@@ -362,7 +362,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                   </g>}
                 </svg>
                 </div>
-              </div>
+              </div>}
               {geometry && <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600"><span className="rounded-lg border border-slate-200 bg-white px-3 py-2">برش: <strong>{geometry.cuts.length}</strong> مسیر</span><span className="rounded-lg border border-slate-200 bg-white px-3 py-2">خط‌تا: <strong>{geometry.creases.length}</strong> مسیر</span><span className="rounded-lg border border-slate-200 bg-white px-3 py-2">ضخامت ورق: <strong>{thickness} mm</strong></span><span className="rounded-lg border border-slate-200 bg-white px-3 py-2">گسترده: <strong>{(geometry.xMax-geometry.xMin).toFixed(1)} × {(geometry.yMax-geometry.yMin).toFixed(1)} mm</strong></span></div>}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" onClick={() => setShow3D(v => !v)} className={buttonClass + ' border border-slate-300 bg-white hover:bg-slate-100'}><Rotate3d className="h-4 w-4"/>{show3D ? 'بستن نمای حجمی' : 'نمای حجمی ابعاد'}</button>
