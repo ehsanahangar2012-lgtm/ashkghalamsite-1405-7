@@ -2,6 +2,7 @@ import { calculateDielineParameters, getRscFlapDepths, STANDARD_DIELINE_ENGINES 
 import { parseDxfToEntities, scaleCustomDieline } from '../src/services/customDielineEngine.ts';
 import { validateDxfDieline, runComprehensiveGeometryCheck } from '../src/services/geometryValidator.ts';
 import { buildDielineSvgExport } from '../src/services/dielineExport.ts';
+import { buildDielinePdfExport } from '../src/services/dielineExport.ts';
 
 const requiredEngines = [
   'default-rsc',
@@ -176,6 +177,29 @@ if (glueGroupWithoutZones.includes('<path') ||
     autoLockSvgWithoutGlue.includes('id="DIMENSIONS"') ||
     autoLockSvgWithoutGlue.includes('پهنا W=')) {
   fail('SVG export display toggles must independently omit glue overlays, dimensions and panel labels');
+}
+const autoLockPdf = buildDielinePdfExport(autoLockReference, { showDimensions: true, showGlueZones: true });
+if (!autoLockPdf.startsWith('%PDF-1.4\n') ||
+    !autoLockPdf.includes('(50 mm | scale 1:1)') ||
+    !autoLockPdf.includes('(CUT)') ||
+    !autoLockPdf.includes('(CREASE)') ||
+    !autoLockPdf.includes('(GLUE \\(visual only\\))')) {
+  fail('vector PDF must include calibration scale and explicit cut/crease/glue legend');
+}
+const pdfXrefOffset = Number(autoLockPdf.match(/startxref\n(\d+)/)?.[1] || -1);
+const pdfXrefStart = autoLockPdf.lastIndexOf('xref\n');
+if (pdfXrefOffset !== pdfXrefStart) fail('vector PDF xref pointer must land on the xref table');
+const pdfXrefRows = autoLockPdf.slice(pdfXrefStart).split('\n').slice(3, 8);
+for (let objectIndex = 1; objectIndex <= 5; objectIndex++) {
+  const objectOffset = Number(pdfXrefRows[objectIndex - 1]?.slice(0, 10));
+  if (!Number.isFinite(objectOffset) || !autoLockPdf.startsWith(objectIndex + ' 0 obj\n', objectOffset)) {
+    fail('vector PDF xref entry does not point to object ' + objectIndex);
+  }
+}
+const expectedPageWidthPt = Number((Math.max(autoLockReference.totalW + 22, 140) * 72 / 25.4).toFixed(4));
+const expectedPageHeightPt = Number(((autoLockReference.totalH + 40) * 72 / 25.4).toFixed(4));
+if (!autoLockPdf.includes('/MediaBox [0 0 ' + expectedPageWidthPt + ' ' + expectedPageHeightPt + ']')) {
+  fail('vector PDF page must preserve millimetre scale in its physical dimensions');
 }
 if (Math.abs(autoLockReference.totalW - 376.8) > 1e-6 ||
     Math.abs(autoLockReference.totalH - 503) > 0.5) {

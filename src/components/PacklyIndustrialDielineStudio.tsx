@@ -5,7 +5,7 @@ import { STANDARD_DIELINE_ENGINES } from '../services/dielineMath';
 import type { DielineEngineResult } from '../services/dielineMath';
 import type { Project } from '../types';
 import { runComprehensiveGeometryCheck } from '../services/geometryValidator';
-import { buildDielineSvgExport } from '../services/dielineExport';
+import { buildDielinePdfExport, buildDielineSvgExport } from '../services/dielineExport';
 
 type TemplateOption = {
   id: string; name: string; code: string; category: string;
@@ -170,6 +170,12 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     };
   }, [geometry, previewZoom]);
 
+  const exportPdf = () => {
+    if (!exportReady || !geometry) return;
+    const pdf = buildDielinePdfExport(geometry, { showDimensions, showGlueZones });
+    download(`ashkghalam-${templateId}.pdf`, pdf, 'application/pdf');
+  };
+
   // DXF is deliberately CUT + CREASE only. Glue zones are visual-only, not knife paths.
   const exportDxf = () => {
     if (!geometry) return;
@@ -300,6 +306,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             <div className="grid grid-cols-2 gap-2">
               <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.svg`, svg, 'image/svg+xml;charset=utf-8')} className={buttonClass + ' bg-sky-600 text-white hover:bg-sky-500'}><Download className="h-4 w-4"/>خروجی SVG</button>
               <button disabled={!exportReady} onClick={exportDxf} className={buttonClass + ' bg-indigo-600 text-white hover:bg-indigo-500'}><Download className="h-4 w-4"/>خروجی DXF</button>
+              <button disabled={!exportReady} onClick={exportPdf} className={buttonClass + ' bg-rose-600 text-white hover:bg-rose-500'}><Download className="h-4 w-4"/>خروجی PDF برداری</button>
               <button disabled={!exportReady} onClick={() => exportReady && geometry && download(`ashkghalam-${templateId}.json`, JSON.stringify({ template, dimensions: { length, width, height, lidHeight: supportsLidHeight ? lidHeight : null, lidClearance: supportsLidHeight ? lidClearance : null, convention: supportsDimensionConvention ? dimensionConvention : 'template-default', lockAngle: supportsLockAngle ? autoLockAngle : null, autoLock: supportsAutoLockDimensions ? { tuck: autoLockTuckDepth, topDustFlap: autoLockDustDepth, bottomSideFlap: autoLockSideDepth } : null }, material: { thickness, glueTab, slotGap: supportsSlotGap ? slotGap : null }, geometry, units: 'mm' }, null, 2), 'application/json')} className={buttonClass + ' bg-slate-200 hover:bg-slate-300'}><Download className="h-4 w-4"/>پروژه JSON</button>
               <button disabled={!exportReady || !onSaveProject} onClick={saveProject} className={buttonClass + ' border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'}><Save className="h-4 w-4"/>ثبت پروژه</button>
             </div>
