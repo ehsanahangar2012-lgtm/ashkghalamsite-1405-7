@@ -187,7 +187,8 @@ if (!autoLockPdf.startsWith('%PDF-1.4\n') ||
   fail('vector PDF must include calibration scale and explicit cut/crease/glue legend');
 }
 const pdfXrefOffset = Number(autoLockPdf.match(/startxref\n(\d+)/)?.[1] || -1);
-const pdfXrefStart = autoLockPdf.lastIndexOf('xref\n');
+const pdfXrefMarker = autoLockPdf.match(/\nxref\n0 \d+\n/);
+const pdfXrefStart = pdfXrefMarker?.index === undefined ? -1 : pdfXrefMarker.index + 1;
 if (pdfXrefOffset !== pdfXrefStart) fail('vector PDF xref pointer must land on the xref table');
 const pdfXrefRows = autoLockPdf.slice(pdfXrefStart).split('\n').slice(3, 8);
 for (let objectIndex = 1; objectIndex <= 5; objectIndex++) {
@@ -197,7 +198,7 @@ for (let objectIndex = 1; objectIndex <= 5; objectIndex++) {
   }
 }
 const expectedPageWidthPt = Number((Math.max(autoLockReference.totalW + 22, 140) * 72 / 25.4).toFixed(4));
-const expectedPageHeightPt = Number(((autoLockReference.totalH + 40) * 72 / 25.4).toFixed(4));
+const expectedPageHeightPt = Number(((autoLockReference.totalH + 64) * 72 / 25.4).toFixed(4));
 if (!autoLockPdf.includes('/MediaBox [0 0 ' + expectedPageWidthPt + ' ' + expectedPageHeightPt + ']')) {
   fail('vector PDF page must preserve millimetre scale in its physical dimensions');
 }

@@ -38,8 +38,8 @@ export const buildDielineSvgExport = (
   const showGlueZones = options.showGlueZones ?? true;
   const viewW = Math.max(1, geometry.xMax - geometry.xMin);
   const viewH = Math.max(1, geometry.yMax - geometry.yMin);
-  const pageW = Math.max(viewW + 22, 140);
-  const pageH = viewH + 40;
+  const pageW = Math.max(viewW + 22, 100);
+  const pageH = viewH + 64;
   const originX = geometry.xMin - 8;
   const originY = geometry.yMin - 14;
 
@@ -82,7 +82,7 @@ export const buildDielineSvgExport = (
   // A real 50 mm calibration bar when it fits; smaller blanks get a measured shorter bar.
   const scaleLength = Math.min(50, Math.max(5, viewW - 8));
   const scaleX = geometry.xMin;
-  const scaleY = geometry.yMax + 16;
+  const scaleY = geometry.yMax + 14;
   const scaleBar = '<g id="SCALE_BAR" data-scale-mm="' + formatLength(scaleLength) + '" fill="#0f172a" stroke="#0f172a" stroke-width="0.35">' +
     '<path d="M ' + format(scaleX) + ' ' + format(scaleY) + ' L ' + format(scaleX + scaleLength) + ' ' + format(scaleY) +
     ' M ' + format(scaleX) + ' ' + format(scaleY - 2) + ' L ' + format(scaleX) + ' ' + format(scaleY + 2) +
@@ -90,34 +90,18 @@ export const buildDielineSvgExport = (
     '<text x="' + format(scaleX + scaleLength / 2) + '" y="' + format(scaleY + 6) +
     '" font-size="4" text-anchor="middle" stroke="none">' + formatLength(scaleLength) + ' mm · مقیاس ۱:۱</text></g>';
 
-  const legendX = scaleX + scaleLength + 14;
-  const legendY = scaleY;
+  // Stack the legend under the scale bar so it also fits narrow dielines.
+  const legendX = geometry.xMin;
+  const legendY = scaleY + 12;
   const legend = '<g id="LAYER_LEGEND" font-size="4" fill="#334155" stroke-width="0.6">' +
     '<path d="M ' + format(legendX) + ' ' + format(legendY) + ' L ' + format(legendX + 8) + ' ' + format(legendY) + '" stroke="#dc2626"/>' +
     '<text x="' + format(legendX + 10) + '" y="' + format(legendY + 1.5) + '" stroke="none">برش / CUT</text>' +
-    '<path d="M ' + format(legendX + 35) + ' ' + format(legendY) + ' L ' + format(legendX + 43) + ' ' + format(legendY) + '" stroke="#2563eb" stroke-dasharray="2 1"/>' +
-    '<text x="' + format(legendX + 45) + '" y="' + format(legendY + 1.5) + '" stroke="none">خط‌تا / CREASE</text>' +
-    '<rect x="' + format(legendX + 80) + '" y="' + format(legendY - 2) + '" width="8" height="4" fill="#f59e0b" fill-opacity="0.24" stroke="#d97706" stroke-dasharray="1 0.8"/>' +
-    '<text x="' + format(legendX + 90) + '" y="' + format(legendY + 1.5) + '" stroke="none">ناحیه چسب / GLUE</text>' +
+    '<path d="M ' + format(legendX) + ' ' + format(legendY + 7) + ' L ' + format(legendX + 8) + ' ' + format(legendY + 7) + '" stroke="#2563eb" stroke-dasharray="2 1"/>' +
+    '<text x="' + format(legendX + 10) + '" y="' + format(legendY + 8.5) + '" stroke="none">خط‌تا / CREASE</text>' +
+    '<rect x="' + format(legendX) + '" y="' + format(legendY + 12) + '" width="8" height="4" fill="#f59e0b" fill-opacity="0.24" stroke="#d97706" stroke-dasharray="1 0.8"/>' +
+    '<text x="' + format(legendX + 10) + '" y="' + format(legendY + 15) + '" stroke="none">ناحیه چسب / GLUE</text>' +
     '</g>';
 
-  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + format(pageW) + 'mm" height="' + format(pageH) +
-    'mm" viewBox="' + format(originX) + ' ' + format(originY) + ' ' + format(pageW) + ' ' + format(pageH) +
-    '">' +
-    '<g id="GLUE_ZONES" data-machine-operation="visual-only">' + glueZones + '</g>' +
-    '<g id="CUT" data-machine-operation="knife">' + cuts + '</g>' +
-    '<g id="CREASE" data-machine-operation="score">' + creases + '</g>' +
-    labels + dimensions + scaleBar + legend + '</svg>';
-};
-
-
-/**
- * Builds a single-page, vector-only PDF at 1:1 scale (all geometry in mm).
- * The PDF uses only ASCII operators and the built-in Helvetica font so xref
- * byte offsets remain deterministic without an embedded binary font.
- * Glue regions are visual information; CUT and CREASE remain the only
- * machining paths in the PDF.
- */
 export const buildDielinePdfExport = (
   geometry: DielineEngineResult,
   options: DielineSvgExportOptions = {},
@@ -127,8 +111,8 @@ export const buildDielinePdfExport = (
   const mmToPt = 72 / 25.4;
   const viewW = Math.max(1, geometry.xMax - geometry.xMin);
   const viewH = Math.max(1, geometry.yMax - geometry.yMin);
-  const pageWmm = Math.max(viewW + 22, 140);
-  const pageHmm = viewH + 40;
+  const pageWmm = Math.max(viewW + 22, 100);
+  const pageHmm = viewH + 64;
   const pageW = pageWmm * mmToPt;
   const pageH = pageHmm * mmToPt;
   const originX = geometry.xMin - 8;
@@ -232,21 +216,26 @@ export const buildDielinePdfExport = (
   // Calibration bar: exact 50 mm when possible, otherwise a measured shorter bar.
   const scaleLength = Math.min(50, Math.max(5, viewW - 8));
   const scaleX = geometry.xMin;
-  const scaleY = geometry.yMax + 16;
+  const scaleY = geometry.yMax + 14;
   drawLine(scaleX, scaleY, scaleX + scaleLength, scaleY, '0.05 0.08 0.12', 0.35);
   drawLine(scaleX, scaleY - 2, scaleX, scaleY + 2, '0.05 0.08 0.12', 0.35);
   drawLine(scaleX + scaleLength, scaleY - 2, scaleX + scaleLength, scaleY + 2, '0.05 0.08 0.12', 0.35);
   drawText(formatLength(scaleLength) + ' mm | scale 1:1', scaleX + scaleLength / 2 - 10, scaleY + 6, 8);
 
-  const legendX = scaleX + scaleLength + 14;
-  drawLine(legendX, scaleY, legendX + 8, scaleY, '0.86 0.08 0.12', 0.5);
-  drawText('CUT', legendX + 10, scaleY + 1.5, 8);
-  drawLine(legendX + 30, scaleY, legendX + 38, scaleY, '0.08 0.24 0.82', 0.5, '[2 1] 0 d');
-  drawText('CREASE', legendX + 40, scaleY + 1.5, 8);
-  const [gx, gy] = point(legendX + 80, scaleY + 2);
-  output.push('q', '1 0.68 0.12 rg', '0.85 0.43 0.04 RG',
-    format(8 * mmToPt) + ' ' + format(4 * mmToPt) + ' re', 'B', 'Q');
-  drawText('GLUE (visual only)', legendX + 90, scaleY + 1.5, 8);
+  // Stack layer legend vertically below the ruler so it cannot be clipped on small cartons.
+  const legendX = scaleX;
+  const cutLegendY = scaleY + 12;
+  const creaseLegendY = cutLegendY + 7;
+  const glueLegendY = creaseLegendY + 7;
+  drawLine(legendX, cutLegendY, legendX + 8, cutLegendY, '0.86 0.08 0.12', 0.5);
+  drawText('CUT', legendX + 10, cutLegendY + 1.5, 8);
+  drawLine(legendX, creaseLegendY, legendX + 8, creaseLegendY, '0.08 0.24 0.82', 0.5, '[2 1] 0 d');
+  drawText('CREASE', legendX + 10, creaseLegendY + 1.5, 8);
+  fillPath('M ' + legendX + ' ' + (glueLegendY - 2) +
+    ' L ' + (legendX + 8) + ' ' + (glueLegendY - 2) +
+    ' L ' + (legendX + 8) + ' ' + (glueLegendY + 2) +
+    ' L ' + legendX + ' ' + (glueLegendY + 2) + ' Z');
+  drawText('GLUE (visual only)', legendX + 10, glueLegendY + 1.5, 8);
 
   const stream = output.join('\n') + '\n';
   const objects = [
