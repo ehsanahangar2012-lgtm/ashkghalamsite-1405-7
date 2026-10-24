@@ -95,3 +95,11 @@ Updated: 2026-10-23. This records technical guidance and licensing decisions; it
 - Moved the manual 1-2-3/Snap-Lock builder from the monolithic geometry registry to `src/services/dielineModels/snapLockBottom.ts`. The extraction keeps its public engine parameters and existing reference regression checks intact.
 - The registry continues to share this manual model between the local `snap-lock-123` ID and the existing unverified/custom `fefco-0215` compatibility label. This is intentionally not a certified statement that the official FEFCO 0215 plate equals this model; the UI continues to mark the exact standard mapping as unverified. This engine is not the separate factory-glued Auto-Lock model.
 - Current design reference distinguishes the two bottom closures: 3D Box Studio describes Auto-Lock as pre-glued with 45° side glue tabs, while Snap-Lock/1-2-3 is manually folded in sequence without pre-gluing the bottom. Sources: `https://www.3dboxstudio.com/box-templates/auto-lock-bottom-box` and `https://www.3dboxstudio.com/box-templates/snap-lock-bottom-box`.
+
+
+## 2D preview readability and export gating
+
+- The preview canvas now uses a fixed responsive viewport with `preserveAspectRatio="xMidYMid meet"`; long or wide nets remain fully visible without the previous `max-height`/intrinsic-height layout conflict. Zoom remains a viewBox-only operation and therefore does not alter exported millimetre coordinates.
+- Added a preview-only 50 mm calibration ruler, while the export PDF already includes its own scale legend. The ruler is deliberately part of the on-screen preview only, not appended to the SVG/DXF knife geometry.
+- The status chip now says `بررسی مسیرها موفق` only when the geometry audit passes and no self-intersection is flagged. A valid-looking generated object that fails the audit is marked `تولید شد؛ نیازمند بازبینی`, rather than green.
+- Replaced the color sentence with an inline visual CUT/CREASE/GLUE key, matching the reference convention of solid red cuts, dashed blue creases, and non-cutting adhesive overlays.
