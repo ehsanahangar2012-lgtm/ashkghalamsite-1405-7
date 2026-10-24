@@ -267,7 +267,13 @@ const autoLockRectBottomStarts = [
   autoLockRectBottomY, autoLockRectSideBoundaryY,
 ];
 const autoLockRectBottomPaths = autoLockRectPanelStarts.map((x, index) =>
-  autoLockRectangular.cuts.find(path => path.startsWith(`M ${x} ${autoLockRectBottomStarts[index]} L `))
+  autoLockRectangular.cuts.find(path => {
+    const start = path.match(/^M\\s+([-+]?\\d+(?:\\.\\d+)?)\\s+([-+]?\\d+(?:\\.\\d+)?)/);
+    return Boolean(start &&
+      Math.abs(Number(start[1]) - x) < 1e-7 &&
+      Math.abs(Number(start[2]) - autoLockRectBottomStarts[index]) < 1e-7 &&
+      /\\sL\\s/.test(path));
+  })
 );
 if (autoLockRectBottomPaths.some(path => !path) ||
     Math.abs(autoLockRectangular.totalW - (15 + 2 * autoLockRectPanelW + 2 * autoLockRectPanelL)) > 1e-8) {
