@@ -388,7 +388,8 @@ const createAutoLockBottomEngine = () => {
     const angleDeg = Math.max(25, Math.min(65, Number.isFinite(autoLockAngle) ? autoLockAngle : 45));
     const angleRad = angleDeg * Math.PI / 180;
     const mainRun = Math.max(4, Math.min(panelL * 0.28, stepDepth / Math.tan(angleRad)));
-    const sideRun = Math.max(4, Math.min(panelW * 0.35, sideDepth / Math.tan(angleRad)));
+    // Tiny corner relief; the previous sideDepth/tan(angle) run made a flap nearly triangular.
+    const sideShoulder = Math.max(0.8, Math.min(8, panelW * 0.08, sideDepth * 0.2));
 
     // Reference topology: W/L/W/L, with a glued side seam.
     const xG = x0 + G;
@@ -427,9 +428,11 @@ const createAutoLockBottomEngine = () => {
     cuts.push(
       `M ${xP1} ${yBodyTop} L ${xP1} ${lidFoldY} L ${xP1 + tuckInset} ${tuckOuterY} L ${xP2 - tuckInset} ${tuckOuterY} L ${xP2} ${lidFoldY} L ${xP2} ${yBodyTop}`
     );
-    const tuckSlitY = tuckOuterY + tuckDepth * 0.42;
+    // Receiver slit on the back wall: the old slit was stranded on the tongue itself.
+    const tuckSlitY = yBodyTop + Math.max(3, Math.min(5, panelW * 0.06));
     const tuckSlitWidth = Math.max(4, Math.min(panelL * 0.26, 22));
-    cuts.push(line(tuckCenter - tuckSlitWidth / 2, tuckSlitY, tuckCenter + tuckSlitWidth / 2, tuckSlitY));
+    const receiverCenter = (xP3 + xP4) / 2;
+    cuts.push(line(receiverCenter - tuckSlitWidth / 2, tuckSlitY, receiverCenter + tuckSlitWidth / 2, tuckSlitY));
     creases.push(line(xP1, yBodyTop, xP2, yBodyTop));
     creases.push(line(xP1, lidFoldY, xP2, lidFoldY));
 
@@ -463,16 +466,24 @@ const createAutoLockBottomEngine = () => {
     // Four bottom panels hinge on one uninterrupted score axis.
     creases.push(line(xG, yBodyBottom, xP4, yBodyBottom));
 
-    // Side flaps fold first. Their corner score lines define the 45-degree
-    // adhesive-fold areas rather than representing decorative cut edges.
+    // Side flaps have broad, mostly rectangular bodies with only small 45-degree corner reliefs.
+    // Keeping the relief independent of flap depth prevents the bottom edge collapsing to a triangle.
+    const sideFlapPath = (left: number, right: number, hingeY: number, depth: number) =>
+      'M ' + left + ' ' + hingeY +
+      ' L ' + left + ' ' + (hingeY + depth - sideShoulder) +
+      ' L ' + (left + sideShoulder) + ' ' + (hingeY + depth) +
+      ' L ' + (right - sideShoulder) + ' ' + (hingeY + depth) +
+      ' L ' + right + ' ' + (hingeY + depth - sideShoulder) +
+      ' L ' + right + ' ' + hingeY;
     for (const [left, right] of [[xG, xP1], [xP2, xP3]]) {
-      cuts.push(
-        `M ${left} ${yBodyBottom} L ${left + sideRun} ${bottomSideY} L ${right - sideRun} ${bottomSideY} L ${right} ${yBodyBottom}`
-      );
-      const glueScoreDepth = Math.max(1.2, Math.min(sideDepth * 0.22, panelW * 0.08, 8));
-      const glueScoreRun = glueScoreDepth / Math.tan(angleRad);
-      creases.push(line(left + sideRun, bottomSideY, left + sideRun + glueScoreRun, bottomSideY - glueScoreDepth));
-      creases.push(line(right - sideRun, bottomSideY, right - sideRun - glueScoreRun, bottomSideY - glueScoreDepth));
+      cuts.push(sideFlapPath(left, right, yBodyBottom, sideDepth));
+      const glueScoreDepth = Math.max(0.8, Math.min(sideDepth * 0.18, panelW * 0.08, 8));
+      const glueScoreRun = Math.max(0.8, Math.min(panelW * 0.2, glueScoreDepth / Math.tan(angleRad)));
+      // Short diagonal scores indicate glue-corner zones; they remain inside the flap.
+      creases.push(line(left + sideShoulder, bottomSideY,
+        left + sideShoulder + glueScoreRun, bottomSideY - glueScoreDepth));
+      creases.push(line(right - sideShoulder, bottomSideY,
+        right - sideShoulder - glueScoreRun, bottomSideY - glueScoreDepth));
     }
 
     // The front/back locking edges use complementary half-width steps, not two
