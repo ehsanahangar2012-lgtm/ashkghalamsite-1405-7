@@ -171,7 +171,7 @@ if (autoLockSvg.includes('pattern id="grid"') || autoLockSvg.includes('#cbd5e1')
 const autoLockSvgWithoutGlue = buildDielineSvgExport(autoLockReference, {
   showLabels: false, showDimensions: false, showGlueZones: false,
 });
-const glueGroupWithoutZones = autoLockSvgWithoutGlue.match(/<g id="GLUE_ZONES"[^>]*>([\\s\\S]*?)<\\/g>/)?.[1] || '';
+const glueGroupWithoutZones = autoLockSvgWithoutGlue.match(/<g id="GLUE_ZONES"[^>]*>([\s\S]*?)<\/g>/)?.[1] || '';
 if (glueGroupWithoutZones.includes('<path') ||
     autoLockSvgWithoutGlue.includes('id="DIMENSIONS"') ||
     autoLockSvgWithoutGlue.includes('پهنا W=')) {
