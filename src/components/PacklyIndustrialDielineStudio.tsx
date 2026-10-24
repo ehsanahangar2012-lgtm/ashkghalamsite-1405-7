@@ -118,7 +118,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const autoLockReferencePreset = supportsAutoLockDimensions &&
     length === 90 && width === 90 && height === 320 &&
     Math.abs(thickness - 0.45) < 1e-8 && Math.abs(glueTab - 15) < 1e-8 &&
-    dimensionConvention === 'inside' &&
+    dimensionConvention === 'inside' && Math.abs(autoLockAngle - 45) < 1e-8 &&
     Math.abs(autoLockTuckDepth - 25) < 1e-8 &&
     Math.abs(autoLockDustDepth - 43) < 1e-8 &&
     Math.abs(autoLockSideDepth - 40.5) < 1e-8;
@@ -130,7 +130,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const snapLockReferencePreset = supportsSnapLockDimensions &&
     length === 70 && width === 70 && height === 80 &&
     Math.abs(thickness - 0.45) < 1e-8 && Math.abs(glueTab - 15) < 1e-8 &&
-    dimensionConvention === 'inside' &&
+    dimensionConvention === 'inside' && Math.abs(autoLockAngle - 45) < 1e-8 &&
     Math.abs(snapLockTuckDepth - 25) < 1e-8 &&
     Math.abs(snapLockDustDepth - 33) < 1e-8 &&
     Math.abs(snapLockSideDepth - 33) < 1e-8 &&
@@ -243,9 +243,9 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                   setThickness(0.45); setMaterialPreset('folding-carton');
                   setGlueTab(15); setDimensionConvention('inside');
                   setSnapLockTuckDepth(25); setSnapLockDustDepth(33);
-                  setSnapLockSideDepth(33); setSnapLockTongueDepth(17.5);
+                  setSnapLockSideDepth(33); setSnapLockTongueDepth(17.5); setAutoLockAngle(45);
                 } else if (nextId === 'fefco-0713') {
-                  setAutoLockTuckDepth(25); setAutoLockDustDepth(43); setAutoLockSideDepth(40.5);
+                  setAutoLockTuckDepth(25); setAutoLockDustDepth(43); setAutoLockSideDepth(40.5); setAutoLockAngle(45);
                   setGlueTab(15); setDimensionConvention('inside');
                 }
               }} className={inputClass}>
@@ -283,7 +283,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               </div>
               {supportsAutoLockDimensions && <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <h5 className="mb-2 text-xs font-bold text-slate-800">۳. تنظیمات درب و فلپ‌های کف Auto-Lock (mm)</h5>
-                <button type="button" onClick={() => { setLength(90); setWidth(90); setHeight(320); setThickness(0.45); setMaterialPreset('folding-carton'); setGlueTab(15); setSlotGap(1); setDimensionConvention('inside'); setAutoLockTuckDepth(25); setAutoLockDustDepth(43); setAutoLockSideDepth(40.5); }} className="mb-3 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50">بارگذاری نمونهٔ مرجع ۹۰×۹۰×۳۲۰ میلی‌متر</button>
+                <button type="button" onClick={() => { setLength(90); setWidth(90); setHeight(320); setThickness(0.45); setMaterialPreset('folding-carton'); setGlueTab(15); setSlotGap(1); setDimensionConvention('inside'); setAutoLockTuckDepth(25); setAutoLockDustDepth(43); setAutoLockSideDepth(40.5); setAutoLockAngle(45); }} className="mb-3 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50">بارگذاری نمونهٔ مرجع ۹۰×۹۰×۳۲۰ میلی‌متر</button>
                 <div className="grid grid-cols-3 gap-2">
                   <label className="text-[11px] font-bold text-slate-700">عمق زبانه درب<input type="number" min={4} max={60} step={0.5} value={Number.isFinite(autoLockTuckDepth) ? autoLockTuckDepth : ''} onChange={e => setAutoLockTuckDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
                   <label className="text-[11px] font-bold text-slate-700">عمق گردگیر بالا<input type="number" min={4} max={43} step={0.5} value={Number.isFinite(autoLockDustDepth) ? autoLockDustDepth : ''} onChange={e => setAutoLockDustDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
@@ -293,7 +293,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               </div>}
               {supportsSnapLockDimensions && <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <h5 className="mb-2 text-xs font-bold text-slate-800">۳. تنظیمات قفل دستی Snap-Lock (mm)</h5>
-                <button type="button" onClick={() => { setLength(70); setWidth(70); setHeight(80); setThickness(0.45); setMaterialPreset('folding-carton'); setGlueTab(15); setDimensionConvention('inside'); setSnapLockTuckDepth(25); setSnapLockDustDepth(33); setSnapLockSideDepth(33); setSnapLockTongueDepth(17.5); }} className="mb-3 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50">بارگذاری نمونهٔ مرجع ۷۰×۷۰×۸۰ میلی‌متر</button>
+                <button type="button" onClick={() => { setLength(70); setWidth(70); setHeight(80); setThickness(0.45); setMaterialPreset('folding-carton'); setGlueTab(15); setDimensionConvention('inside'); setSnapLockTuckDepth(25); setSnapLockDustDepth(33); setSnapLockSideDepth(33); setSnapLockTongueDepth(17.5); setAutoLockAngle(45); }} className="mb-3 rounded-lg border border-sky-300 bg-white px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50">بارگذاری نمونهٔ مرجع ۷۰×۷۰×۸۰ میلی‌متر</button>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <label className="text-[11px] font-bold text-slate-700">عمق زبانه درب<input type="number" min={4} max={40} step={0.5} value={Number.isFinite(snapLockTuckDepth) ? snapLockTuckDepth : ''} onChange={e => setSnapLockTuckDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
                   <label className="text-[11px] font-bold text-slate-700">عمق گردگیر بالا<input type="number" min={4} max={33} step={0.5} value={Number.isFinite(snapLockDustDepth) ? snapLockDustDepth : ''} onChange={e => setSnapLockDustDepth(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
