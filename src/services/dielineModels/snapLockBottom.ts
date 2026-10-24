@@ -16,7 +16,7 @@ import type { DielineEngineParams, DielineEngineResult } from '../dielineMath';
  * the other a matching slot with clearance derived from board caliper. Side dust
  * flaps are shorter so they do not occupy the same locking interface.
  */
-const createSnapLockBottomEngine = () => {
+export const createSnapLockBottomEngine = () => {
   return ({
     L, W, H, glueTab = 15, thickness = 0.5, tuck, dustFlap,
     bottomFlapDepth, lockTongueDepth,
