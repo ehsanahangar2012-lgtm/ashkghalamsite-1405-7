@@ -102,6 +102,14 @@ export const buildDielineSvgExport = (
     '<text x="' + format(legendX + 10) + '" y="' + format(legendY + 15) + '" stroke="none">ناحیه چسب / GLUE</text>' +
     '</g>';
 
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + format(pageW) + 'mm" height="' + format(pageH) +
+    'mm" viewBox="' + format(originX) + ' ' + format(originY) + ' ' + format(pageW) + ' ' + format(pageH) + '">' +
+    '<g id="GLUE_ZONES" data-machine-operation="visual-only">' + glueZones + '</g>' +
+    '<g id="CUT" data-machine-operation="knife">' + cuts + '</g>' +
+    '<g id="CREASE" data-machine-operation="score">' + creases + '</g>' +
+    labels + dimensions + scaleBar + legend + '</svg>';
+};
+
 export const buildDielinePdfExport = (
   geometry: DielineEngineResult,
   options: DielineSvgExportOptions = {},
