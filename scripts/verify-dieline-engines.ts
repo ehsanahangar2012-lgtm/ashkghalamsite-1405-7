@@ -102,6 +102,16 @@ for (const id of requiredEngines) {
         return dx > 0.1 && dy > 0.1 && Math.abs(dx - dy) < 1e-6;
       });
       if (diagonalScores.length < 4) fail('fefco-0713: four 45-degree glue-corner scores are required');
+      if (!Array.isArray(result.glueZones) || result.glueZones.length < 5) {
+        fail('fefco-0713: expected seam adhesive zone and four bottom glue triangles');
+      }
+      for (const zone of result.glueZones) {
+        if (!zone.trim().endsWith('Z')) fail('fefco-0713: each visual glue zone must be a closed polygon');
+        const values = zone.match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
+        if (values.length < 6 || values.some(value => !Number.isFinite(value))) {
+          fail('fefco-0713: malformed glue zone path');
+        }
+      }
     }
     if (!Array.isArray(result.cuts) || result.cuts.length === 0) fail(`${id}: no cut paths`);
     if (!Array.isArray(result.creases) || result.creases.length === 0) fail(`${id}: no crease paths`);

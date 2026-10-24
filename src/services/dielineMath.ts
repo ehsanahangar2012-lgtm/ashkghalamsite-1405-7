@@ -158,6 +158,8 @@ export interface DielineEngineParams {
 export interface DielineEngineResult {
   cuts: string[];
   creases: string[];
+  /** Visual adhesive areas for art setup; never treated as knife or crease paths. */
+  glueZones?: string[];
   labels: { x: number; y: number; text: string }[];
   xMin: number;
   yMin: number;
@@ -468,6 +470,13 @@ const createAutoLockBottomEngine = () => {
 
     // Side flaps have broad, mostly rectangular bodies with only small 45-degree corner reliefs.
     // Keeping the relief independent of flap depth prevents the bottom edge collapsing to a triangle.
+    const glueZones: string[] = [
+      // Side-seam adhesive zone (print-only overlay, not a cut or score path).
+      'M ' + (x0 + 4) + ' ' + (yBodyTop + 5) +
+      ' L ' + (xG - 1) + ' ' + (yBodyTop + 5) +
+      ' L ' + (xG - 1) + ' ' + (yBodyBottom - 5) +
+      ' L ' + (x0 + 4) + ' ' + (yBodyBottom - 5) + ' Z'
+    ];
     const sideFlapPath = (left: number, right: number, hingeY: number, depth: number) =>
       'M ' + left + ' ' + hingeY +
       ' L ' + left + ' ' + (hingeY + depth - sideShoulder) +
@@ -479,7 +488,15 @@ const createAutoLockBottomEngine = () => {
       cuts.push(sideFlapPath(left, right, yBodyBottom, sideDepth));
       const glueScoreDepth = Math.max(0.8, Math.min(sideDepth * 0.18, panelW * 0.08, 8));
       const glueScoreRun = Math.max(0.8, Math.min(panelW * 0.2, glueScoreDepth / Math.tan(angleRad)));
-      // Short diagonal scores indicate glue-corner zones; they remain inside the flap.
+      // Small glue-zone triangles are marked visually and are not output as machine paths.
+      glueZones.push(
+        'M ' + (left + sideShoulder) + ' ' + bottomSideY +
+        ' L ' + (left + sideShoulder + glueScoreRun) + ' ' + (bottomSideY - glueScoreDepth) +
+        ' L ' + (left + sideShoulder + glueScoreRun) + ' ' + bottomSideY + ' Z',
+        'M ' + (right - sideShoulder) + ' ' + bottomSideY +
+        ' L ' + (right - sideShoulder - glueScoreRun) + ' ' + (bottomSideY - glueScoreDepth) +
+        ' L ' + (right - sideShoulder - glueScoreRun) + ' ' + bottomSideY + ' Z'
+      );
       creases.push(line(left + sideShoulder, bottomSideY,
         left + sideShoulder + glueScoreRun, bottomSideY - glueScoreDepth));
       creases.push(line(right - sideShoulder, bottomSideY,
@@ -511,7 +528,7 @@ const createAutoLockBottomEngine = () => {
 
     const yMax = Math.max(bottomMainY, bottomSideY);
     return {
-      cuts, creases, labels,
+      cuts, creases, glueZones, labels,
       xMin: x0, yMin: y0, xMax: xP4, yMax,
       totalW: xP4 - x0, totalH: yMax - y0,
     };

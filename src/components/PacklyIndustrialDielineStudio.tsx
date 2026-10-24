@@ -89,6 +89,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [glueTab, setGlueTab] = useState(30);
   const [showLabels, setShowLabels] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
+  const [showGlueZones, setShowGlueZones] = useState(true);
   const [showDimensions, setShowDimensions] = useState(true);
   const [previewZoom, setPreviewZoom] = useState(1);
   const [show3D, setShow3D] = useState(false);
@@ -150,13 +151,14 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     if (!geometry) return '';
     const viewW = Math.max(1, geometry.xMax - geometry.xMin);
     const viewH = Math.max(1, geometry.yMax - geometry.yMin);
+    const glueZones = showGlueZones ? (geometry.glueZones || []).map(d => `<path d="${d}" fill="#f59e0b" fill-opacity="0.24" stroke="#d97706" stroke-width="0.18" stroke-dasharray="1 0.8"/>`).join('') : '';
     const cuts = geometry.cuts.map(d => `<path d="${d}" fill="none" stroke="#dc2626" stroke-width="0.25"/>`).join('');
     const creases = geometry.creases.map(d => `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="0.25" stroke-dasharray="2 1"/>`).join('');
     const labels = showLabels ? geometry.labels.map(label => `<text x="${label.x}" y="${label.y}" font-size="4" text-anchor="middle" fill="#64748b">${label.text.replace(/[&<>"]/g, '')}</text>`).join('') : '';
     const dimensions = showDimensions ? `<g id="DIMENSIONS" fill="#475569" stroke="#64748b" stroke-width=".25"><path d="M ${geometry.xMin} ${geometry.yMin - 5} L ${geometry.xMax} ${geometry.yMin - 5} M ${geometry.xMin} ${geometry.yMin - 7} L ${geometry.xMin} ${geometry.yMin - 3} M ${geometry.xMax} ${geometry.yMin - 7} L ${geometry.xMax} ${geometry.yMin - 3} M ${geometry.xMax + 5} ${geometry.yMin} L ${geometry.xMax + 5} ${geometry.yMax} M ${geometry.xMax + 3} ${geometry.yMin} L ${geometry.xMax + 7} ${geometry.yMin} M ${geometry.xMax + 3} ${geometry.yMax} L ${geometry.xMax + 7} ${geometry.yMax}"/><text x="${(geometry.xMin + geometry.xMax) / 2}" y="${geometry.yMin - 7}" font-size="4" text-anchor="middle" stroke="none">گسترده: ${(geometry.xMax - geometry.xMin).toFixed(1)} mm</text><text x="${geometry.xMax + 6}" y="${(geometry.yMin + geometry.yMax) / 2}" font-size="4" text-anchor="middle" stroke="none" transform="rotate(90 ${geometry.xMax + 6} ${(geometry.yMin + geometry.yMax) / 2})">${(geometry.yMax - geometry.yMin).toFixed(1)} mm</text></g>` : '';
     const grid = showGrid ? `<defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" stroke-opacity=".35" stroke-width=".15"/></pattern></defs><rect x="${geometry.xMin}" y="${geometry.yMin}" width="${viewW}" height="${viewH}" fill="url(#grid)"/>` : '';
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW + 22}mm" height="${viewH + 22}mm" viewBox="${geometry.xMin - 8} ${geometry.yMin - 14} ${viewW + 22} ${viewH + 22}">${grid}<g id="CUT">${cuts}</g><g id="CREASE">${creases}</g>${labels}${dimensions}</svg>`;
-  }, [geometry, showLabels, showGrid, showDimensions]);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW + 22}mm" height="${viewH + 22}mm" viewBox="${geometry.xMin - 8} ${geometry.yMin - 14} ${viewW + 22} ${viewH + 22}">${grid}<g id="GLUE_ZONES" data-machine-operation="visual-only">${glueZones}</g><g id="CUT">${cuts}</g><g id="CREASE">${creases}</g>${labels}${dimensions}</svg>`;
+  }, [geometry, showLabels, showGrid, showDimensions, showGlueZones]);
 
   const previewView = useMemo(() => {
     if (!geometry) return null;
@@ -175,6 +177,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     };
   }, [geometry, previewZoom]);
 
+  // DXF is deliberately CUT + CREASE only. Glue zones are visual-only, not knife paths.
   const exportDxf = () => {
     if (!geometry) return;
     const entities: string[] = [];
@@ -313,7 +316,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
           <main className="order-1 min-w-0 space-y-4 xl:order-2">
             <section className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
               <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{template.code} — {template.name}</h3><span className={`rounded-full px-2 py-1 text-[10px] ${geometry ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-800'}`}>{geometry ? 'هندسه تولید شد' : 'خطای تولید'}</span></div><p className="mt-1 text-xs leading-5 text-slate-600">قرمز پیوسته: برش · آبی خط‌چین: خط‌تا · L×W×H ورودی بر حسب میلی‌متر</p></div>
+                <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{template.code} — {template.name}</h3><span className={`rounded-full px-2 py-1 text-[10px] ${geometry ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-800'}`}>{geometry ? 'هندسه تولید شد' : 'خطای تولید'}</span></div><p className="mt-1 text-xs leading-5 text-slate-600">قرمز پیوسته: برش · آبی خط‌چین: خط‌تا · نارنجی کم‌رنگ: محدوده چسب راهنما · L×W×H ورودی بر حسب میلی‌متر</p></div>
                 <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-lg border border-slate-300 bg-white px-3 py-2"><Ruler className="ml-1 inline h-4 w-4 text-sky-700"/>{geometry ? `گسترده: ${(geometry.xMax - geometry.xMin).toFixed(1)} × ${(geometry.yMax - geometry.yMin).toFixed(1)} mm` : '—'}</span></div>
               </div>
               {geometryAudit && <details className="mb-3 rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5"><summary className="cursor-pointer font-bold text-slate-800">گزارش بررسی مسیرها — {exportReady ? 'ساختار قابل‌قبول' : 'نیازمند بازبینی'}</summary><div className={`mt-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
@@ -329,11 +332,12 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               {geometry && previewView && <div className="overflow-auto rounded-xl border border-slate-200 bg-slate-100 p-2 sm:p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
                   <span className="font-bold text-slate-800">پیش‌نمایش ۲بعدی · واحد واقعی هندسه: mm</span>
-                  <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-1"><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)}/>شبکه</label><label className="flex items-center gap-1"><input type="checkbox" checked={showLabels} onChange={e => setShowLabels(e.target.checked)}/>نام پنل‌ها</label><label className="flex items-center gap-1"><input type="checkbox" checked={showDimensions} onChange={e => setShowDimensions(e.target.checked)}/>خطوط اندازه</label><span className="mx-1 h-4 w-px bg-slate-300"/><button type="button" aria-label="کوچک‌نمایی" title="کوچک‌نمایی" onClick={() => setPreviewZoom(z => Math.max(0.5, Number((z - 0.25).toFixed(2))))} className="rounded border border-slate-300 bg-white px-2 py-1 text-base font-black hover:bg-slate-100" disabled={previewZoom <= 0.5}>−</button><span className="min-w-[3rem] text-center font-mono">{Math.round(previewZoom * 100)}%</span><button type="button" aria-label="بزرگ‌نمایی" title="بزرگ‌نمایی" onClick={() => setPreviewZoom(z => Math.min(4, Number((z + 0.25).toFixed(2))))} className="rounded border border-slate-300 bg-white px-2 py-1 text-base font-black hover:bg-slate-100" disabled={previewZoom >= 4}>+</button><button type="button" onClick={() => setPreviewZoom(1)} className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-100">جا دادن کامل</button></div>
+                  <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-1"><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)}/>شبکه</label>{(geometry.glueZones || []).length > 0 && <label className="flex items-center gap-1"><input type="checkbox" checked={showGlueZones} onChange={e => setShowGlueZones(e.target.checked)}/>ناحیه چسب</label>}<label className="flex items-center gap-1"><input type="checkbox" checked={showLabels} onChange={e => setShowLabels(e.target.checked)}/>نام پنل‌ها</label><label className="flex items-center gap-1"><input type="checkbox" checked={showDimensions} onChange={e => setShowDimensions(e.target.checked)}/>خطوط اندازه</label><span className="mx-1 h-4 w-px bg-slate-300"/><button type="button" aria-label="کوچک‌نمایی" title="کوچک‌نمایی" onClick={() => setPreviewZoom(z => Math.max(0.5, Number((z - 0.25).toFixed(2))))} className="rounded border border-slate-300 bg-white px-2 py-1 text-base font-black hover:bg-slate-100" disabled={previewZoom <= 0.5}>−</button><span className="min-w-[3rem] text-center font-mono">{Math.round(previewZoom * 100)}%</span><button type="button" aria-label="بزرگ‌نمایی" title="بزرگ‌نمایی" onClick={() => setPreviewZoom(z => Math.min(4, Number((z + 0.25).toFixed(2))))} className="rounded border border-slate-300 bg-white px-2 py-1 text-base font-black hover:bg-slate-100" disabled={previewZoom >= 4}>+</button><button type="button" onClick={() => setPreviewZoom(1)} className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-100">جا دادن کامل</button></div>
                 </div>
                 <svg xmlns="http://www.w3.org/2000/svg" width="100%" preserveAspectRatio="xMidYMid meet" viewBox={`${previewView.x} ${previewView.y} ${previewView.width} ${previewView.height}`} className="block h-auto w-full max-h-[78vh]">
                   {showGrid && <defs><pattern id="dieline-grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" strokeWidth="0.2"/></pattern></defs>}
                   <rect x={previewView.x} y={previewView.y} width={previewView.width} height={previewView.height} fill={showGrid ? "url(#dieline-grid)" : "#ffffff"}/>
+                  {showGlueZones && (geometry.glueZones || []).map((d, i) => <path key={`glue-${i}`} d={d} fill="#f59e0b" fillOpacity="0.24" stroke="#d97706" strokeWidth="0.4" strokeDasharray="2 1" vectorEffect="non-scaling-stroke"/>)}
                   {geometry.cuts.map((d, i) => <path key={`cut-${i}`} d={d} fill="none" stroke="#dc2626" strokeWidth="0.8" vectorEffect="non-scaling-stroke"/>)}
                   {geometry.creases.map((d, i) => <path key={`crease-${i}`} d={d} fill="none" stroke="#2563eb" strokeWidth="0.8" strokeDasharray="5 3" vectorEffect="non-scaling-stroke"/>)}
                   {showLabels && geometry.labels.map((label, i) => <text key={`label-${i}`} x={label.x} y={label.y} fill="#475569" fontSize="5" textAnchor="middle">{label.text}</text>)}
