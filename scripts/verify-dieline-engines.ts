@@ -65,7 +65,7 @@ for (const id of requiredEngines) {
       });
       // The side-flap free edge must remain broad; a narrow point-like edge is a regression.
       const sideContour = bottomContours[0] as string;
-      const sideNums = sideContour.match(/-?\\d+(?:\\.\\d+)?/g)?.map(Number) || [];
+      const sideNums = sideContour.match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
       const sidePoints: Array<[number, number]> = [];
       for (let n = 0; n + 1 < sideNums.length; n += 2) sidePoints.push([sideNums[n], sideNums[n + 1]]);
       const sideOuterY = bodyBottomY + sideDepth;
@@ -88,7 +88,7 @@ for (const id of requiredEngines) {
       }
 
       const yBodyTop = 30 + panelW + tuck;
-      const backCenter = (panelXs[3] + panelL) + panelL / 2;
+      const backCenter = panelXs[3] + panelL / 2;
       const slitWidth = Math.max(4, Math.min(panelL * 0.26, 22));
       const slitY = yBodyTop + Math.max(3, Math.min(5, panelW * 0.06));
       const receiverSlit = `M ${backCenter - slitWidth / 2} ${slitY} L ${backCenter + slitWidth / 2} ${slitY}`;
@@ -96,7 +96,7 @@ for (const id of requiredEngines) {
         fail('fefco-0713: back-wall receiver slit is missing or incorrectly placed on the tongue');
       }
       const diagonalScores = result.creases.filter(path => {
-        const values = path.match(/-?\\d+(?:\\.\\d+)?/g)?.map(Number) || [];
+        const values = path.match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
         if (values.length !== 4) return false;
         const dx = Math.abs(values[2] - values[0]), dy = Math.abs(values[3] - values[1]);
         return dx > 0.1 && dy > 0.1 && Math.abs(dx - dy) < 1e-6;
