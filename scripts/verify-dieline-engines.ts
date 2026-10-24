@@ -1,6 +1,7 @@
 import { calculateDielineParameters, getRscFlapDepths, STANDARD_DIELINE_ENGINES } from '../src/services/dielineMath.ts';
 import { parseDxfToEntities, scaleCustomDieline } from '../src/services/customDielineEngine.ts';
 import { validateDxfDieline, runComprehensiveGeometryCheck } from '../src/services/geometryValidator.ts';
+import { buildDielineSvgExport } from '../src/services/dielineExport.ts';
 
 const requiredEngines = [
   'default-rsc',
@@ -152,6 +153,29 @@ const autoLockReference = STANDARD_DIELINE_ENGINES['fefco-0713']({
   L: 90, W: 90, H: 320, thickness: 0.45, glueTab: 15, tuck: 25,
   dustFlap: 43, bottomFlapDepth: 40.5, dimensionConvention: 'inside', autoLockAngle: 45, x0: 40,
 });
+const autoLockSvg = buildDielineSvgExport(autoLockReference, {
+  showLabels: true, showDimensions: true, showGlueZones: true,
+});
+if (!autoLockSvg.includes('width="398.8mm"') || !autoLockSvg.includes('data-scale-mm="50"')) {
+  fail('Auto-Lock SVG export must keep the millimetre viewBox scale and a 50 mm calibration bar');
+}
+if (!autoLockSvg.includes('id="CUT" data-machine-operation="knife"') ||
+    !autoLockSvg.includes('id="CREASE" data-machine-operation="score"') ||
+    !autoLockSvg.includes('id="GLUE_ZONES" data-machine-operation="visual-only"') ||
+    !autoLockSvg.includes('id="LAYER_LEGEND"')) {
+  fail('SVG export must separate knife, score and visual-only glue layers and include a legend');
+}
+if (autoLockSvg.includes('pattern id="grid"') || autoLockSvg.includes('#cbd5e1')) {
+  fail('editor grid must not leak into the production SVG export');
+}
+const autoLockSvgWithoutGlue = buildDielineSvgExport(autoLockReference, {
+  showLabels: false, showDimensions: false, showGlueZones: false,
+});
+if (autoLockSvgWithoutGlue.includes('fill-opacity="0.24"') ||
+    autoLockSvgWithoutGlue.includes('id="DIMENSIONS"') ||
+    autoLockSvgWithoutGlue.includes('پهنا W=')) {
+  fail('SVG export display toggles must independently omit glue overlays, dimensions and panel labels');
+}
 if (Math.abs(autoLockReference.totalW - 376.8) > 1e-6 ||
     Math.abs(autoLockReference.totalH - 503) > 0.5) {
   fail(`FEFCO 0713 reference envelope must match 376.8 × 503 mm; got ${autoLockReference.totalW.toFixed(3)} × ${autoLockReference.totalH.toFixed(3)} mm`);

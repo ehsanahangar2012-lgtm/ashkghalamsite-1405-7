@@ -5,6 +5,7 @@ import { STANDARD_DIELINE_ENGINES } from '../services/dielineMath';
 import type { DielineEngineResult } from '../services/dielineMath';
 import type { Project } from '../types';
 import { runComprehensiveGeometryCheck } from '../services/geometryValidator';
+import { buildDielineSvgExport } from '../services/dielineExport';
 
 type TemplateOption = {
   id: string; name: string; code: string; category: string;
@@ -149,16 +150,8 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
 
   const svg = useMemo(() => {
     if (!geometry) return '';
-    const viewW = Math.max(1, geometry.xMax - geometry.xMin);
-    const viewH = Math.max(1, geometry.yMax - geometry.yMin);
-    const glueZones = showGlueZones ? (geometry.glueZones || []).map(d => `<path d="${d}" fill="#f59e0b" fill-opacity="0.24" stroke="#d97706" stroke-width="0.18" stroke-dasharray="1 0.8"/>`).join('') : '';
-    const cuts = geometry.cuts.map(d => `<path d="${d}" fill="none" stroke="#dc2626" stroke-width="0.25"/>`).join('');
-    const creases = geometry.creases.map(d => `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="0.25" stroke-dasharray="2 1"/>`).join('');
-    const labels = showLabels ? geometry.labels.map(label => `<text x="${label.x}" y="${label.y}" font-size="4" text-anchor="middle" fill="#64748b">${label.text.replace(/[&<>"]/g, '')}</text>`).join('') : '';
-    const dimensions = showDimensions ? `<g id="DIMENSIONS" fill="#475569" stroke="#64748b" stroke-width=".25"><path d="M ${geometry.xMin} ${geometry.yMin - 5} L ${geometry.xMax} ${geometry.yMin - 5} M ${geometry.xMin} ${geometry.yMin - 7} L ${geometry.xMin} ${geometry.yMin - 3} M ${geometry.xMax} ${geometry.yMin - 7} L ${geometry.xMax} ${geometry.yMin - 3} M ${geometry.xMax + 5} ${geometry.yMin} L ${geometry.xMax + 5} ${geometry.yMax} M ${geometry.xMax + 3} ${geometry.yMin} L ${geometry.xMax + 7} ${geometry.yMin} M ${geometry.xMax + 3} ${geometry.yMax} L ${geometry.xMax + 7} ${geometry.yMax}"/><text x="${(geometry.xMin + geometry.xMax) / 2}" y="${geometry.yMin - 7}" font-size="4" text-anchor="middle" stroke="none">گسترده: ${(geometry.xMax - geometry.xMin).toFixed(1)} mm</text><text x="${geometry.xMax + 6}" y="${(geometry.yMin + geometry.yMax) / 2}" font-size="4" text-anchor="middle" stroke="none" transform="rotate(90 ${geometry.xMax + 6} ${(geometry.yMin + geometry.yMax) / 2})">${(geometry.yMax - geometry.yMin).toFixed(1)} mm</text></g>` : '';
-    const grid = showGrid ? `<defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" stroke-opacity=".35" stroke-width=".15"/></pattern></defs><rect x="${geometry.xMin}" y="${geometry.yMin}" width="${viewW}" height="${viewH}" fill="url(#grid)"/>` : '';
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW + 22}mm" height="${viewH + 22}mm" viewBox="${geometry.xMin - 8} ${geometry.yMin - 14} ${viewW + 22} ${viewH + 22}">${grid}<g id="GLUE_ZONES" data-machine-operation="visual-only">${glueZones}</g><g id="CUT">${cuts}</g><g id="CREASE">${creases}</g>${labels}${dimensions}</svg>`;
-  }, [geometry, showLabels, showGrid, showDimensions, showGlueZones]);
+    return buildDielineSvgExport(geometry, { showLabels, showDimensions, showGlueZones });
+  }, [geometry, showLabels, showDimensions, showGlueZones]);
 
   const previewView = useMemo(() => {
     if (!geometry) return null;
