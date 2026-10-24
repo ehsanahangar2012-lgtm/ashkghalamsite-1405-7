@@ -3,6 +3,7 @@ import { parseDxfToEntities, scaleCustomDieline } from '../src/services/customDi
 import { validateDxfDieline, runComprehensiveGeometryCheck } from '../src/services/geometryValidator.ts';
 import { buildDielineSvgExport } from '../src/services/dielineExport.ts';
 import { buildDielinePdfExport } from '../src/services/dielineExport.ts';
+import { buildDielineDxfExport, pathToLineSegments } from '../src/services/dielineExport.ts';
 
 const requiredEngines = [
   'default-rsc',
@@ -185,6 +186,31 @@ if (!autoLockPdf.startsWith('%PDF-1.4\n') ||
     !autoLockPdf.includes('(CREASE)') ||
     !autoLockPdf.includes('(GLUE \\(visual only\\))')) {
   fail('vector PDF must include calibration scale and explicit cut/crease/glue legend');
+}
+const autoLockDxf = buildDielineDxfExport(autoLockReference);
+const expectedDxfLineCount = [...autoLockReference.cuts, ...autoLockReference.creases]
+  .reduce((count, path) => count + pathToLineSegments(path).length, 0);
+const actualDxfLineCount = (autoLockDxf.match(/0\nLINE\n/g) || []).length;
+if (!autoLockDxf.includes('9\n$INSUNITS\n70\n4') ||
+    !autoLockDxf.includes('2\nCUT\n') ||
+    !autoLockDxf.includes('2\nCREASE\n') ||
+    autoLockDxf.includes('GLUE_ZONES') ||
+    actualDxfLineCount !== expectedDxfLineCount) {
+  fail('DXF must use mm units, include CUT/CREASE, exclude visual glue zones, and preserve each source segment');
+}
+const dxfEntities = autoLockDxf.split('0\nLINE\n').slice(1);
+for (const entity of dxfEntities) {
+  const fields = entity.trim().split('\n');
+  const coordinates = new Map<string, number>();
+  for (let i = 0; i + 1 < fields.length; i += 2) {
+    const groupCode = fields[i];
+    if (['10', '20', '30', '11', '21', '31'].includes(groupCode)) {
+      coordinates.set(groupCode, Number(fields[i + 1]));
+    }
+  }
+  if (['10', '20', '30', '11', '21', '31'].some(code => !Number.isFinite(coordinates.get(code)))) {
+    fail('DXF LINE entity contains a missing or non-finite coordinate');
+  }
 }
 const pdfXrefOffset = Number(autoLockPdf.match(/startxref\n(\d+)/)?.[1] || -1);
 const pdfXrefMarker = autoLockPdf.match(/\nxref\n0 \d+\n/);

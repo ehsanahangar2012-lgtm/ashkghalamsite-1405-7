@@ -5,7 +5,7 @@ import { STANDARD_DIELINE_ENGINES } from '../services/dielineMath';
 import type { DielineEngineResult } from '../services/dielineMath';
 import type { Project } from '../types';
 import { runComprehensiveGeometryCheck } from '../services/geometryValidator';
-import { buildDielinePdfExport, buildDielineSvgExport } from '../services/dielineExport';
+import { buildDielineDxfExport, buildDielinePdfExport, buildDielineSvgExport } from '../services/dielineExport';
 
 type TemplateOption = {
   id: string; name: string; code: string; category: string;
@@ -34,29 +34,6 @@ const TEMPLATES: TemplateOption[] = [
 ];
 
 const CATEGORIES = ['همه قالب‌ها', ...Array.from(new Set(TEMPLATES.map(t => t.category)))];
-
-const pathSegments = (path: string): [number, number, number, number][] => {
-  const commands = path.match(/[MLZ][^MLZ]*/g) || [];
-  const segments: [number, number, number, number][] = [];
-  let current: [number, number] | null = null;
-  let first: [number, number] | null = null;
-  for (const raw of commands) {
-    const command = raw[0];
-    if (command === 'Z') {
-      if (current && first && (current[0] !== first[0] || current[1] !== first[1])) segments.push([current[0], current[1], first[0], first[1]]);
-      current = first;
-      continue;
-    }
-    const nums = raw.slice(1).match(/[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/gi)?.map(Number) || [];
-    if (nums.length < 2) continue;
-    for (let i = 0; i + 1 < nums.length; i += 2) {
-      const point: [number, number] = [nums[i], nums[i + 1]];
-      if (command === 'M' && i === 0) { current = point; first = point; }
-      else if (current) { segments.push([current[0], current[1], point[0], point[1]]); current = point; }
-    }
-  }
-  return segments;
-};
 
 const download = (name: string, contents: string, type: string) => {
   const blob = new Blob([contents], { type });
@@ -176,17 +153,10 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     download(`ashkghalam-${templateId}.pdf`, pdf, 'application/pdf');
   };
 
-  // DXF is deliberately CUT + CREASE only. Glue zones are visual-only, not knife paths.
+  // DXF contains machine geometry only: glue zones are non-cutting visual guides.
   const exportDxf = () => {
-    if (!geometry) return;
-    const entities: string[] = [];
-    const add = (path: string, layer: string) => pathSegments(path).forEach(([x1, y1, x2, y2]) => {
-      entities.push(`0\nLINE\n8\n${layer}\n10\n${x1.toFixed(4)}\n20\n${y1.toFixed(4)}\n30\n0\n11\n${x2.toFixed(4)}\n21\n${y2.toFixed(4)}\n31\n0\n`);
-    });
-    geometry.cuts.forEach(p => add(p, 'CUT'));
-    geometry.creases.forEach(p => add(p, 'CREASE'));
-    if (!entities.length) return;
-    const dxf = `0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n2\n0\nLAYER\n2\nCUT\n70\n0\n62\n1\n6\nCONTINUOUS\n0\nLAYER\n2\nCREASE\n70\n0\n62\n5\n6\nDASHED\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities.join('')}0\nENDSEC\n0\nEOF\n`;
+    if (!exportReady || !geometry) return;
+    const dxf = buildDielineDxfExport(geometry);
     download(`ashkghalam-${templateId}.dxf`, dxf, 'application/dxf');
   };
 

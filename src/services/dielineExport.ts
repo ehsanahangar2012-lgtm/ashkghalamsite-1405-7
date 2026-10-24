@@ -268,3 +268,102 @@ export const buildDielinePdfExport = (
   pdf += 'trailer\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + xrefOffset + '\n%%EOF';
   return pdf;
 };
+
+
+export type DxfLineSegment = [x1: number, y1: number, x2: number, y2: number];
+
+/** Convert an absolute SVG-like M/L/H/V/Z path to straight DXF line segments. */
+export const pathToLineSegments = (path: string): DxfLineSegment[] => {
+  const tokens = path.match(/[MLHVZ]|[-+]?(?:\d*\.?\d+|\d+\.?)(?:e[-+]?\d+)?/gi) || [];
+  const segments: DxfLineSegment[] = [];
+  let i = 0;
+  let command = '';
+  let current: [number, number] | null = null;
+  let first: [number, number] | null = null;
+
+  const readNumber = (): number | null => {
+    if (i >= tokens.length || /^[MLHVZ]$/i.test(tokens[i])) return null;
+    const value = Number(tokens[i++]);
+    return Number.isFinite(value) ? value : null;
+  };
+
+  while (i < tokens.length) {
+    if (/^[MLHVZ]$/i.test(tokens[i])) {
+      command = tokens[i++].toUpperCase();
+      if (command === 'Z') {
+        if (current && first &&
+          (Math.abs(current[0] - first[0]) > 1e-8 || Math.abs(current[1] - first[1]) > 1e-8)) {
+          segments.push([current[0], current[1], first[0], first[1]]);
+        }
+        current = first;
+        command = '';
+        continue;
+      }
+    }
+
+    if (!command) throw new Error('Unsupported or malformed path command in DXF export.');
+    if (command === 'M' || command === 'L') {
+      const x = readNumber();
+      const y = readNumber();
+      if (x === null || y === null) throw new Error('Incomplete coordinate pair in DXF export.');
+      if (command === 'M') {
+        current = [x, y];
+        first = [x, y];
+        command = 'L';
+      } else {
+        if (!current) throw new Error('Line has no starting point in DXF export.');
+        if (Math.abs(current[0] - x) > 1e-8 || Math.abs(current[1] - y) > 1e-8) {
+          segments.push([current[0], current[1], x, y]);
+        }
+        current = [x, y];
+      }
+      continue;
+    }
+
+    if (command === 'H' || command === 'V') {
+      const value = readNumber();
+      if (value === null || !current) throw new Error('Invalid horizontal or vertical path segment in DXF export.');
+      const x = command === 'H' ? value : current[0];
+      const y = command === 'V' ? value : current[1];
+      if (Math.abs(current[0] - x) > 1e-8 || Math.abs(current[1] - y) > 1e-8) {
+        segments.push([current[0], current[1], x, y]);
+      }
+      current = [x, y];
+      continue;
+    }
+
+    throw new Error('Unsupported path command in DXF export: ' + command);
+  }
+  return segments;
+};
+
+/**
+ * Writes mm-unit DXF with CUT and CREASE layers only. Visual glue zones,
+ * dimensions, labels and editor grid are excluded from machine-operation data.
+ */
+export const buildDielineDxfExport = (geometry: DielineEngineResult): string => {
+  const entities: string[] = [];
+  const add = (path: string, layer: 'CUT' | 'CREASE') => {
+    for (const [x1, y1, x2, y2] of pathToLineSegments(path)) {
+      entities.push(
+        '0\nLINE\n8\n' + layer +
+        '\n10\n' + x1.toFixed(4) +
+        '\n20\n' + y1.toFixed(4) +
+        '\n30\n0\n11\n' + x2.toFixed(4) +
+        '\n21\n' + y2.toFixed(4) +
+        '\n31\n0\n'
+      );
+    }
+  };
+
+  geometry.cuts.forEach(path => add(path, 'CUT'));
+  geometry.creases.forEach(path => add(path, 'CREASE'));
+  if (!entities.length) throw new Error('Cannot export an empty dieline to DXF.');
+
+  return '0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n' +
+    '0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n2\n' +
+    '0\nLAYER\n2\nCUT\n70\n0\n62\n1\n6\nCONTINUOUS\n' +
+    '0\nLAYER\n2\nCREASE\n70\n0\n62\n5\n6\nDASHED\n' +
+    '0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n' +
+    entities.join('') + '0\nENDSEC\n0\nEOF\n';
+};
