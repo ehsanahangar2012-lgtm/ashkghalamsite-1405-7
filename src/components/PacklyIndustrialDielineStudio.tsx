@@ -89,6 +89,8 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   const [glueTab, setGlueTab] = useState(30);
   const [showLabels, setShowLabels] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
+  const [showDimensions, setShowDimensions] = useState(true);
+  const [previewZoom, setPreviewZoom] = useState(1);
   const [show3D, setShow3D] = useState(false);
   const [openRatio, setOpenRatio] = useState(1);
   const [saved, setSaved] = useState(false);
@@ -151,10 +153,27 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
     const cuts = geometry.cuts.map(d => `<path d="${d}" fill="none" stroke="#dc2626" stroke-width="0.25"/>`).join('');
     const creases = geometry.creases.map(d => `<path d="${d}" fill="none" stroke="#2563eb" stroke-width="0.25" stroke-dasharray="2 1"/>`).join('');
     const labels = showLabels ? geometry.labels.map(label => `<text x="${label.x}" y="${label.y}" font-size="4" text-anchor="middle" fill="#64748b">${label.text.replace(/[&<>"]/g, '')}</text>`).join('') : '';
-    const dimensions = showLabels ? `<g id="DIMENSIONS" fill="#475569" stroke="#64748b" stroke-width=".25"><path d="M ${geometry.xMin} ${geometry.yMin - 5} L ${geometry.xMax} ${geometry.yMin - 5} M ${geometry.xMin} ${geometry.yMin - 7} L ${geometry.xMin} ${geometry.yMin - 3} M ${geometry.xMax} ${geometry.yMin - 7} L ${geometry.xMax} ${geometry.yMin - 3} M ${geometry.xMax + 5} ${geometry.yMin} L ${geometry.xMax + 5} ${geometry.yMax} M ${geometry.xMax + 3} ${geometry.yMin} L ${geometry.xMax + 7} ${geometry.yMin} M ${geometry.xMax + 3} ${geometry.yMax} L ${geometry.xMax + 7} ${geometry.yMax}"/><text x="${(geometry.xMin + geometry.xMax) / 2}" y="${geometry.yMin - 7}" font-size="4" text-anchor="middle" stroke="none">گسترده: ${(geometry.xMax - geometry.xMin).toFixed(1)} mm</text><text x="${geometry.xMax + 6}" y="${(geometry.yMin + geometry.yMax) / 2}" font-size="4" text-anchor="middle" stroke="none" transform="rotate(90 ${geometry.xMax + 6} ${(geometry.yMin + geometry.yMax) / 2})">${(geometry.yMax - geometry.yMin).toFixed(1)} mm</text></g>` : '';
+    const dimensions = showDimensions ? `<g id="DIMENSIONS" fill="#475569" stroke="#64748b" stroke-width=".25"><path d="M ${geometry.xMin} ${geometry.yMin - 5} L ${geometry.xMax} ${geometry.yMin - 5} M ${geometry.xMin} ${geometry.yMin - 7} L ${geometry.xMin} ${geometry.yMin - 3} M ${geometry.xMax} ${geometry.yMin - 7} L ${geometry.xMax} ${geometry.yMin - 3} M ${geometry.xMax + 5} ${geometry.yMin} L ${geometry.xMax + 5} ${geometry.yMax} M ${geometry.xMax + 3} ${geometry.yMin} L ${geometry.xMax + 7} ${geometry.yMin} M ${geometry.xMax + 3} ${geometry.yMax} L ${geometry.xMax + 7} ${geometry.yMax}"/><text x="${(geometry.xMin + geometry.xMax) / 2}" y="${geometry.yMin - 7}" font-size="4" text-anchor="middle" stroke="none">گسترده: ${(geometry.xMax - geometry.xMin).toFixed(1)} mm</text><text x="${geometry.xMax + 6}" y="${(geometry.yMin + geometry.yMax) / 2}" font-size="4" text-anchor="middle" stroke="none" transform="rotate(90 ${geometry.xMax + 6} ${(geometry.yMin + geometry.yMax) / 2})">${(geometry.yMax - geometry.yMin).toFixed(1)} mm</text></g>` : '';
     const grid = showGrid ? `<defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" stroke-opacity=".35" stroke-width=".15"/></pattern></defs><rect x="${geometry.xMin}" y="${geometry.yMin}" width="${viewW}" height="${viewH}" fill="url(#grid)"/>` : '';
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${viewW + 22}mm" height="${viewH + 22}mm" viewBox="${geometry.xMin - 8} ${geometry.yMin - 14} ${viewW + 22} ${viewH + 22}">${grid}<g id="CUT">${cuts}</g><g id="CREASE">${creases}</g>${labels}${dimensions}</svg>`;
-  }, [geometry, showLabels, showGrid]);
+  }, [geometry, showLabels, showGrid, showDimensions]);
+
+  const previewView = useMemo(() => {
+    if (!geometry) return null;
+    const rawX = geometry.xMin - 8;
+    const rawY = geometry.yMin - 14;
+    const rawW = Math.max(1, geometry.xMax - geometry.xMin + 22);
+    const rawH = Math.max(1, geometry.yMax - geometry.yMin + 22);
+    const zoom = Math.max(0.5, Math.min(4, previewZoom));
+    const viewW = rawW / zoom;
+    const viewH = rawH / zoom;
+    return {
+      x: rawX + (rawW - viewW) / 2,
+      y: rawY + (rawH - viewH) / 2,
+      width: viewW,
+      height: viewH,
+    };
+  }, [geometry, previewZoom]);
 
   const exportDxf = () => {
     if (!geometry) return;
@@ -203,7 +222,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
         </header>
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
-          <aside className="space-y-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+          <aside className="order-2 space-y-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 xl:order-1">
             <div className="flex items-center justify-between"><h3 className="font-black">کتابخانه قالب‌ها</h3><Layers className="h-4 w-4 text-sky-700"/></div>
             <label className="relative block"><Search className="absolute right-3 top-3 h-4 w-4 text-slate-500"/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="جست‌وجوی نام یا کد..." className={inputClass + ' pr-9'}/></label>
             <label className="block text-xs font-bold text-slate-700">دسته‌بندی<select value={category} onChange={e => setCategory(e.target.value)} className={inputClass}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
@@ -291,13 +310,13 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
             {saved && <p className="text-center text-xs text-emerald-700"><CheckCircle2 className="ml-1 inline h-4 w-4"/>پروژه به تابع ذخیره‌سازی تحویل شد.</p>}
           </aside>
 
-          <main className="min-w-0 space-y-4">
+          <main className="order-1 min-w-0 space-y-4 xl:order-2">
             <section className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
               <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{template.code} — {template.name}</h3><span className={`rounded-full px-2 py-1 text-[10px] ${geometry ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-800'}`}>{geometry ? 'هندسه تولید شد' : 'خطای تولید'}</span></div><p className="mt-1 text-xs leading-5 text-slate-600">قرمز پیوسته: برش · آبی خط‌چین: خط‌تا · L×W×H ورودی بر حسب میلی‌متر</p></div>
                 <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-lg border border-slate-300 bg-white px-3 py-2"><Ruler className="ml-1 inline h-4 w-4 text-sky-700"/>{geometry ? `گسترده: ${(geometry.xMax - geometry.xMin).toFixed(1)} × ${(geometry.yMax - geometry.yMin).toFixed(1)} mm` : '—'}</span></div>
               </div>
-              {geometryAudit && <div className={`mb-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+              {geometryAudit && <details className="mb-3 rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5"><summary className="cursor-pointer font-bold text-slate-800">گزارش بررسی مسیرها — {exportReady ? 'ساختار قابل‌قبول' : 'نیازمند بازبینی'}</summary><div className={`mt-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
                 <div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4"/>{exportReady ? 'بررسی ساختاری مسیرها گذشت' : 'خروجی به بررسی بیشتر نیاز دارد'}</div>
                 <p className="mt-1">طول برش تقریبی: {geometryAudit.cutLength} mm · طول خط‌تا: {geometryAudit.creaseLength} mm · امتیاز بررسی ساختاری: {geometryAudit.score}/100</p>
                 <p className="mt-1">کنترل تقاطع: برش/برش {geometryAudit.topology.cutCutCrossings} · برش/خط‌تا {geometryAudit.topology.cutCreaseCrossings} · هم‌پوشانی {geometryAudit.topology.overlaps} · اتصال T نیازمند بازبینی {geometryAudit.topology.teeContacts} · خارج از محدوده {geometryAudit.topology.boundsViolations}</p>
@@ -305,32 +324,27 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 {geometryAudit.warnings.map((message, i) => <p key={`audit-warning-${i}`} className="mt-1">• {message}</p>)}
                 {geometryAudit.suggestions.map((message, i) => <p key={`audit-suggestion-${i}`} className="mt-1 text-slate-700">• {message}</p>)}
                 {(geometryAudit.hasSelfIntersection || geometryAudit.topology.cutCutCrossings > 0 || geometryAudit.topology.cutCreaseCrossings > 0 || geometryAudit.topology.overlaps > 0 || geometryAudit.topology.boundsViolations > 0) && <p className="mt-1 font-bold">به‌دلیل تقاطع، هم‌پوشانی یا خروج از محدودهٔ گسترده، خروجی فایل و ثبت پروژه غیرفعال است.</p>}
-              </div>}
+              </div></details>}
               {geometryState.error && <div role="alert" className="mb-3 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><XCircle className="mt-0.5 h-5 w-5 shrink-0"/><div><strong>تولید دایلاین متوقف شد.</strong><p className="mt-1 text-xs leading-5">{geometryState.error}</p></div></div>}
-              {geometry && <div className="overflow-auto rounded-xl border border-slate-200 bg-white p-2">
+              {geometry && previewView && <div className="overflow-auto rounded-xl border border-slate-200 bg-slate-100 p-2 sm:p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
-                  <span>پیش‌نمایش بازشده / ۲بعدی</span>
-                  <div className="flex flex-wrap gap-3"><label className="flex items-center gap-1"><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)}/>شبکه</label><label className="flex items-center gap-1"><input type="checkbox" checked={showLabels} onChange={e => setShowLabels(e.target.checked)}/>ابعاد و برچسب‌ها</label></div>
+                  <span className="font-bold text-slate-800">پیش‌نمایش ۲بعدی · واحد واقعی هندسه: mm</span>
+                  <div className="flex flex-wrap items-center gap-3"><label className="flex items-center gap-1"><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)}/>شبکه</label><label className="flex items-center gap-1"><input type="checkbox" checked={showLabels} onChange={e => setShowLabels(e.target.checked)}/>نام پنل‌ها</label><label className="flex items-center gap-1"><input type="checkbox" checked={showDimensions} onChange={e => setShowDimensions(e.target.checked)}/>خطوط اندازه</label><span className="mx-1 h-4 w-px bg-slate-300"/><button type="button" aria-label="کوچک‌نمایی" title="کوچک‌نمایی" onClick={() => setPreviewZoom(z => Math.max(0.5, Number((z - 0.25).toFixed(2))))} className="rounded border border-slate-300 bg-white px-2 py-1 text-base font-black hover:bg-slate-100" disabled={previewZoom <= 0.5}>−</button><span className="min-w-[3rem] text-center font-mono">{Math.round(previewZoom * 100)}%</span><button type="button" aria-label="بزرگ‌نمایی" title="بزرگ‌نمایی" onClick={() => setPreviewZoom(z => Math.min(4, Number((z + 0.25).toFixed(2))))} className="rounded border border-slate-300 bg-white px-2 py-1 text-base font-black hover:bg-slate-100" disabled={previewZoom >= 4}>+</button><button type="button" onClick={() => setPreviewZoom(1)} className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-100">جا دادن کامل</button></div>
                 </div>
-                <svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox={`${geometry.xMin - 8} ${geometry.yMin - 14} ${Math.max(1, geometry.xMax - geometry.xMin + 22)} ${Math.max(1, geometry.yMax - geometry.yMin + 22)}`} className="block h-auto w-full max-h-[680px]">
+                <svg xmlns="http://www.w3.org/2000/svg" width="100%" preserveAspectRatio="xMidYMid meet" viewBox={`${previewView.x} ${previewView.y} ${previewView.width} ${previewView.height}`} className="block h-auto w-full max-h-[78vh]">
                   {showGrid && <defs><pattern id="dieline-grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="#cbd5e1" strokeWidth="0.2"/></pattern></defs>}
-                  {showGrid && <rect x={geometry.xMin - 8} y={geometry.yMin - 14} width={geometry.xMax - geometry.xMin + 22} height={geometry.yMax - geometry.yMin + 22} fill="url(#dieline-grid)"/>}
+                  <rect x={previewView.x} y={previewView.y} width={previewView.width} height={previewView.height} fill={showGrid ? "url(#dieline-grid)" : "#ffffff"}/>
                   {geometry.cuts.map((d, i) => <path key={`cut-${i}`} d={d} fill="none" stroke="#dc2626" strokeWidth="0.8" vectorEffect="non-scaling-stroke"/>)}
                   {geometry.creases.map((d, i) => <path key={`crease-${i}`} d={d} fill="none" stroke="#2563eb" strokeWidth="0.8" strokeDasharray="5 3" vectorEffect="non-scaling-stroke"/>)}
                   {showLabels && geometry.labels.map((label, i) => <text key={`label-${i}`} x={label.x} y={label.y} fill="#475569" fontSize="5" textAnchor="middle">{label.text}</text>)}
-                  {showLabels && <g fill="#475569" stroke="#64748b" strokeWidth="0.25">
+                  {showDimensions && <g fill="#475569" stroke="#64748b" strokeWidth="0.25">
                     <path d={`M ${geometry.xMin} ${geometry.yMin - 5} L ${geometry.xMax} ${geometry.yMin - 5} M ${geometry.xMin} ${geometry.yMin - 7} L ${geometry.xMin} ${geometry.yMin - 3} M ${geometry.xMax} ${geometry.yMin - 7} L ${geometry.xMax} ${geometry.yMin - 3} M ${geometry.xMax + 5} ${geometry.yMin} L ${geometry.xMax + 5} ${geometry.yMax} M ${geometry.xMax + 3} ${geometry.yMin} L ${geometry.xMax + 7} ${geometry.yMin} M ${geometry.xMax + 3} ${geometry.yMax} L ${geometry.xMax + 7} ${geometry.yMax}`}/>
                     <text x={(geometry.xMin + geometry.xMax) / 2} y={geometry.yMin - 6} fontSize="5" textAnchor="middle" stroke="none">{(geometry.xMax - geometry.xMin).toFixed(1)} mm</text>
                     <text x={geometry.xMax + 6} y={(geometry.yMin + geometry.yMax) / 2} fontSize="5" textAnchor="middle" stroke="none" transform={`rotate(90 ${geometry.xMax + 6} ${(geometry.yMin + geometry.yMax) / 2})`}>{(geometry.yMax - geometry.yMin).toFixed(1)} mm</text>
                   </g>}
                 </svg>
               </div>}
-              {geometry && <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <div className="rounded-lg border border-slate-200 bg-white p-3"><span className="text-[10px] text-slate-500">مسیرهای برش</span><p className="mt-1 text-xl font-black">{geometry.cuts.length}</p></div>
-                <div className="rounded-lg border border-slate-200 bg-white p-3"><span className="text-[10px] text-slate-500">مسیرهای تا</span><p className="mt-1 text-xl font-black">{geometry.creases.length}</p></div>
-                <div className="rounded-lg border border-slate-200 bg-white p-3"><span className="text-[10px] text-slate-500">سطح مستطیل پوشاننده</span><p className="mt-1 text-xl font-black">{(((geometry.xMax - geometry.xMin) * (geometry.yMax - geometry.yMin)) / 1_000_000).toFixed(3)} m²</p><p className="text-[10px] text-slate-500">برآورد ورق، نه سطح خالص قالب</p></div>
-                <div className="rounded-lg border border-slate-200 bg-white p-3"><span className="text-[10px] text-slate-500">ضخامت ورق</span><p className="mt-1 text-xl font-black">{thickness} mm</p></div>
-              </div>}
+              {geometry && <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-600"><span className="rounded-lg border border-slate-200 bg-white px-3 py-2">برش: <strong>{geometry.cuts.length}</strong> مسیر</span><span className="rounded-lg border border-slate-200 bg-white px-3 py-2">خط‌تا: <strong>{geometry.creases.length}</strong> مسیر</span><span className="rounded-lg border border-slate-200 bg-white px-3 py-2">ضخامت ورق: <strong>{thickness} mm</strong></span><span className="rounded-lg border border-slate-200 bg-white px-3 py-2">گسترده: <strong>{(geometry.xMax-geometry.xMin).toFixed(1)} × {(geometry.yMax-geometry.yMin).toFixed(1)} mm</strong></span></div>}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" onClick={() => setShow3D(v => !v)} className={buttonClass + ' border border-slate-300 bg-white hover:bg-slate-100'}><Rotate3d className="h-4 w-4"/>{show3D ? 'بستن نمای حجمی' : 'نمای حجمی ابعاد'}</button>
                 <a className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100" href="https://www.fefco.org/technical-information/fefco-code" target="_blank" rel="noreferrer">مرجع رسمی FEFCO ↗</a>
