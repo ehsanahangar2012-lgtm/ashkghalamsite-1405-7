@@ -89,14 +89,6 @@ for (const id of requiredEngines) {
       const outerY = bodyBottomY + mainDepth;
       const stepY = outerY - stepDepth;
       const mainRun = Math.max(4, Math.min(panelL * 0.28, stepDepth / Math.tan(45 * Math.PI / 180)));
-      const firstMainPoints = pathPoints(firstMain);
-      const secondMainPoints = pathPoints(secondMain);
-      if (!hasPoint(firstMainPoints, firstCenter - mainRun, outerY) ||
-          !hasPoint(firstMainPoints, firstCenter, stepY) ||
-          !hasPoint(secondMainPoints, secondCenter, stepY) ||
-          !hasPoint(secondMainPoints, secondCenter + mainRun, outerY)) {
-        fail('fefco-0713: front/back flaps must preserve their complementary half-width stepped edges and angle-aware diagonal shoulders');
-      }
       const pathPoints = (path: string): Array<[number, number]> => {
         const values = path.match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
         const out: Array<[number, number]> = [];
@@ -105,11 +97,19 @@ for (const id of requiredEngines) {
       };
       const hasPoint = (points: Array<[number, number]>, x: number, y: number) =>
         points.some(point => Math.abs(point[0] - x) < 1e-7 && Math.abs(point[1] - y) < 1e-7);
+      const firstMainPoints = pathPoints(firstMain);
+      const secondMainPoints = pathPoints(secondMain);
+      if (!hasPoint(firstMainPoints, firstCenter - mainRun, outerY) ||
+          !hasPoint(firstMainPoints, firstCenter, stepY) ||
+          !hasPoint(secondMainPoints, secondCenter, stepY) ||
+          !hasPoint(secondMainPoints, secondCenter + mainRun, outerY)) {
+        fail('fefco-0713: front/back flaps must preserve their complementary half-width stepped edges and angle-aware diagonal shoulders');
+      }
       if (!hasPoint(firstMainPoints, panelXs[1], outerY) ||
           !hasPoint(secondMainPoints, panelXs[3] + panelL, outerY) ||
-          !hasPoint(firstMainPoints, panelXs[2], stepY) ||
-          !hasPoint(secondMainPoints, panelXs[3] + panelL / 2, outerY)) {
-        fail('fefco-0713: major flaps must retain full-width rectangular sides and complementary steps; triangular/tapered outlines are invalid');
+          !hasPoint(secondMainPoints, panelXs[3], stepY) ||
+          !hasPoint(firstMainPoints, panelXs[2], stepY)) {
+        fail('fefco-0713: major flaps must retain full-width edges and complementary steps; triangular/tapered outlines are invalid');
       }
 
       const yBodyTop = 30 + panelW + tuck;
