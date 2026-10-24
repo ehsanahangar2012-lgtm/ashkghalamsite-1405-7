@@ -177,6 +177,34 @@ const autoLockReference = STANDARD_DIELINE_ENGINES['fefco-0713']({
   L: 90, W: 90, H: 320, thickness: 0.45, glueTab: 15, tuck: 25,
   dustFlap: 43, bottomFlapDepth: 40.5, dimensionConvention: 'inside', autoLockAngle: 45, x0: 40,
 });
+const autoLockReferenceAudit = runComprehensiveGeometryCheck(
+  autoLockReference.cuts, autoLockReference.creases, 90, 90, 320, 'fefco-0713',
+  25, 43, autoLockReference.totalW, autoLockReference.totalH,
+  100000, 100000, 15,
+  { xMin: autoLockReference.xMin, yMin: autoLockReference.yMin, xMax: autoLockReference.xMax, yMax: autoLockReference.yMax }
+);
+if (!autoLockReferenceAudit.passed || autoLockReferenceAudit.hasSelfIntersection) {
+  fail('Auto-Lock 90×90×320 reference preset must pass the exact preview/export geometry audit: ' + autoLockReferenceAudit.errors.join('; '));
+}
+
+const snapLockUiPreset = STANDARD_DIELINE_ENGINES['snap-lock-123']({
+  L: 70, W: 70, H: 80, thickness: 0.45, glueTab: 15,
+  tuck: 25, dustFlap: 33, bottomFlapDepth: 33, lockTongueDepth: 17.5,
+  dimensionConvention: 'inside', autoLockAngle: 45, x0: 40,
+});
+if (Math.abs(snapLockUiPreset.totalW - 296.8) > 0.1 || Math.abs(snapLockUiPreset.totalH - 226) > 0.1) {
+  fail('Snap-Lock UI reference settings must match the published 296.8×226 mm envelope, got ' + snapLockUiPreset.totalW + '×' + snapLockUiPreset.totalH + ' mm');
+}
+const snapLockUiAudit = runComprehensiveGeometryCheck(
+  snapLockUiPreset.cuts, snapLockUiPreset.creases, 70, 70, 80, 'snap-lock-123',
+  12.6, 29.4, snapLockUiPreset.totalW, snapLockUiPreset.totalH,
+  100000, 100000, 15,
+  { xMin: snapLockUiPreset.xMin, yMin: snapLockUiPreset.yMin, xMax: snapLockUiPreset.xMax, yMax: snapLockUiPreset.yMax }
+);
+if (!snapLockUiAudit.passed || snapLockUiAudit.hasSelfIntersection) {
+  fail('Snap-Lock explicit UI reference preset must pass the exact preview/export geometry audit: ' + snapLockUiAudit.errors.join('; '));
+}
+
 const autoLockSvg = buildDielineSvgExport(autoLockReference, {
   showLabels: true, showDimensions: true, showGlueZones: true,
 });
