@@ -8,7 +8,8 @@
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js && node scripts/pack_release_zips.cjs",
     "start": "node dist/server.js",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "verify:dieline": "tsx scripts/verify-dieline-engines.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1062.0",

@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import './DielineCanvas.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, Badge } from './UIComponents';
 import { ThreeDPreview, FlapDirections } from './ThreeDPreview';
 import { Project } from '../types';
 import { 
   Download, Check, Rotate3d, Layers, LogOut, Pin, ArrowRight,
-  Shapes, Ruler as RulerIcon, Ruler, ShieldCheck, ArrowDownToLine, Maximize, Minimize, Upload, ImageIcon, Trash2, Box, Info, Sparkles, 
+  Shapes, Scissors, Ruler as RulerIcon, Ruler, ShieldCheck, ArrowDownToLine, Maximize, Minimize, Upload, ImageIcon, Trash2, Box, Info, Sparkles, 
   Share2, Printer, Calculator, Cpu, ShieldAlert, FileText, Database, Settings, HelpCircle, Save, CheckCircle2, AlertTriangle, Send, RefreshCw, RotateCcw, Layers3, Flame, Clock, X, Camera, ChevronDown, MapPin, Eye, BookOpen, Search, Sliders, Magnet, Activity
 , Orbit } from 'lucide-react';
 import { SmartHelpButton } from './SmartHelpModal';
@@ -41,7 +42,7 @@ interface PackagingModel {
   id: string;
   name: string;
   code: string; 
-  category: 'FEFCO 0200 Series' | 'FEFCO 0300' | 'FEFCO 0400' | 'FEFCO 0700' | 'ECMA A' | 'ECMA B' | 'ECMA C' | 'ECMA D';
+  category: string;
   icon: string;
   defaultDims: { L: number, W: number, H: number };
   description: string; features?: string[]; complexity?: string;
@@ -50,25 +51,25 @@ interface PackagingModel {
 const STANDARDS_LIBRARY: PackagingModel[] = [
   // FEFCO 0200 Series
   { id: 'fefco-0201', name: 'کارتن استاندارد آمریکایی (RSC)', code: 'FEFCO 0201', category: 'FEFCO 0200 Series', icon: '📦', defaultDims: { L: 150, W: 120, H: 100 }, description: 'کارتن کارآمد حمل و نقل با درب‌های بالا و پایین متلاقی در خط وسط.' },
-  { id: 'fefco-0200', name: 'جعبه نیمه تلسکوپی روباز', code: 'FEFCO 0200', category: 'FEFCO 0200 Series', icon: '📥', defaultDims: { L: 140, W: 100, H: 80 }, description: 'کارتن فاقد درپوش، مناسب برای بارگیری سریع یا به عنوان کشو.' },
+  { id: 'fefco-0200', name: 'کارتن نیمه‌شیاردار روباز (HSC)', code: 'FEFCO 0200', category: 'FEFCO 0200 Series', icon: '📥', defaultDims: { L: 140, W: 100, H: 80 }, description: 'کارتن فاقد درپوش، مناسب برای بارگیری سریع یا به عنوان کشو.' },
   { id: 'fefco-0203', name: 'جعبه درب هم‌پوشان سنگین (FOL)', code: 'FEFCO 0203', category: 'FEFCO 0200 Series', icon: '📦', defaultDims: { L: 180, W: 140, H: 120 }, description: 'درب‌های کاملا روی هم قرار گیرنده برای تقویت کف و سقف و جلوگیری از گسیختگی.' },
-  { id: 'fefco-0215', name: 'جعبه ته قفل خودکار (Crash Lock)', code: 'FEFCO 0215', category: 'FEFCO 0200 Series', icon: '📥', defaultDims: { L: 120, W: 90, H: 150 }, description: 'ته جعبه با خطوط تا ۴۵ درجه جهت باز شدن سریع کارگاهی بدون چسب‌زنی.' },
+  { id: 'fefco-0204', name: 'کارتن فلپ‌مرکزی (CSSC)', code: 'FEFCO 0204', category: 'FEFCO 0200 Series', icon: '📦', defaultDims: { L: 180, W: 120, H: 120 }, description: 'چهار فلپ به مرکز می‌رسند؛ هندسه فلپ‌های کناری با طول جعبه محاسبه می‌شود.' },
+  { id: 'fefco-0215', name: 'کارتن ته‌قفلی دستی (Snap-lock bottom)', code: 'FEFCO 0215', category: 'FEFCO 0200 Series', icon: '🔒', defaultDims: { L: 120, W: 90, H: 150 }, description: 'کف با زبانه‌های درگیرشونده بسته می‌شود؛ این نسخه محاسبات پایه دارد و قفل نهایی باید با نقشه رسمی و نمونه تاخورده تطبیق داده شود.' },
   
   // FEFCO 0300 Series
   { id: 'fefco-0300', name: 'جعبه تلسکوبی دو تکه درب و زیره', code: 'FEFCO 0300', category: 'FEFCO 0300', icon: '🎁', defaultDims: { L: 200, W: 150, H: 60 }, description: 'فرمت جعبه کفش کلاسیک شامل کفه مجزا و درب جداگانه با لبه‌های منگنه یا چسب.' },
-  { id: 'fefco-0320', name: 'کارتن کیبوردی با قفل مجاور ته‌بسته', code: 'FEFCO 0320', category: 'FEFCO 0300', icon: '📂', defaultDims: { L: 160, W: 120, H: 45 }, description: 'دیواره‌های دوجداره تاشو برای محصولات فشرده لوکس.' },
+  { id: 'fefco-0320', name: 'جعبه تلسکوپی دو‌تکه (مدل 0320)', code: 'FEFCO 0320', category: 'FEFCO 0300', icon: '📂', defaultDims: { L: 160, W: 120, H: 45 }, description: 'دیواره‌های دوجداره تاشو برای محصولات فشرده لوکس.' },
 
   // FEFCO 0400 Series
-  { id: 'fefco-pizza', name: 'جعبه پیتزا کلاسیک (Pizza Box - FEFCO 0426)', code: 'FEFCO 0426', category: 'FEFCO 0400', icon: '🍕', defaultDims: { L: 300, W: 300, H: 40 }, description: 'جعبه پیتزای کلاسیک دایکاتی با سوراخ‌های تهویه هوا، دیواره‌های دوبل و زبانه‌های قفل‌شونده بغل.' },
-  { id: 'fefco-0427', name: 'جعبه پستی کیبوردی (Mailer Pro)', code: 'FEFCO 0427', category: 'FEFCO 0400', icon: '✉️', defaultDims: { L: 200, W: 150, H: 50 }, description: 'جعبه پاکتی بی‌نیاز از چسب‌کاری با زبانه گرد پشتیبان، ایده اساسی لجستیک تجارت الکترونیک.' },
-  { id: 'fefco-0409', name: 'جعبه لفافه‌ پیچ کلوش دار', code: 'FEFCO 0409', category: 'FEFCO 0400', icon: '📑', defaultDims: { L: 280, W: 200, H: 30 }, description: 'شیت مسطح مایکرو که دورتادور کالاهای مسطح مانند کتاب و تابلو رول می‌شود.' },
-  { id: 'fefco-0470', name: 'جعبه زبانه سرخود دایکاتی', code: 'FEFCO 0470', category: 'FEFCO 0400', icon: '💼', defaultDims: { L: 220, W: 160, H: 60 }, description: 'بسته‌بندی باز شونده از بالا با شیار جفت در بغل، دوام بسیار بالا در حمل بار.' },
+  { id: 'fefco-pizza', name: 'جعبه پیتزا یک‌تکه (الگوی پارامتریک اختصاصی)', code: 'CUSTOM-PIZZA-01', category: 'Custom Food Packaging', icon: '🍕', defaultDims: { L: 300, W: 300, H: 40 }, description: 'الگوی اختصاصی یک‌تکه با درب لولایی، کفه و دیواره‌ها؛ کد رسمی FEFCO برای این هندسه ادعا نمی‌شود و جزئیات قفل/تهویه نیازمند تنظیم قالب است.' },
+  { id: 'fefco-0427', name: 'جعبه کیبوردی/پستی (Mailer — FEFCO 0427)', code: 'FEFCO 0427', category: 'FEFCO 0400', icon: '✉️', defaultDims: { L: 200, W: 150, H: 50 }, description: 'جعبه پاکتی بی‌نیاز از چسب‌کاری با زبانه گرد پشتیبان، ایده اساسی لجستیک تجارت الکترونیک.' },
 
   // FEFCO 0700 Series
-  { id: 'fefco-0713', name: 'کارتن آماده نیمه اتومات پله‌ای', code: 'FEFCO 0713', category: 'FEFCO 0700', icon: '🧳', defaultDims: { L: 220, W: 140, H: 110 }, description: 'تا شدن به ثانیه بدون هیچ تایر گسستنی صنعتی.' },
+  { id: 'fefco-0713', name: 'کارتن آماده‌چسب‌شده با کف قفل‌شونده و درب زبانه‌ای', code: 'FEFCO 0713', category: 'FEFCO 0700', icon: '🧳', defaultDims: { L: 220, W: 140, H: 110 }, description: 'خانواده آماده‌چسب‌شده با کف قفل‌شونده و درب زبانه‌ای؛ هندسه فعلی یک الگوی پایه است و باید با نقشه رسمی 0713 تطبیق داده شود.' },
 
   // ECMA A Series
-  { id: 'ecma-a2020', name: 'جعبه دارویی زبانه دار (Tuck End)', code: 'ECMA A20.20', category: 'ECMA A', icon: '💊', defaultDims: { L: 60, W: 40, H: 100 }, description: 'فرم استاندارد دارو، آرایشی و عطر با زبانه‌های قفل‌شونده متقابل یا زیگزاک.' },
+  { id: 'ecma-a2020', name: 'جعبه دارویی Reverse Tuck End (RTE)', code: 'ECMA A20.20', category: 'ECMA A', icon: '💊', defaultDims: { L: 60, W: 40, H: 100 }, description: 'کارتن مقوایی لوله‌ای با زبانه‌های بالا و پایین روی دو پنل اصلی مقابل؛ ابعاد داخلی و ضخامت مقوا در تولید باید جبران شوند.' },
+  { id: 'ecma-ste', name: 'جعبه Straight Tuck End (STE)', code: 'ECMA STE — الگوی پایه', category: 'ECMA A', icon: '📦', defaultDims: { L: 70, W: 45, H: 120 }, description: 'زبانه‌های بالا و پایین روی یک پنل اصلی قرار دارند؛ این شناسه توصیفی است و جایگزین شماره کد رسمی ECMA نیست.' },
   { id: 'snap-lock-123', name: 'جعبه لاک باتم ته قفلی (1-2-3 Lock-Bottom)', code: 'ECMA A2110', category: 'ECMA A', icon: '📥', defaultDims: { L: 60, W: 40, H: 100 }, description: 'جعبه پرکاربرد بهداشتی و دارویی با درپوش زبانه‌دار بالا و ته قفلی دستی مستحکم بدون نیاز به چسب پایینی.' },
   { id: 'ecma-a30', name: 'جعبه با زبانه قفل اصطکاکی آویز', code: 'ECMA A30', category: 'ECMA A', icon: '🧴', defaultDims: { L: 50, W: 40, H: 140 }, description: 'قفسه آویز سوپرمارکتی با پله چشمی یورو در بالا.' },
 
@@ -76,10 +77,10 @@ const STANDARDS_LIBRARY: PackagingModel[] = [
   { id: 'ecma-b10', name: 'کاور قلاف کشویی آزاد (Sleeve)', code: 'ECMA B10.10', category: 'ECMA B', icon: '🗂️', defaultDims: { L: 120, W: 125, H: 35 }, description: 'باندرول یا غلاف دور جعبه نگهدارنده، ایجاد هویت بصری روی جعبه خام مایکروویو.' },
 
   // ECMA C Series
-  { id: 'ecma-c1020', name: 'کارتن کشویی ریلی (Drawer Box)', code: 'ECMA C10.20', category: 'ECMA C', icon: '🗄️', defaultDims: { L: 130, W: 90, H: 45 }, description: 'جعبه دو تکه کشویی لوکس کبریتی، بسیار گران‌قیمت بصری و مستحکم.' },
+  { id: 'ecma-c1020', name: 'جعبه کشویی ریلی دو تکه (الگوی پایه سفارشی)', code: 'CUSTOM-DRAWER-01', category: 'Custom Drawer', icon: '🗄️', defaultDims: { L: 130, W: 90, H: 45 }, description: 'هندسه پارامتریک پایه با سینی و غلاف جداگانه؛ انطباق رسمی ECMA C10.20، خلاصی صنعتی و تلرانس ورق تأیید نشده است.' },
 
   // ECMA D Series
-  { id: 'ecma-d50', name: 'استند رومیزی دیسپلی فروشگاهی', code: 'ECMA D50', category: 'ECMA D', icon: '📊', defaultDims: { L: 160, W: 160, H: 180 }, description: 'نیمه‌کارتن با قابلیت کات هشتی جهت نمایش کاتالوگ یا محصولات پشت کانتر فروش.' }
+  { id: 'ecma-d50', name: 'استند رومیزی نمایش محصول (الگوی پایه سفارشی)', code: 'CUSTOM-DISPLAY-01', category: 'Custom Display', icon: '📊', defaultDims: { L: 160, W: 160, H: 180 }, description: 'الگوی پایه سفارشی با پایه، لبه جلویی، دیواره‌های جانبی و دیواره پشتی؛ کد ECMA D50 یا انطباق صنعتی این هندسه تأیید نشده است.' }
 ];
 
 export interface ProductCategoryOption {
@@ -129,7 +130,7 @@ export const PRODUCT_CATEGORIES: ProductCategoryOption[] = [
     name: 'فست‌فود و غذایی',
     icon: '🍕',
     recommendedModelId: 'fefco-pizza',
-    recommendationReason: 'جعبه پیتزا و فست‌فود دایکاتی FEFCO 0426 با منافذ تهویه بخار، دیواره دوبل و مقاومت در برابر رطوبت',
+    recommendationReason: 'الگوی اختصاصی جعبه پیتزا با درب لولایی؛ سوراخ تهویه، زبانه‌های قفل و تلرانس خط تولید باید طبق سفارش اضافه و تأیید شوند.',
     defaultDims: { L: 300, W: 300, H: 45 }
   },
   {
@@ -145,8 +146,28 @@ export const PRODUCT_CATEGORIES: ProductCategoryOption[] = [
     name: 'کادویی و نفیس',
     icon: '🎁',
     recommendedModelId: 'ecma-c1020',
-    recommendationReason: 'جعبه کشویی ریلی دو تکه (Drawer Box) فوق‌العاده شیک با حس لوکس بسته‌بندی هدیه',
+    recommendationReason: 'جعبه کشویی ریلی دو تکه (Drawer Box)؛ برای ساختار نهایی باید زیره و غلاف با هم بررسی شوند.',
     defaultDims: { L: 140, W: 100, H: 50 }
+  },
+  {
+    id: 'pizza', name: 'جعبه پیتزا و غذای بیرون‌بر', icon: '🍕', recommendedModelId: 'fefco-pizza',
+    recommendationReason: 'قالب پیتزای اختصاصی با درب لولایی؛ قفل‌ها، منافذ تهویه و جنس مقاوم به چربی باید طبق محصول نهایی تنظیم شوند.',
+    defaultDims: { L: 300, W: 300, H: 45 }
+  },
+  {
+    id: 'keyboard', name: 'جعبه کیبوردی و پستی', icon: '📮', recommendedModelId: 'fefco-0427',
+    recommendationReason: 'جعبه فولدر یک‌تکه FEFCO 0427 برای تجارت الکترونیک؛ عمق گوشواره‌ها و قفل باید با ضخامت ورق هماهنگ شود.',
+    defaultDims: { L: 220, W: 160, H: 60 }
+  },
+  {
+    id: 'telescopic', name: 'جعبه تلسکوپی درب و زیره', icon: '🎁', recommendedModelId: 'fefco-0300',
+    recommendationReason: 'قالب دو‌تکه با درب جدا و زیره جدا؛ لقی درب متناسب با کالیپر ورق باید کنترل شود.',
+    defaultDims: { L: 200, W: 150, H: 60 }
+  },
+  {
+    id: 'retail_display', name: 'نمایشی و قفسه‌ای', icon: '🛍️', recommendedModelId: 'ecma-d50',
+    recommendationReason: 'الگوی پایه نمایش محصول؛ قبل از تولید باید قفل، بارگذاری و پایداری استند تأیید شود.',
+    defaultDims: { L: 160, W: 160, H: 180 }
   }
 ];
 
@@ -225,7 +246,7 @@ const CollapsiblePanel = ({
   children: React.ReactNode 
 }) => {
   return (
-    <div className="bg-[#0b0f15]/80 border border-slate-800/60 rounded-2xl overflow-hidden transition-all duration-300 shadow-sm mb-3">
+    <div className={`bg-[#0b0f15]/80 border border-slate-800/60 rounded-2xl overflow-hidden transition-all duration-300 shadow-sm mb-3 ${title.includes("انتخاب و نوع الگوی دایلاین") || title.includes("ابعاد فیزیکی و اصلی جعبه") ? "primary-setup-panel" : ""}`}>
       <button
         onClick={onToggle}
         className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-900/40 transition-colors cursor-pointer select-none text-right"
@@ -476,7 +497,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     const { L, W, H } = dims;
 
     if (key === 'glueTab') {
-      const isGlueless = id === 'fefco-0427' || id === 'fefco-pizza' || id === 'fefco-0320';
+      const isGlueless = id === 'fefco-0427';
       if (isGlueless && val > 0) {
         showCustomAlert(
           'تداخل در ساختار بدون چسب',
@@ -506,7 +527,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     }
 
     if (key === 'tuck') {
-      const hasNoTuck = id === 'fefco-0201' || id === 'fefco-0200' || id === 'fefco-0203' || id === 'fefco-0300';
+      const hasNoTuck = id === 'fefco-0201' || id === 'fefco-0200' || id === 'fefco-0203' || id === 'fefco-0204' || id === 'fefco-0300' || id === 'fefco-0320';
       if (hasNoTuck && val > 0) {
         showCustomAlert(
           'تداخل مدل کارتنی استاندارد RSC',
@@ -793,7 +814,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   const [bleedOffset, setBleedOffset] = useState<number>(30);
   const [creaseCompensation, setCreaseCompensation] = useState<number>(0.5);
   const [diecutTolerance, setDiecutTolerance] = useState<number>(0.1);
-  const [cadTheme, setCadTheme] = useState<'white' | 'blueprint' | 'charcoal'>('charcoal');
+  const [cadTheme, setCadTheme] = useState<'white' | 'blueprint' | 'charcoal'>('white');
   const [alignmentKey, setAlignmentKey] = useState<number>(0);
 
   const getThemeStyle = (themeName: 'white' | 'blueprint' | 'charcoal') => {
@@ -852,8 +873,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       bg: '#f8fafc',
       stroke: '#cbd5e1',
       gridFill: 'none',
-      cutColor: '#475569', // Softer deep grey-slate instead of harsh black #0f172a
-      creaseColor: '#f43f5e', // Softer crimson instead of harsh red #dc2626
+      cutColor: '#dc2626', // Clear red cut line
+      creaseColor: '#16a34a', // Clear green fold/crease line
       textColor: '#475569',
       textAccent: '#0f172a',
       labelBg: '#ffffff',
@@ -1742,10 +1763,10 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
         return m.id === 'snap-lock-123' || m.id === 'ecma-a2020' || m.id === 'fefco-0215' || m.category.includes('ECMA A');
       }
       if (selectedCategory === 'ecommerce') {
-        return m.id === 'fefco-0427' || m.id === 'fefco-0320' || m.id === 'fefco-0470' || m.category.includes('FEFCO 0400');
+        return m.id === 'fefco-0427' || m.category.includes('FEFCO 0400');
       }
       if (selectedCategory === 'food_bakery') {
-        return m.id === 'fefco-pizza' || m.id === 'ecma-b10' || m.id === 'snap-lock-123' || m.category.includes('FEFCO 0400');
+        return m.id === 'fefco-pizza' || m.id === 'ecma-b10' || m.id === 'snap-lock-123' || m.category.includes('FEFCO 0400') || m.category.includes('Custom Food');
       }
       if (selectedCategory === 'industrial') {
         return m.id === 'fefco-0201' || m.id === 'fefco-0200' || m.id === 'fefco-0203' || m.category.includes('FEFCO 0200');
@@ -1753,6 +1774,10 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       if (selectedCategory === 'luxury_gift') {
         return m.id === 'fefco-0300' || m.id === 'ecma-c1020' || m.category.includes('ECMA C') || m.category.includes('FEFCO 0300');
       }
+      if (selectedCategory === 'pizza') return m.id === 'fefco-pizza';
+      if (selectedCategory === 'keyboard') return m.id === 'fefco-0427';
+      if (selectedCategory === 'telescopic') return m.id === 'fefco-0300' || m.id === 'fefco-0320' || m.category.includes('FEFCO 0300');
+      if (selectedCategory === 'retail_display') return m.id === 'ecma-d50' || m.category.includes('FEFCO 0800');
 
       return true;
     });
@@ -2053,8 +2078,10 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       cuts: snappedCuts,
       creases: snappedCreases,
       labels: finalLabels,
-      totalW: Math.max(100, totalW),
-      totalH: Math.max(100, totalH),
+      // Preserve the engine's real physical bounds; minimum-size padding here
+      // used to distort nesting, measurements and viewport scale for small boxes.
+      totalW,
+      totalH,
       xMin,
       yMin,
       xMax,
@@ -2191,28 +2218,21 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     let bestCount = Math.max(countNormal, countRotated);
     let rotationNeeded = countRotated > countNormal;
 
-    // AI Nesting Mode boosts up yield with interlaced nesting layout if enabled
-    if (nestingMode === 'ai' || nestingMode === 'max_efficiency') {
-      // simulate complex nested interlocking (Boosts layout efficiency by 15-20%)
-      const interlockingFactor = 1.15;
-      const interlockingCount = Math.floor(bestCount * interlockingFactor);
-      if (interlockingCount > bestCount) {
-        bestCount = interlockingCount;
-      }
-    }
-
-    if (bestCount === 0) bestCount = 1; // Safely draw at least one template
-
+    // Never fabricate extra yield: this is a rectangular row/column estimate,
+    // not a true interlocking nesting solver. AI modes do not alter the count
+    // until a geometry-aware nesting algorithm is implemented.
     const itemArea = dieline.totalW * dieline.totalH;
     const sheetArea = sheetW * sheetH;
-    const efficiencyPercentage = Math.round(((bestCount * itemArea) / sheetArea) * 100);
-    const wastePercentage = 100 - efficiencyPercentage;
+    const efficiencyPercentage = bestCount > 0 && sheetArea > 0
+      ? Math.max(0, Math.min(100, Math.round((bestCount * itemArea / sheetArea) * 100)))
+      : 0;
+    const wastePercentage = Math.max(0, Math.min(100, 100 - efficiencyPercentage));
 
     return {
       yieldCount: bestCount,
       rotated: rotationNeeded,
-      efficiency: Math.min(98, efficiencyPercentage),
-      waste: Math.max(2, wastePercentage),
+      efficiency: efficiencyPercentage,
+      waste: wastePercentage,
       sheetAreaSqCm: Math.round(sheetArea / 100),
     };
 
@@ -2292,8 +2312,12 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       reports.push({ type: 'warning', msg: '⚠️ هشدار متخلخل: اعمال طلاکوب منسجم روی جنس کارتن کنگره‌دار فاقد لمینت ریسک دفرمه شدن دارد.' });
     }
 
+    if (nestingResult.yieldCount === 0) {
+      reports.push({ type: 'error', msg: 'ابعاد گسترده قالب در هیچ‌یک از دو جهت داخل ورق انتخابی جا نمی‌شود؛ اندازه ورق، فاصله چیدمان یا قالب را تغییر دهید.' });
+    }
+
     if (reports.length === 0) {
-      reports.push({ type: 'info', msg: '✅ ایمن برای تولید: قالب فاقد خطا کارگاهی است و آماده ورود به خط برش می‌باشد.' });
+      reports.push({ type: 'info', msg: 'در بررسی‌های خودکار فعلی خطای آشکاری پیدا نشد؛ این نتیجه جایگزین تأیید نقشه مرجع، تلرانس دستگاه و نمونه تاخورده نیست.' });
     }
 
     return reports;
@@ -5182,7 +5206,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   return (
     <div 
       ref={dielineRootRef}
-      className={`dieline-generator-container flex flex-col overflow-hidden bg-[#090b11] text-slate-100 select-none transition-all duration-300 ${
+      className={`dieline-generator-container flex flex-col overflow-hidden bg-[radial-gradient(ellipse_at_top_right,_rgba(14,165,233,0.09),_transparent_38%),linear-gradient(135deg,#070b12_0%,#0b1220_48%,#080d16_100%)] text-slate-100 select-none transition-all duration-300 ${
         isFullScreen ? 'fixed inset-0 z-50 w-screen h-screen' : 'h-screen'
       }`} 
       dir="rtl"
@@ -5221,20 +5245,241 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             stroke-dasharray: 4,4 !important;
           }
         }
+
+        /* Light drafting surface: keep cut/crease colors, change only canvas surfaces. */
+        .dieline-generator-container .bg-\\[\\#030508\\],
+        .dieline-generator-container .bg-\\[\\#070b13\\],
+        .dieline-generator-container .bg-\\[\\#0a0f1d\\],
+        .dieline-generator-container .bg-\\[\\#0b0f15\\] {
+          background-color: #f8fafc !important;
+          background-image: none !important;
+          border-color: #d8e1ec !important;
+        }
+        .dieline-generator-container svg rect[fill="#070b13"],
+        .dieline-generator-container svg rect[fill="#0a0f1d"] {
+          fill: #f8fafc !important;
+          stroke: #cbd5e1 !important;
+        }
+        .dieline-generator-container svg text[fill="#94a3b8"],
+        .dieline-generator-container svg text[fill="#cbd5e1"] {
+          fill: #475569 !important;
+        }
+        .dieline-generator-container .bg-\\[\\#030508\\] svg,
+        .dieline-generator-container .bg-\\[\\#070b13\\] svg {
+          background: #f8fafc;
+        }
+        /* Calm, light application chrome. Keep the actual CAD/SVG drawing colors intact. */
+        .dieline-generator-container {
+          background: #f4f7fb !important;
+          color: #172033 !important;
+          color-scheme: light;
+        }
+        .dieline-generator-container > header {
+          background: rgba(255,255,255,.97) !important;
+          color: #172033 !important;
+          border-bottom: 1px solid #dbe3ee !important;
+          box-shadow: 0 2px 12px rgba(15,23,42,.05) !important;
+        }
+        .dieline-generator-container > header h1 { color: #172033 !important; }
+        .dieline-generator-container > header p { color: #64748b !important; }
+        /* Consistent light controls and panels; leave SVG/CAD artwork untouched. */
+        .dieline-generator-container .responsive-sidebar-wrapper,
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-slate-950"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-slate-900"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-slate-800"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#070"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#080"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#090"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#0a"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#0b"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#0c"] {
+          background-color: #ffffff !important;
+          background-image: none;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-white"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-100"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-200"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-300"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-400"] {
+          color: #334155 !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-800"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-900"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-700"] {
+          border-color: #dbe3ee !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper input,
+        .dieline-generator-container .responsive-sidebar-wrapper select,
+        .dieline-generator-container .responsive-sidebar-wrapper textarea {
+          background: #fff !important;
+          color: #172033 !important;
+          border-color: #cbd5e1 !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper input::placeholder,
+        .dieline-generator-container .responsive-sidebar-wrapper textarea::placeholder {
+          color: #94a3b8 !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper button {
+          text-shadow: none;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="rounded-xl"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="rounded-lg"] {
+          box-shadow: none;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper {
+          background: #fff !important;
+          color: #1e293b !important;
+          border-color: #dbe3ee !important;
+          box-shadow: 0 8px 28px rgba(15,23,42,.08) !important;
+        }
+        .dieline-generator-container .skinny-icon-rail {
+          background: #fff !important;
+          border-color: #e2e8f0 !important;
+          box-shadow: 0 2px 10px rgba(15,23,42,.04) !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#030"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#050"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#070"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#080"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#090"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#0a0"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-[#0c"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-slate-950"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="bg-slate-900"] {
+          background: #f8fafc !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-100"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-200"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-300"] {
+          color: #263449 !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-400"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-500"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="text-slate-550"] {
+          color: #64748b !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-800"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-850"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="border-slate-900"] {
+          border-color: #e2e8f0 !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper input,
+        .dieline-generator-container .responsive-sidebar-wrapper select,
+        .dieline-generator-container .responsive-sidebar-wrapper textarea {
+          background-color: #fff;
+          color: #172033;
+          border-color: #cbd5e1;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper input:focus,
+        .dieline-generator-container .responsive-sidebar-wrapper select:focus,
+        .dieline-generator-container .responsive-sidebar-wrapper textarea:focus {
+          outline: 2px solid #93c5fd;
+          outline-offset: 1px;
+          border-color: #2563eb;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper button {
+          transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="rounded-2xl"],
+        .dieline-generator-container .responsive-sidebar-wrapper [class*="rounded-xl"] {
+          box-shadow: none;
+        }
+        @media (max-width: 767px) {
+          .dieline-generator-container > header { flex-wrap: wrap; }
+          .dieline-generator-container > section[aria-label="خلاصه زنده پروژه"] {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .5rem;
+            padding: .625rem;
+          }
+        }
+
+        /* Make the two essential setup steps visually unmistakable in the light workspace. */
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel {
+          background: #eff6ff !important;
+          border: 1px solid #93c5fd !important;
+          box-shadow: 0 3px 14px rgba(37, 99, 235, .08) !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel > button {
+          background: #eff6ff !important;
+          border-bottom: 1px solid #dbeafe !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel > div:last-child {
+          background: #ffffff !important;
+          color: #1e293b !important;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel input,
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel select {
+          min-height: 36px;
+          border-radius: 8px;
+        }
+        .dieline-generator-container .responsive-sidebar-wrapper .primary-setup-panel button:focus-visible {
+          outline: 2px solid #2563eb !important;
+          outline-offset: 2px;
+        }
+
+        /* Minimal 2D dieline studio: one toolbar, a quiet light sheet, readable production lines. */
+        .dieline-generator-container .dieline-canvas-workspace {
+          display: flex; flex: 1 1 auto; flex-direction: column; width: 100%;
+          min-height: min(650px, 72vh); overflow: hidden; background: #ffffff;
+          border: 1px solid #dbe3ee; border-radius: 14px;
+          box-shadow: 0 8px 24px rgba(15, 23, 42, .06);
+        }
+        .dieline-generator-container .dieline-canvas-toolbar {
+          display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+          gap: 10px; padding: 10px 14px; background: #f8fafc;
+          border-bottom: 1px solid #e2e8f0; color: #0f172a; flex: 0 0 auto;
+        }
+        .dieline-generator-container .dieline-canvas-heading {
+          display: flex; flex-wrap: wrap; align-items: center; gap: 9px; min-width: 0;
+        }
+        .dieline-generator-container .dieline-canvas-model-code {
+          display: inline-flex; align-items: center; border: 1px solid #bfdbfe;
+          background: #eff6ff; color: #1d4ed8; border-radius: 6px;
+          padding: 3px 7px; font-size: 10px; font-weight: 800; direction: ltr;
+        }
+        .dieline-generator-container .dieline-canvas-model-name { color: #334155; font-size: 12px; font-weight: 750; }
+        .dieline-generator-container .dieline-canvas-dim-summary {
+          color: #475569; border-right: 1px solid #cbd5e1; padding-right: 9px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; direction: ltr;
+        }
+        .dieline-generator-container .dieline-canvas-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+        .dieline-generator-container .dieline-canvas-action {
+          display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+          min-height: 32px; padding: 5px 9px; border: 1px solid #cbd5e1; border-radius: 7px;
+          background: #ffffff; color: #334155; font-size: 10px; font-weight: 700; cursor: pointer;
+        }
+        .dieline-generator-container .dieline-canvas-action:hover,
+        .dieline-generator-container .dieline-canvas-action.is-active {
+          border-color: #93c5fd; background: #eff6ff; color: #1d4ed8;
+        }
+        .dieline-generator-container #cad-blueprint-canvas-svg {
+          display: block; flex: 1 1 auto; min-height: 0 !important;
+          border-radius: 0 0 14px 14px; filter: none !important;
+        }
+        .dieline-generator-container #cad-physical-sheet-group,
+        .dieline-generator-container #cad-watermark-group { display: none !important; }
+        .dieline-generator-container #cad-blueprint-canvas-svg #cad-coordinate-crosshair-group { opacity: .45; }
+        @media (max-width: 768px) {
+          .dieline-generator-container .dieline-canvas-toolbar { align-items: flex-start; padding: 8px; }
+          .dieline-generator-container .dieline-canvas-model-name { font-size: 11px; }
+          .dieline-generator-container .dieline-canvas-dim-summary { font-size: 10px; }
+          .dieline-generator-container .dieline-canvas-actions { width: 100%; }
+          .dieline-generator-container .dieline-canvas-action { flex: 1 1 auto; }
+        }
       `}</style>
 
       {/* 1. SUITE HEADER BAR */}
-      <header className="h-14 bg-[#0c0f14]/90 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between px-4 md:px-6 shrink-0 shadow-lg z-30 animate-in fade-in slide-in-from-top-4 duration-300">
+      <header className="min-h-16 bg-gradient-to-l from-[#111c2d]/95 via-[#0c1422]/95 to-[#090e17]/95 backdrop-blur-xl border-b border-sky-500/20 flex items-center justify-between gap-3 px-4 md:px-6 py-2 shrink-0 shadow-[0_8px_30px_rgba(0,0,0,0.24)] z-30 animate-in fade-in slide-in-from-top-4 duration-300">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="bg-gradient-to-tr from-sky-600 to-indigo-750 p-2 rounded-xl text-white shadow-md shrink-0 border border-sky-500/10">
             <Cpu className="h-4 w-4 md:h-5 md:w-5 animate-pulse" />
           </div>
           <div className="truncate">
             <div className="flex items-center gap-1.5">
-              <h1 className="text-white font-black text-[11px] md:text-[13px] tracking-tight uppercase truncate font-sans">اشک‌قلم CAD (بی‌کران)</h1>
+              <h1 className="text-white font-black text-sm md:text-base tracking-tight truncate font-sans">استودیوی مهندسی بسته‌بندی اشک‌قلم</h1>
               <Badge color="blue" className="text-[8px] md:text-[9px] px-1.5 py-0 font-mono bg-sky-950 text-sky-450 border border-sky-800 shrink-0">v3.5.3</Badge>
             </div>
-            <p className="hidden md:block text-[9px] text-slate-500 font-mono tracking-wider">سیستم پیشرفته تولید قالب</p>
+            <p className="hidden md:block text-[10px] text-sky-200/70 tracking-wide mt-0.5">طراحی قالب، تحلیل سازه، چیدمان ورق و آماده‌سازی خروجی</p>
           </div>
         </div>
 
@@ -5818,7 +6063,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                         <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id as any)}
-                          className={`flex-1 min-w-[50px] py-2 px-1 text-[9px] font-black rounded-md flex flex-col items-center gap-1 transition-all ${activeTab === tab.id ? 'bg-[#1f2937] text-sky-400 font-bold' : 'text-slate-500 hover:text-slate-350'}`}
+                          className={`flex-1 min-w-[64px] py-2.5 px-2 text-[10px] font-black rounded-lg flex flex-col items-center gap-1.5 transition-all border ${activeTab === tab.id ? 'bg-gradient-to-br from-sky-500/15 to-indigo-500/10 text-sky-300 border-sky-400/25 shadow-inner' : 'text-slate-400 border-transparent hover:text-white hover:bg-slate-800/70'}`}
                         >
                           <IconComp className="w-3.5 h-3.5" />
                           <span>{tab.label}</span>
@@ -6621,7 +6866,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                       type="button"
                     >
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>استاندارد: {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110 / FEFCO 0711' : selectedModel.code || 'ECMA'}</span>
+                      <span>استاندارد: {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110' : selectedModel.code || 'ECMA'}</span>
                       <ChevronDown className="w-3 h-3 text-slate-400" />
                     </button>
                   ) : (
@@ -6633,7 +6878,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                         </div>
                         <div className="flex items-center gap-1">
                           <span className="px-2 py-0.5 rounded-lg bg-sky-500/15 border border-sky-500/40 text-cyan-300 font-mono text-[9.5px] font-bold">
-                            {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110 / FEFCO 0711' : selectedModel.id === 'fefco-0215' ? 'FEFCO 0215' : selectedModel.id === 'fefco-0201' ? 'FEFCO 0201' : selectedModel.id === 'fefco-0427' ? 'FEFCO 0427' : 'ECMA Standard'}
+                            {selectedModel.id === 'snap-lock-123' ? 'ECMA A2110' : selectedModel.id === 'fefco-0215' ? 'FEFCO 0215' : selectedModel.id === 'fefco-0201' ? 'FEFCO 0201' : selectedModel.id === 'fefco-0427' ? 'FEFCO 0427' : 'ECMA Standard'}
                           </span>
                           <button
                             onClick={() => setIsStandardHudCollapsed(true)}
@@ -7047,7 +7292,25 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                     const isDimensionsVisible = layers.find(l => l.id === 'dimensions')?.isVisible !== false;
 
                     return (
-                      <svg 
+                      <div className="dieline-canvas-workspace" dir="rtl">
+                        <div className="dieline-canvas-toolbar">
+                          <div className="dieline-canvas-heading">
+                            <span className="dieline-canvas-model-code">{selectedModel.code || selectedModel.id}</span>
+                            <span className="dieline-canvas-model-name">{selectedModel.name}</span>
+                            <span className="dieline-canvas-dim-summary">
+                              {convertMmToUnit(dims.L, unit).toFixed(1)} × {convertMmToUnit(dims.W, unit).toFixed(1)} × {convertMmToUnit(dims.H, unit).toFixed(1)} {unit === 'inches' ? 'in' : unit}
+                            </span>
+                          </div>
+                          <div className="dieline-canvas-actions">
+                            <button type="button" onClick={() => setShowDimensions(value => !value)} className={`dieline-canvas-action ${showDimensions ? 'is-active' : ''}`}>
+                              <RulerIcon className="w-3.5 h-3.5" /> {showDimensions ? 'ابعاد روشن' : 'نمایش ابعاد'}
+                            </button>
+                            <button type="button" onClick={() => { setZoomScale(1); setPan({ x: 0, y: 0 }); }} className="dieline-canvas-action">
+                              <RefreshCw className="w-3.5 h-3.5" /> بازنشانی نما
+                            </button>
+                          </div>
+                        </div>
+                        <svg
                         id="cad-blueprint-canvas-svg"
                         viewBox={`${dieline.xMin - 160} ${dieline.yMin - 160} ${dieline.totalW + 320} ${dieline.totalH + 320}`} 
                         className="transition-all duration-300 h-auto object-contain w-full"
@@ -7056,7 +7319,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                           transformOrigin: 'center center',
                           width: '100%',
                           height: '100%',
-                          minHeight: isMobile ? '150px' : '650px',
+                          flex: '1 1 auto',
+                          minHeight: isMobile ? '150px' : '0px',
                         }}
                         onMouseMove={handleSvgMouseMove}
                         onMouseLeave={handleSvgMouseLeave}
@@ -7107,106 +7371,6 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                             fill={themeStyle.gridFill}
                           />
                         )}
-
-                        {/* Professional Brand Watermark of Chape Ashk Ghalam */}
-                        <g opacity={cadTheme === 'white' ? "0.04" : "0.06"} className="pointer-events-none select-none">
-                          <text
-                            x={(dieline.xMin + dieline.xMax) / 2}
-                            y={(dieline.yMin + dieline.yMax) / 2 - 25}
-                            fontSize="14"
-                            fontWeight="900"
-                            fill={themeStyle.watermarkColor}
-                            textAnchor="middle"
-                            className="font-sans"
-                          >
-                            چاپ اشک قلم
-                          </text>
-                          <text
-                            x={(dieline.xMin + dieline.xMax) / 2}
-                            y={(dieline.yMin + dieline.yMax) / 2 + 10}
-                            fontSize="22"
-                            fontWeight="900"
-                            fill={themeStyle.watermarkColor}
-                            textAnchor="middle"
-                            className="font-mono tracking-widest-lg"
-                          >
-                            ashkghalam.ir
-                          </text>
-                          <text
-                            x={(dieline.xMin + dieline.xMax) / 2}
-                            y={(dieline.yMin + dieline.yMax) / 2 + 32}
-                            fontSize="9"
-                            fontWeight="bold"
-                            fill={themeStyle.watermarkColor}
-                            textAnchor="middle"
-                            className="font-sans"
-                          >
-                            سامانه تخصصی فرم‌بندی و دایلاینهای استاندارد
-                          </text>
-                        </g>
-
-                        {/* Physical Industrial Sheet Boundary representing "این منطقه" (This Area) as requested in screenshot */}
-                        {(() => {
-                          const safeXMin = isNaN(dieline.xMin) ? 0 : dieline.xMin;
-                          const safeXMax = isNaN(dieline.xMax) ? 500 : dieline.xMax;
-                          const safeYMin = isNaN(dieline.yMin) ? 0 : dieline.yMin;
-                          const safeYMax = isNaN(dieline.yMax) ? 350 : dieline.yMax;
-                          const safeSheetWidth = isNaN(sheetSize.width) || sheetSize.width <= 0 ? 1000 : sheetSize.width;
-                          const safeSheetHeight = isNaN(sheetSize.height) || sheetSize.height <= 0 ? 700 : sheetSize.height;
-
-                          const centerX = (safeXMin + safeXMax) / 2;
-                          const centerY = (safeYMin + safeYMax) / 2;
-
-                          return (
-                            <g id="cad-physical-sheet-group" className="pointer-events-none select-none">
-                              <rect
-                                id="cad-physical-sheet-boundary"
-                                x={centerX - safeSheetWidth / 2}
-                                y={centerY - safeSheetHeight / 2}
-                                width={safeSheetWidth}
-                                height={safeSheetHeight}
-                                fill={cadTheme === 'white' ? "rgba(241, 245, 249, 0.4)" : "rgba(15, 23, 42, 0.45)"}
-                                stroke="#38bdf8"
-                                strokeWidth="1.5"
-                                strokeDasharray="5,5"
-                                opacity="0.85"
-                                rx="8"
-                              />
-                              {/* Inner glowing sheet label background to guarantee readability */}
-                              <rect
-                                x={centerX - 180}
-                                y={centerY - safeSheetHeight / 2 - 28}
-                                width="360"
-                                height="24"
-                                rx="6"
-                                fill="#030712"
-                                stroke="#38bdf8"
-                                strokeWidth="1"
-                                opacity="0.95"
-                              />
-                              <text
-                                x={centerX}
-                                y={centerY - safeSheetHeight / 2 - 12}
-                                fill="#38bdf8"
-                                fontSize="10.5px"
-                                fontWeight="bold"
-                                textAnchor="middle"
-                                className="font-sans animate-pulse"
-                                style={{
-                                  textShadow: '0 0 8px rgba(56, 189, 248, 0.7)',
-                                }}
-                              >
-                                محدوده مجاز چیدمان دایلاین روی ورق فیزیکی ماشین
-                              </text>
-                              
-                              {/* Left-align / Right-align auxiliary indicators for sheet corners */}
-                              <circle cx={centerX - safeSheetWidth / 2} cy={centerY - safeSheetHeight / 2} r="4" fill="#38bdf8" />
-                              <circle cx={centerX + safeSheetWidth / 2} cy={centerY - safeSheetHeight / 2} r="4" fill="#38bdf8" />
-                              <circle cx={centerX - safeSheetWidth / 2} cy={centerY + safeSheetHeight / 2} r="4" fill="#38bdf8" />
-                              <circle cx={centerX + safeSheetWidth / 2} cy={centerY + safeSheetHeight / 2} r="4" fill="#38bdf8" />
-                            </g>
-                          );
-                        })()}
 
                         {/* 3cm (30mm) Offset Margin Box around the dieline */}
                         {isBleedVisible && (
@@ -7282,7 +7446,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                               key={`cr-${index}`} 
                               d={pathStr} 
                               stroke={themeStyle.creaseColor} 
-                              strokeWidth="0.32" 
+                              strokeWidth="0.65" 
                               strokeDasharray="4,2.5" 
                               fill="none" 
                               opacity="0.9" 
@@ -7295,7 +7459,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                               key={`ct-${index}`} 
                               d={pathStr} 
                               stroke={themeStyle.cutColor} 
-                              strokeWidth="0.48" 
+                              strokeWidth="0.8" 
                               fill="none" 
                               strokeLinecap="round" 
                               strokeLinejoin="round" 
@@ -7409,83 +7573,6 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                             </text>
                           </g>
                         ))}
-
-                         {/* Native CAD Arrow Dimensions Group */}
-                        {showDimensions && (
-                          <g id="cad-svg-arrow-dimensions-layer" opacity="0.95">
-                            {/* Horizontal Top Width dimension arrow line */}
-                            <line 
-                              x1={dieline.xMin} 
-                              y1={dieline.yMin - 48} 
-                              x2={dieline.xMax} 
-                              y2={dieline.yMin - 48} 
-                              stroke={themeStyle.textAccent || themeStyle.textColor} 
-                              strokeWidth="1.2" 
-                              markerStart="url(#cad-arrow-start)"
-                              markerEnd="url(#cad-arrow-end)"
-                            />
-                            {/* Width Label box and text */}
-                            <rect 
-                              x={(dieline.xMin + dieline.xMax) / 2 - 68} 
-                              y={dieline.yMin - 56} 
-                              width="136" 
-                              height="16" 
-                              fill={themeStyle.labelBg} 
-                              rx="3" 
-                              stroke={themeStyle.labelBorder} 
-                              strokeWidth="0.8" 
-                            />
-                            <text 
-                              x={(dieline.xMin + dieline.xMax) / 2} 
-                              y={dieline.yMin - 45} 
-                              fontSize="8" 
-                              fontWeight="bold" 
-                              fill={themeStyle.labelText} 
-                              textAnchor="middle"
-                              className="font-mono text-[8px]"
-                            >
-                              عرض کل (W): {Math.round(dieline.totalW)} mm
-                            </text>
-
-                            {/* Vertical Left Height dimension arrow line */}
-                            <line 
-                              x1={dieline.xMin - 48} 
-                              y1={dieline.yMin} 
-                              x2={dieline.xMin - 48} 
-                              y2={dieline.yMax} 
-                              stroke={themeStyle.textAccent || themeStyle.textColor} 
-                              strokeWidth="1.2" 
-                              markerStart="url(#cad-arrow-start)"
-                              markerEnd="url(#cad-arrow-end)"
-                            />
-                            {/* Height Label box and text */}
-                            <g transform={`translate(${dieline.xMin - 48}, ${(dieline.yMin + dieline.yMax) / 2})`}>
-                              <rect 
-                                x="-8" 
-                                y="-68" 
-                                width="16" 
-                                height="136" 
-                                fill={themeStyle.labelBg} 
-                                rx="3" 
-                                stroke={themeStyle.labelBorder} 
-                                strokeWidth="0.8" 
-                              />
-                              <text 
-                                x="0" 
-                                y="0" 
-                                transform="rotate(-90)" 
-                                fontSize="8" 
-                                fontWeight="bold" 
-                                fill={themeStyle.labelText} 
-                                textAnchor="middle"
-                                dy="3.5"
-                                className="font-mono text-[8px]"
-                              >
-                                ارتفاع کل (H): {Math.round(dieline.totalH)} mm
-                              </text>
-                            </g>
-                          </g>
-                        )}
 
                         {/* Interactive Custom Dimensions */}
                         {customDimensions.map((cd) => {
@@ -7768,6 +7855,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                         )}
 
                       </svg>
+                      </div>
                     );
                   })()}
                 </div>
