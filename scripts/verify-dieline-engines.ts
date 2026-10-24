@@ -49,11 +49,14 @@ for (const id of requiredEngines) {
       const mainDepth = Math.max(12, Math.min(panelW * 0.75 - 3 * t, panelL * 0.9));
       const sideDepth = Math.max(6, Math.min(dims.W * 0.45, panelW * 0.48));
       const expectedDepths = [sideDepth, mainDepth, sideDepth, mainDepth];
-      const bottomContours = panelXs.map((x) =>
-        result.cuts.find(path => path.startsWith(`M ${x} ${bodyBottomY} L `))
+      const sideShoulder = Math.max(0.8, Math.min(8, panelW * 0.08, Math.max(6, Math.min(Number.isFinite(dims.bottomFlapDepth) ? dims.bottomFlapDepth as number : dims.W * 0.45, panelW * 0.48)) * 0.2));
+      const sideBoundaryY = bodyBottomY + Math.max(6, Math.min(Number.isFinite(dims.bottomFlapDepth) ? dims.bottomFlapDepth as number : dims.W * 0.45, panelW * 0.48)) - sideShoulder;
+      const bottomStartYs = [bodyBottomY, sideBoundaryY, bodyBottomY, sideBoundaryY];
+      const bottomContours = panelXs.map((x, index) =>
+        result.cuts.find(path => path.startsWith(`M ${x} ${bottomStartYs[index]} L `))
       );
       if (bottomContours.some(path => !path)) {
-        fail(`fefco-0713: expected side/front/side/back bottom contours at the body crease for ${JSON.stringify(dims)}`);
+        fail(`fefco-0713: expected non-overlapping side/front/side/back contours meeting at the bottom-flap boundary for ${JSON.stringify(dims)}`);
       }
       bottomContours.forEach((path, index) => {
         const contour = path as string;
@@ -88,6 +91,22 @@ for (const id of requiredEngines) {
       if (!firstMain.includes(`L ${firstCenter} ${outerY} L ${firstCenter} ${stepY}`) ||
           !secondMain.includes(`L ${secondCenter} ${stepY} L ${secondCenter} ${outerY}`)) {
         fail(`fefco-0713: front/back bottom edges must use complementary half-width locking steps`);
+      }
+      const pathPoints = (path: string): Array<[number, number]> => {
+        const values = path.match(/-?\d+(?:\.\d+)?/g)?.map(Number) || [];
+        const out: Array<[number, number]> = [];
+        for (let n = 0; n + 1 < values.length; n += 2) out.push([values[n], values[n + 1]]);
+        return out;
+      };
+      const hasPoint = (points: Array<[number, number]>, x: number, y: number) =>
+        points.some(point => Math.abs(point[0] - x) < 1e-7 && Math.abs(point[1] - y) < 1e-7);
+      const firstMainPoints = pathPoints(firstMain);
+      const secondMainPoints = pathPoints(secondMain);
+      if (!hasPoint(firstMainPoints, panelXs[1], outerY) ||
+          !hasPoint(secondMainPoints, panelXs[3] + panelL, outerY) ||
+          !hasPoint(firstMainPoints, panelXs[2], stepY) ||
+          !hasPoint(secondMainPoints, panelXs[3] + panelL / 2, outerY)) {
+        fail('fefco-0713: major flaps must retain full-width rectangular sides and complementary steps; triangular/tapered outlines are invalid');
       }
 
       const yBodyTop = 30 + panelW + tuck;

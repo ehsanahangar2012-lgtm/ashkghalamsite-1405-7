@@ -108,6 +108,18 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
   }, [engine, length, width, height, lidHeight, lidClearance, thickness, glueTab, slotGap, dimensionConvention, autoLockAngle, autoLockTuckDepth, autoLockDustDepth, autoLockSideDepth, supportsAutoLockDimensions, validInputs]);
 
   const geometry = geometryState.geometry;
+  const autoLockReferencePreset = supportsAutoLockDimensions &&
+    length === 90 && width === 90 && height === 320 &&
+    Math.abs(thickness - 0.45) < 1e-8 && Math.abs(glueTab - 15) < 1e-8 &&
+    dimensionConvention === 'inside' &&
+    Math.abs(autoLockTuckDepth - 25) < 1e-8 &&
+    Math.abs(autoLockDustDepth - 43) < 1e-8 &&
+    Math.abs(autoLockSideDepth - 40.5) < 1e-8;
+  const generatedWidth = geometry ? geometry.xMax - geometry.xMin : 0;
+  const generatedHeight = geometry ? geometry.yMax - geometry.yMin : 0;
+  const referenceWidthDelta = geometry ? generatedWidth - 376.8 : 0;
+  const referenceHeightDelta = geometry ? generatedHeight - 503 : 0;
+  const referenceEnvelopeMatches = Math.abs(referenceWidthDelta) <= 0.1 && Math.abs(referenceHeightDelta) <= 0.5;
   const geometryAudit = useMemo(() => {
     if (!geometry) return null;
     // Validate the actual generated SVG paths. A generous sheet envelope avoids
@@ -246,7 +258,7 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 <label className="text-[11px] font-bold text-slate-700">ضخامت واقعی (mm)<input type="number" min={0.2} max={10} step={0.1} value={Number.isFinite(thickness) ? thickness : ''} onChange={e => { setThickness(e.target.value === '' ? NaN : Number(e.target.value)); setMaterialPreset('custom'); }} className={inputClass}/></label>
                 <label className="text-[11px] font-bold text-slate-700">لبه چسب (mm)<input type="number" min={5} max={200} value={Number.isFinite(glueTab) ? glueTab : ''} onChange={e => setGlueTab(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>
                 {supportsSlotGap && <label className="text-[11px] font-bold text-slate-700">فاصله شیار (mm)<input type="number" min={1} max={10} step={0.1} value={Number.isFinite(slotGap) ? slotGap : ''} onChange={e => setSlotGap(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>}
-                {supportsLockAngle && <label className="text-[11px] font-bold text-slate-700">زاویه شانه قفل (درجه)<input type="number" min={25} max={65} step={1} value={Number.isFinite(autoLockAngle) ? autoLockAngle : ''} onChange={e => setAutoLockAngle(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>}
+                {supportsLockAngle && <label className="text-[11px] font-bold text-slate-700">زاویه خط مورب قفل/چسب (درجه)<input type="number" min={25} max={65} step={1} value={Number.isFinite(autoLockAngle) ? autoLockAngle : ''} onChange={e => setAutoLockAngle(e.target.value === '' ? NaN : Number(e.target.value))} className={inputClass}/></label>}
               </div>
               {supportsAutoLockDimensions && <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <h5 className="mb-2 text-xs font-bold text-slate-800">۳. تنظیمات درب و فلپ‌های کف Auto-Lock (mm)</h5>
@@ -289,6 +301,21 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 <div><div className="flex flex-wrap items-center gap-2"><h3 className="font-black">{template.code} — {template.name}</h3><span className={`rounded-full px-2 py-1 text-[10px] ${geometry ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-800'}`}>{geometry ? 'هندسه تولید شد' : 'خطای تولید'}</span></div><p className="mt-1 text-xs leading-5 text-slate-600">قرمز پیوسته: برش · آبی خط‌چین: خط‌تا · نارنجی کم‌رنگ: محدوده چسب راهنما · L×W×H ورودی بر حسب میلی‌متر</p></div>
                 <div className="flex flex-wrap gap-2 text-xs"><span className="rounded-lg border border-slate-300 bg-white px-3 py-2"><Ruler className="ml-1 inline h-4 w-4 text-sky-700"/>{geometry ? `گسترده: ${(geometry.xMax - geometry.xMin).toFixed(1)} × ${(geometry.yMax - geometry.yMin).toFixed(1)} mm` : '—'}</span></div>
               </div>
+              {supportsAutoLockDimensions && <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-slate-700">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <strong className="text-sky-950">مقایسه مرجع عددی · 3D Box Studio</strong>
+                  <span className={autoLockReferencePreset && referenceEnvelopeMatches ? 'rounded-full bg-emerald-100 px-2 py-1 font-bold text-emerald-800' : 'rounded-full bg-white px-2 py-1 text-slate-600'}>
+                    {autoLockReferencePreset && referenceEnvelopeMatches ? 'ابعاد گسترده در تلرانس مرجع' : 'برای تطبیق ۱:۱، نمونه مرجع را بارگذاری کنید'}
+                  </span>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className="rounded-lg border border-sky-100 bg-white p-2"><div className="text-slate-500">مرجع منتشرشده</div><strong dir="ltr">376.8 × 503 mm</strong></div>
+                  <div className="rounded-lg border border-sky-100 bg-white p-2"><div className="text-slate-500">گسترده تولیدشده</div><strong dir="ltr">{geometry ? generatedWidth.toFixed(2) + ' × ' + generatedHeight.toFixed(2) + ' mm' : '—'}</strong></div>
+                  <div className="rounded-lg border border-sky-100 bg-white p-2"><div className="text-slate-500">اختلاف عرض</div><strong dir="ltr">{geometry ? (referenceWidthDelta > 0 ? '+' : '') + referenceWidthDelta.toFixed(2) + ' mm' : '—'}</strong></div>
+                  <div className="rounded-lg border border-sky-100 bg-white p-2"><div className="text-slate-500">اختلاف ارتفاع</div><strong dir="ltr">{geometry ? (referenceHeightDelta > 0 ? '+' : '') + referenceHeightDelta.toFixed(2) + ' mm' : '—'}</strong></div>
+                </div>
+                <p className="mt-2 text-slate-600">معیار مرجع منتشرشده: پنل‌های W/L/W/L، درب جلویی زبانه‌دار، گردگیرهای جانبی، فلپ‌های اصلی با پله‌های مکمل و خط‌تاهای ۴۵ درجه در ناحیه چسب. این آزمون، تطبیق عددی و ویژگی‌های ساختاری است؛ فایل SVG/DXF خامِ مولد بیرونی برای هم‌پوشانی مختصاتی در دسترس نبوده، بنابراین ادعای تطبیق پیکسل‌به‌پیکسل نمی‌شود.</p>
+              </div>}
               {geometryAudit && <details className="mb-3 rounded-xl border border-slate-200 bg-white p-3 text-xs leading-5"><summary className="cursor-pointer font-bold text-slate-800">گزارش بررسی مسیرها — {exportReady ? 'ساختار قابل‌قبول' : 'نیازمند بازبینی'}</summary><div className={`mt-3 rounded-xl border p-3 text-xs leading-5 ${exportReady ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
                 <div className="flex items-center gap-2 font-bold"><CheckCircle2 className="h-4 w-4"/>{exportReady ? 'بررسی ساختاری مسیرها گذشت' : 'خروجی به بررسی بیشتر نیاز دارد'}</div>
                 <p className="mt-1">طول برش تقریبی: {geometryAudit.cutLength} mm · طول خط‌تا: {geometryAudit.creaseLength} mm · امتیاز بررسی ساختاری: {geometryAudit.score}/100</p>
