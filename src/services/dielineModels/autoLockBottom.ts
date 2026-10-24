@@ -52,6 +52,9 @@ export const createAutoLockBottomEngine = () => {
     const stepDepth = Math.max(4, Math.min(mainDepth * 0.2, panelW * 0.12, 12));
     const angleDeg = clamp(Number.isFinite(autoLockAngle) ? autoLockAngle as number : 45, 25, 65);
     const angleRad = angleDeg * Math.PI / 180;
+    // Horizontal run makes the diagonal shoulder match the selected angle.
+    // The run is capped so it cannot consume a large part of a narrow flap.
+    const mainRun = Math.max(4, Math.min(panelL * 0.28, stepDepth / Math.tan(angleRad)));
 
     // Four body panels, left to right: W / L / W / L, after the seam.
     const xG = x0 + G;
@@ -185,14 +188,14 @@ export const createAutoLockBottomEngine = () => {
       return deepOnLeft
         ? 'M ' + left + ' ' + sideBoundaryY +
           ' L ' + left + ' ' + bottomMainY +
-          ' L ' + center + ' ' + bottomMainY +
+          ' L ' + (center - mainRun) + ' ' + bottomMainY +
           ' L ' + center + ' ' + stepY +
           ' L ' + right + ' ' + stepY +
           ' L ' + right + ' ' + sideBoundaryY
         : 'M ' + left + ' ' + sideBoundaryY +
           ' L ' + left + ' ' + stepY +
           ' L ' + center + ' ' + stepY +
-          ' L ' + center + ' ' + bottomMainY +
+          ' L ' + (center + mainRun) + ' ' + bottomMainY +
           ' L ' + right + ' ' + bottomMainY +
           ' L ' + right + ' ' + sideBoundaryY;
     };
