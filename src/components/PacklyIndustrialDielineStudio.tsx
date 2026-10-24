@@ -348,7 +348,10 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
               </div>
               {supportsAutoLockDimensions && <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-slate-700">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong className="text-sky-950">مقایسه مرجع عددی · 3D Box Studio</strong>
+                  <div className="flex items-center gap-3">
+                    <strong className="text-sky-950">مقایسه مرجع عددی · 3D Box Studio Auto-Lock</strong>
+                    <a className="font-bold text-sky-800 underline" href="https://www.3dboxstudio.com/box-templates/auto-lock-bottom-box" target="_blank" rel="noreferrer">بازکردن مولد مرجع ↗</a>
+                  </div>
                   <span className={autoLockReferencePreset && referenceEnvelopeMatches ? 'rounded-full bg-emerald-100 px-2 py-1 font-bold text-emerald-800' : 'rounded-full bg-white px-2 py-1 text-slate-600'}>
                     {autoLockReferencePreset && referenceEnvelopeMatches ? 'ابعاد گسترده در تلرانس مرجع' : 'برای تطبیق ۱:۱، نمونه مرجع را بارگذاری کنید'}
                   </span>
