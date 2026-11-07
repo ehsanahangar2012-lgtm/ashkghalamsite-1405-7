@@ -122,12 +122,12 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
     const disposables: { dispose: () => void }[] = [];
 
     const panelMaterial = (tint: string) => {
+      const hasGoldFoil = specialEffect === 'gold_foil' || specialEffect === 'both';
+      const hasSpotUv = specialEffect === 'uv_spot' || specialEffect === 'both';
       const material = new THREE.MeshStandardMaterial({
-        color: tint,
-        roughness: specialEffect === 'uv_spot' || specialEffect === 'both'
-          ? 0.3
-          : paperType === 'kraft' || paperType === 'corrugated' ? 0.92 : 0.82,
-        metalness: specialEffect === 'gold_foil' || specialEffect === 'both' ? 0.38 : 0,
+        color: hasGoldFoil ? 0xd6ad42 : tint,
+        roughness: hasSpotUv ? 0.26 : hasGoldFoil ? 0.24 : paperType === 'kraft' || paperType === 'corrugated' ? 0.92 : 0.82,
+        metalness: hasGoldFoil ? 0.72 : 0,
         side: THREE.DoubleSide,
         wireframe: !!wireframe,
       });
