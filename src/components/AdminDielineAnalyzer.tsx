@@ -1308,7 +1308,7 @@ export const AdminDielineAnalyzer: React.FC = () => {
 
     // 2. Analyze topology (disable auto flip so manual user rotations/flips are preserved)
     const entitiesCloned = entities.map(e => ({ ...e }));
-    const anchors = analyzeTopology(entitiesCloned, calibratedDims, { disableAutoFlip: true });
+    const anchors = analyzeTopology(entitiesCloned, calibratedDims);
 
     // 3. Create custom template object
     const isOverride = saveMode === 'override';
