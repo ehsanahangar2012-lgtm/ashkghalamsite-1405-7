@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { SiteContent, MediaItem, BlogPost, GlobalSettings as SharedGlobalSettings } from '../types';
 
+interface ContentAsset { id: string; name: string; data: string; type: string; size: number; }
+
 interface GlobalSettings extends Partial<SharedGlobalSettings> {
   siteName: string;
   primaryColor: string;
@@ -18,8 +20,20 @@ interface ContentContextType {
   portfolioItems: MediaItem[];
   blogPosts: BlogPost[];
   catalogItems: MediaItem[];
-  updateSiteContent: (updates: Partial<SiteContent>) => void;
+  updateSiteContent: (arg1: Partial<SiteContent> | string, arg2?: any) => void;
   updateGlobalSettings: (updates: Partial<GlobalSettings>) => void;
+  assets: ContentAsset[];
+  uploadAsset: (file: File, onProgress?: (percent: number) => void) => Promise<ContentAsset | null>;
+  deleteAsset: (id: string) => Promise<void>;
+  pricingFormula: any;
+  updatePricingFormula: (updates: Record<string, any>) => void;
+  seoConfigs: any[];
+  updateSeoConfig: (view: string, updates: Record<string, any>) => void;
+  emergencyConfig: Record<string, any>;
+  updateEmergencyConfig: (updates: Record<string, any>) => void;
+  saveSettingsToHost: () => Promise<boolean>;
+  addBlogPost: (post: BlogPost) => void;
+  removeBlogPost: (id: string) => void;
 }
 
 const defaultSiteContent: SiteContent = {
@@ -97,6 +111,15 @@ const defaultBlogPosts: BlogPost[] = [
   },
 ];
 
+const defaultPricingFormula = {
+  standardSheets: [
+    { id: '70x100', name: '۷۰×۱۰۰', width: 70, height: 100 },
+    { id: '50x70', name: '۵۰×۷۰', width: 50, height: 70 },
+    { id: '35x50', name: '۳۵×۵۰', width: 35, height: 50 },
+  ],
+  defaultMachine: { id: 'offset-70x100', name: 'افست ۷۰×۱۰۰', gripperMargin: 2 },
+};
+
 const ContentContext = createContext<ContentContextType>({
   siteContent: defaultSiteContent,
   globalSettings: defaultGlobalSettings,
@@ -105,14 +128,30 @@ const ContentContext = createContext<ContentContextType>({
   catalogItems: [],
   updateSiteContent: () => {},
   updateGlobalSettings: () => {},
+  assets: [],
+  uploadAsset: async () => null,
+  deleteAsset: async () => {},
+  pricingFormula: defaultPricingFormula,
+  updatePricingFormula: () => {},
+  seoConfigs: [],
+  updateSeoConfig: () => {},
+  emergencyConfig: { enabled: false, message: '' },
+  updateEmergencyConfig: () => {},
+  saveSettingsToHost: async () => false,
+  addBlogPost: () => {},
+  removeBlogPost: () => {},
 });
 
 export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [siteContent, setSiteContent] = useState<SiteContent>(defaultSiteContent);
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(defaultGlobalSettings);
   const [portfolioItems] = useState<MediaItem[]>(defaultPortfolioItems);
-  const [blogPosts] = useState<BlogPost[]>(defaultBlogPosts);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(defaultBlogPosts);
   const [catalogItems, setCatalogItems] = useState<MediaItem[]>([]);
+  const [assets, setAssets] = useState<ContentAsset[]>([]);
+  const [pricingFormula, setPricingFormula] = useState<any>(defaultPricingFormula);
+  const [seoConfigs, setSeoConfigs] = useState<any[]>([]);
+  const [emergencyConfig, setEmergencyConfig] = useState<Record<string, any>>({ enabled: false, message: '' });
 
   useEffect(() => {
     // Attempt to load catalogs from server endpoint if available
@@ -126,7 +165,8 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .catch(() => {});
   }, []);
 
-  const updateSiteContent = (updates: Partial<SiteContent>) => {
+  const updateSiteContent = (arg1: Partial<SiteContent> | string, arg2?: any) => {
+    const updates = typeof arg1 === 'string' ? { [arg1]: arg2 } : arg1;
     setSiteContent(prev => ({ ...prev, ...updates }));
   };
 
@@ -142,8 +182,52 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
         portfolioItems,
         blogPosts,
         catalogItems,
+        assets,
+        pricingFormula,
+        seoConfigs,
+        emergencyConfig,
         updateSiteContent,
         updateGlobalSettings,
+        updatePricingFormula: (updates: Record<string, any>) => setPricingFormula(prev => ({ ...prev, ...updates })),
+        updateSeoConfig: (view: string, updates: Record<string, any>) => setSeoConfigs(prev => {
+          const current = prev.find(item => item.view === view);
+          return current
+            ? prev.map(item => item.view === view ? { ...item, ...updates } : item)
+            : [...prev, { view, ...updates }];
+        }),
+        updateEmergencyConfig: (updates: Record<string, any>) => setEmergencyConfig(prev => ({ ...prev, ...updates })),
+        uploadAsset: (file: File, onProgress?: (percent: number) => void) => new Promise<ContentAsset | null>(resolve => {
+          const reader = new FileReader();
+          reader.onprogress = event => {
+            if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+          };
+          reader.onload = () => {
+            const asset: ContentAsset = {
+              id: `asset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              name: file.name,
+              data: String(reader.result || ''),
+              type: file.type,
+              size: file.size,
+            };
+            setAssets(prev => [asset, ...prev]);
+            onProgress?.(100);
+            resolve(asset);
+          };
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(file);
+        }),
+        deleteAsset: async (id: string) => { setAssets(prev => prev.filter(asset => asset.id !== id)); },
+        addBlogPost: (post: BlogPost) => setBlogPosts(prev => [post, ...prev]),
+        removeBlogPost: (id: string) => setBlogPosts(prev => prev.filter(post => post.id !== id)),
+        saveSettingsToHost: async () => {
+          try {
+            localStorage.setItem('ashk_site_content', JSON.stringify(siteContent));
+            localStorage.setItem('ashk_global_settings', JSON.stringify(globalSettings));
+            return true;
+          } catch {
+            return false;
+          }
+        },
       }}
     >
       {children}
