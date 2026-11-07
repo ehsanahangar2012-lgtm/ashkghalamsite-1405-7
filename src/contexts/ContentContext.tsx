@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { SiteContent, MediaItem, BlogPost, GlobalSettings as SharedGlobalSettings } from '../types';
+import { readLocalCmsState, writeLocalCmsState, readLocalCmsAssets, writeLocalCmsAsset, deleteLocalCmsAsset } from '../services/localCmsStorage';
 
 interface ContentAsset { id: string; name: string; data: string; type: string; size: number; }
 
@@ -143,15 +144,31 @@ const ContentContext = createContext<ContentContextType>({
 });
 
 export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [siteContent, setSiteContent] = useState<SiteContent>(defaultSiteContent);
-  const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(defaultGlobalSettings);
+  const [siteContent, setSiteContent] = useState<SiteContent>(() => readLocalCmsState('ashk_site_content', defaultSiteContent));
+  const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(() => readLocalCmsState('ashk_global_settings', defaultGlobalSettings));
   const [portfolioItems] = useState<MediaItem[]>(defaultPortfolioItems);
-  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(defaultBlogPosts);
-  const [catalogItems, setCatalogItems] = useState<MediaItem[]>([]);
+  const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() => readLocalCmsState('ashk_blog_posts', defaultBlogPosts));
+  const [catalogItems, setCatalogItems] = useState<MediaItem[]>(() => readLocalCmsState('ashk_catalog_items', []));
   const [assets, setAssets] = useState<ContentAsset[]>([]);
-  const [pricingFormula, setPricingFormula] = useState<any>(defaultPricingFormula);
-  const [seoConfigs, setSeoConfigs] = useState<any[]>([]);
-  const [emergencyConfig, setEmergencyConfig] = useState<Record<string, any>>({ enabled: false, message: '' });
+  const [pricingFormula, setPricingFormula] = useState<any>(() => readLocalCmsState('ashk_pricing_formula', defaultPricingFormula));
+  const [seoConfigs, setSeoConfigs] = useState<any[]>(() => readLocalCmsState('ashk_seo_configs', []));
+  const [emergencyConfig, setEmergencyConfig] = useState<Record<string, any>>(() => readLocalCmsState('ashk_emergency_config', { enabled: false, message: '' }));
+
+  useEffect(() => {
+    let active = true;
+    readLocalCmsAssets()
+      .then(storedAssets => { if (active) setAssets(storedAssets); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => { writeLocalCmsState('ashk_site_content', siteContent); }, [siteContent]);
+  useEffect(() => { writeLocalCmsState('ashk_global_settings', globalSettings); }, [globalSettings]);
+  useEffect(() => { writeLocalCmsState('ashk_blog_posts', blogPosts); }, [blogPosts]);
+  useEffect(() => { writeLocalCmsState('ashk_catalog_items', catalogItems); }, [catalogItems]);
+  useEffect(() => { writeLocalCmsState('ashk_pricing_formula', pricingFormula); }, [pricingFormula]);
+  useEffect(() => { writeLocalCmsState('ashk_seo_configs', seoConfigs); }, [seoConfigs]);
+  useEffect(() => { writeLocalCmsState('ashk_emergency_config', emergencyConfig); }, [emergencyConfig]);
 
   useEffect(() => {
     // Attempt to load catalogs from server endpoint if available
@@ -201,7 +218,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
           reader.onprogress = event => {
             if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
           };
-          reader.onload = () => {
+          reader.onload = async () => {
             const asset: ContentAsset = {
               id: `asset-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               name: file.name,
@@ -210,24 +227,28 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
               size: file.size,
             };
             setAssets(prev => [asset, ...prev]);
+            try { await writeLocalCmsAsset(asset); } catch { /* Keep this session usable when IndexedDB is unavailable. */ }
             onProgress?.(100);
             resolve(asset);
           };
           reader.onerror = () => resolve(null);
           reader.readAsDataURL(file);
         }),
-        deleteAsset: async (id: string) => { setAssets(prev => prev.filter(asset => asset.id !== id)); },
+        deleteAsset: async (id: string) => {
+          setAssets(prev => prev.filter(asset => asset.id !== id));
+          try { await deleteLocalCmsAsset(id); } catch { /* Ignore unavailable local storage. */ }
+        },
         addBlogPost: (post: BlogPost) => setBlogPosts(prev => [post, ...prev]),
         removeBlogPost: (id: string) => setBlogPosts(prev => prev.filter(post => post.id !== id)),
-        saveSettingsToHost: async () => {
-          try {
-            localStorage.setItem('ashk_site_content', JSON.stringify(siteContent));
-            localStorage.setItem('ashk_global_settings', JSON.stringify(globalSettings));
-            return true;
-          } catch {
-            return false;
-          }
-        },
+        saveSettingsToHost: async () => [
+          writeLocalCmsState('ashk_site_content', siteContent),
+          writeLocalCmsState('ashk_global_settings', globalSettings),
+          writeLocalCmsState('ashk_blog_posts', blogPosts),
+          writeLocalCmsState('ashk_catalog_items', catalogItems),
+          writeLocalCmsState('ashk_pricing_formula', pricingFormula),
+          writeLocalCmsState('ashk_seo_configs', seoConfigs),
+          writeLocalCmsState('ashk_emergency_config', emergencyConfig),
+        ].every(Boolean),
       }}
     >
       {children}
