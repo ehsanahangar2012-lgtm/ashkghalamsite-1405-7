@@ -4,7 +4,7 @@ import { User, UserRole } from '../types';
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (username: string, role?: UserRole) => boolean;
+  login: (username: string, role?: UserRole, onSuccess?: (user: User) => void) => boolean;
   logout: () => void;
 }
 
@@ -27,7 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isAuthenticated = !!user;
 
-  const login = (username: string, role: UserRole = UserRole.ADMIN) => {
+  const login = (username: string, role: UserRole = UserRole.ADMIN, onSuccess?: (user: User) => void) => {
     const newUser: User = {
       id: 'admin-1',
       name: username || 'مدیر سیستم',
@@ -39,6 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       joinDate: '۱۴۰۳/۰۱/۰۱',
     };
     setUser(newUser);
+    onSuccess?.(newUser);
     try {
       localStorage.setItem('ashk_auth_user', JSON.stringify(newUser));
     } catch {}
