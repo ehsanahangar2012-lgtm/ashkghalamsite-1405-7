@@ -2575,16 +2575,16 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             `[PARSING] تعداد کل عناصر هندسی استخراج شده: ${entities.length} سگمنت خطی`,
             `[PARSING] تفکیک لایه‌ای: ${cutsCount} عنصر برش (CUT)، ${creasesCount} عنصر تا (CREASE) شناسایی شد.`,
             `[VALIDATION] آغاز اعتبارسنجی کیفی صنعتی نقشه DXF...`,
-            `[VALIDATION] نمره سلامت اتصال مسیرها: ${validationResult.score}٪ (حداقل مجاز صنعتی: ۸۵٪)`,
-            `[VALIDATION] ضریب پایداری بسته‌بندی (Connectivity Rate): ${validationResult.connectivityScore}٪`,
-            `[VALIDATION] تعداد گره‌های باز (بدون اتصال به مسیرهای دیگر): ${validationResult.openVertices.length}`,
-            validationResult.passed 
+            `[VALIDATION] وضعیت اعتبارسنجی مسیرها: ${validationResult.valid ? 'معتبر' : 'نامعتبر'}.`,
+            `[VALIDATION] خطاهای هندسی: ${validationResult.errors.length} مورد؛ هشدارها: ${validationResult.warnings.length} مورد.`,
+            `[VALIDATION] موجودیت‌های معتبر: ${validationResult.entityCount}؛ طول کل مسیرها: ${validationResult.totalLength} میلی‌متر.`,
+            validationResult.valid 
               ? `[VALIDATION] تست سلامت هندسی: پاس شد (تأییدیه تولید صنعتی ✔️)`
               : `[VALIDATION] تست سلامت هندسی: ناموفق یا نیازمند توجه ویژه (به علت گره‌های باز یا هم‌پوشانی خطوط ⚠️)`,
             `[TOPOLOGY] آنالیز گره‌های توپولوژی بر اساس ابعاد مرجع: ${sampleL} × ${sampleW} × ${sampleH} میلی‌متر`,
-            `[TOPOLOGY] خطوط اصلی عمودی در نقاط X: [${anchors.creaseX.map(x => Math.round(x)).join(', ')}] کشف شدند.`,
-            `[TOPOLOGY] خطوط اصلی افقی در نقاط Y: [${anchors.creaseY.map(y => Math.round(y)).join(', ')}] کشف شدند.`,
-            `[CALIBRATION] زبانه اتصال لبه چسب (Glue Tab): ${anchors.hasGlueTab ? 'کشف شد' : 'کشف نشد'}.`,
+            `[TOPOLOGY] خطوط اصلی عمودی در نقاط X: ${Math.round(anchors.creaseX)} کشف شدند.`,
+            `[TOPOLOGY] خطوط اصلی افقی در نقاط Y: ${Math.round(anchors.creaseY)} کشف شدند.`,
+            `[CALIBRATION] زبانه اتصال لبه چسب (Glue Tab): در تحلیل فعلی تعیین نشده.`,
             `[LEARNING] موتور کاد پارامترهای دایلاین و زوایای زبانه را فرموله‌سازی کرد.`,
             `[SUCCESS] کالیبراسیون و انطباق هندسی با موفقیت پایان یافت!`
           ];
@@ -2619,7 +2619,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             code: newTemplate.code,
             category: newTemplate.category as any,
             icon: '📐',
-            description: `قالب سفارشی مستقل تولید شده از فایل DXF آپلودی ${newTemplate.name} با ابعاد مرجع ${sampleL}×${sampleW}×${sampleH}. سلامت هندسی: ${validationResult.score}٪.`,
+            description: `قالب سفارشی مستقل تولید شده از فایل DXF آپلودی ${newTemplate.name} با ابعاد مرجع ${sampleL}×${sampleW}×${sampleH}. وضعیت هندسی: ${validationResult.valid ? 'معتبر' : validationResult.errors.length + ' خطا'}.`,
             defaultDims: newTemplate.originalDims
           };
           setSelectedModel(m);
@@ -2643,20 +2643,16 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                 ...prev,
                 isAnalyzing: false,
                 isActive: true,
-                detectedFlapOffset: anchors.creaseX[0] > 0 ? anchors.creaseX[0] : 15,
+                detectedFlapOffset: anchors.creaseX > 0 ? anchors.creaseX : 15,
                 detectedCreaseOffset: 0,
               }));
               
-              const validationMessage = `قالب با موفقیت پارس و ذخیره شد.\n\nنتایج اعتبارسنجی نقشه قالب:\n• نمره نهایی: ${validationResult.score}/100\n• نرخ پایداری اتصالات: ${validationResult.connectivityScore}٪\n• گره‌های باز رها شده: ${validationResult.openVertices.length} مورد\n\n${
-                validationResult.passed 
-                  ? '✔️ نقشه فاقد هرگونه تداخل فیزیکی بحرانی است و آماده برش لیزری صنعتی می‌باشد.'
-                  : '⚠️ نقشه دارای گره‌های غیرمتصل یا خطوط هم‌پوشان موازی است. پیشنهاد می‌شود اتصالات نقشه دایکات را در اتوکد بازبینی نمایید.'
-              }`;
+              const validationMessage = `قالب با موفقیت پارس و ذخیره شد.\\n\\nنتایج اعتبارسنجی ساختاری:\\n• وضعیت: ${validationResult.valid ? 'معتبر' : 'نیازمند اصلاح'}\\n• موجودیت‌های معتبر: ${validationResult.entityCount}\\n• طول کل مسیرها: ${validationResult.totalLength} میلی‌متر\\n• خطاها: ${validationResult.errors.length}\\n• هشدارها: ${validationResult.warnings.length}\\n\\n${validationResult.valid ? 'بررسی اولیه ساختار مسیرها موفق بود؛ پیش از تولید، ابعاد و نمونه فیزیکی باید کنترل شوند.' : validationResult.errors.join('\\n')}`;
 
               showCustomAlert(
-                validationResult.passed ? 'اعتبارسنجی موفق نقشه قالب (صنعتی)' : 'هشدار اعتبارسنجی نقشه قالب دایکات',
+                validationResult.valid ? 'اعتبارسنجی موفق نقشه قالب (صنعتی)' : 'هشدار اعتبارسنجی نقشه قالب دایکات',
                 validationMessage,
-                validationResult.passed ? 'success' : 'alert'
+                validationResult.valid ? 'success' : 'alert'
               );
             }
           }, 250);
