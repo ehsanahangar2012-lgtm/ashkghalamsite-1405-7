@@ -37,9 +37,9 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
   // Custom blueprint upload states
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [targetL, setTargetL] = useState<number>(dimensions.L || 150);
-  const [targetW, setTargetW] = useState<number>(dimensions.W || 100);
-  const [targetH, setTargetH] = useState<number>(dimensions.H || 120);
+  const [targetL, setTargetL] = useState<number>(dimensions.length || 150);
+  const [targetW, setTargetW] = useState<number>(dimensions.width || 100);
+  const [targetH, setTargetH] = useState<number>(dimensions.height || 120);
   const [paperThickness, setPaperThickness] = useState<number>(1.5);
   const [imageMetrics, setImageMetrics] = useState<{ width: number; height: number; aspectRatio: number } | null>(null);
   const [isAnalysisSuccess, setIsAnalysisSuccess] = useState(false);
@@ -112,7 +112,7 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
             [id]: { isCalibrated: true, matchRate: 99.8 }
           }));
           // Automatically set optimized dimensions to verify fit
-          setDimensions({ L: 140, W: 90, H: 110 });
+          setDimensions({ ...dimensions, length: 140, width: 90, height: 110 });
         }
       }, (index + 1) * 800);
     });
@@ -135,9 +135,9 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
     return allStandards.filter(std => {
       const matchesCategory = selectedCategory === 'ALL' || std.category === selectedCategory;
       const matchesSearch = 
-        std.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        std.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        std.foldingRule.toLowerCase().includes(searchQuery.toLowerCase());
+        std.standardCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (std.name || std.title).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        std.description.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     });
   }, [allStandards, searchQuery, selectedCategory]);
@@ -150,9 +150,10 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
     const defaultH = Math.round((rule.minH + rule.maxH) / 3);
     
     setDimensions({
-      L: Math.max(rule.minL, Math.min(rule.maxL, defaultL || 120)),
-      W: Math.max(rule.minW, Math.min(rule.maxW, defaultW || 80)),
-      H: Math.max(rule.minH, Math.min(rule.maxH, defaultH || 150))
+      ...dimensions,
+      length: Math.max(rule.minL ?? 100, Math.min(rule.maxL ?? 1200, defaultL || 120)),
+      width: Math.max(rule.minW ?? 80, Math.min(rule.maxW ?? 800, defaultW || 80)),
+      height: Math.max(rule.minH ?? 25, Math.min(rule.maxH ?? 800, defaultH || 150))
     });
 
     const refImg = standardReferenceImages[id];
@@ -163,7 +164,7 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
       setRefTemplateUrl(null);
     }
 
-    setApplySuccess(rule.code);
+    setApplySuccess(rule.standardCode);
     setTimeout(() => {
       setApplySuccess(null);
     }, 3000);
@@ -239,9 +240,10 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
   // Apply custom template calculations
   const handleApplyCustomBlueprint = () => {
     setDimensions({
-      L: targetL,
-      W: targetW,
-      H: targetH
+      ...dimensions,
+      length: targetL,
+      width: targetW,
+      height: targetH
     });
 
     const computedScale = Math.min(2.5, Math.max(0.4, (targetL / 150)));
@@ -606,8 +608,8 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 font-mono">
                         {selectedRule.category} STANDARD
                       </span>
-                      <h3 className="text-lg font-black text-slate-100 font-mono">{selectedRule.code}</h3>
-                      <p className="text-xs text-slate-300 font-medium">{selectedRule.name}</p>
+                      <h3 className="text-lg font-black text-slate-100 font-mono">{selectedRule.standardCode}</h3>
+                      <p className="text-xs text-slate-300 font-medium">{selectedRule.name || selectedRule.title}</p>
                     </div>
                     <div className="w-16 h-16 rounded-xl bg-slate-900 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-inner">
                       <svg className="w-12 h-12 text-indigo-400" viewBox="0 0 100 100">
@@ -634,7 +636,7 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
                     </div>
                     <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850 space-y-1">
                       <span className="text-[10px] text-slate-400 block">حداکثر نسبت ارتفاع به عرض</span>
-                      <strong className="text-xs text-slate-200 font-mono">{selectedRule.aspectRatioMaxH_to_W}x</strong>
+                      <strong className="text-xs text-slate-200 font-mono">ثبت نشده</strong>
                     </div>
                   </div>
 
@@ -646,7 +648,7 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
                       </div>
                       <div className="space-y-1">
                         <span className="text-[10px] text-slate-400 block font-bold">دستورالعمل‌های خمش و تا خوردن:</span>
-                        <p className="text-xs text-slate-300 leading-relaxed">{selectedRule.foldingRule}</p>
+                        <p className="text-xs text-slate-300 leading-relaxed">{selectedRule.description}</p>
                       </div>
                     </div>
 
@@ -656,7 +658,7 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
                       </div>
                       <div className="space-y-1">
                         <span className="text-[10px] text-slate-400 block font-bold">قوانین لبه چسب کاری صنعتی:</span>
-                        <p className="text-xs text-slate-300 leading-relaxed">{selectedRule.glueRule}</p>
+                        <p className="text-xs text-slate-300 leading-relaxed">ثبت نشده در مرجع داده</p>
                       </div>
                     </div>
 
@@ -666,7 +668,7 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
                       </div>
                       <div className="space-y-1">
                         <span className="text-[10px] text-slate-400 block font-bold">تلورانس و خطای ساخت استاندارد:</span>
-                        <p className="text-xs text-slate-300 leading-relaxed">{selectedRule.toleranceRule}</p>
+                        <p className="text-xs text-slate-300 leading-relaxed">ثبت نشده در مرجع داده</p>
                       </div>
                     </div>
                   </div>
@@ -675,11 +677,11 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
                   <div className="bg-slate-900/40 border border-slate-850 rounded-xl p-4 text-[10.5px] text-slate-400 space-y-1.5">
                     <div className="flex justify-between">
                       <span>لبه چسب فرضی پیش‌فرض:</span>
-                      <strong className="text-slate-200 font-mono">{selectedRule.defGlueTab} میلی‌متر</strong>
+                      <strong className="text-slate-200 font-mono">ثبت نشده میلی‌متر</strong>
                     </div>
                     <div className="flex justify-between">
                       <span>زبانه قفل شونده پیش‌فرض:</span>
-                      <strong className="text-slate-200 font-mono">{selectedRule.defTuck} میلی‌متر</strong>
+                      <strong className="text-slate-200 font-mono">ثبت نشده میلی‌متر</strong>
                     </div>
                   </div>
 
@@ -773,10 +775,10 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
                       <div className="flex justify-between items-start">
                         <div className="space-y-0.5">
                           <span className={`text-[9px] font-black px-1.5 py-0.5 rounded font-mono ${std.category === 'FEFCO' ? 'bg-emerald-900/20 text-emerald-400' : 'bg-cyan-900/20 text-cyan-400'}`}>
-                            {std.code}
+                            {std.standardCode}
                           </span>
                           <h4 className="text-[11.5px] font-black text-slate-100 group-hover:text-indigo-400 transition-colors mt-1 leading-snug">
-                            {std.name}
+                            {std.name || std.title}
                           </h4>
                         </div>
                         <div className="w-10 h-10 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 shrink-0 overflow-hidden relative">
@@ -792,7 +794,7 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
 
                       {/* Brief description */}
                       <p className="text-[10px] text-slate-400 line-clamp-2 leading-relaxed h-[30px]">
-                        {std.foldingRule}
+                        {std.description}
                       </p>
 
                       {/* Per-template Image Upload Slot */}
