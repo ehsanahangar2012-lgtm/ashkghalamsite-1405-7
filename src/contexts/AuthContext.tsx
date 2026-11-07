@@ -5,6 +5,7 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   login: (username: string, role?: UserRole, onSuccess?: (user: User) => void) => boolean;
+  updateUser: (updates: Partial<User>) => void;
   logout: () => void;
 }
 
@@ -12,6 +13,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   isAuthenticated: false,
   login: () => false,
+  updateUser: () => {},
   logout: () => {},
 });
 
@@ -46,6 +48,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
+  const updateUser = (updates: Partial<User>) => {
+    setUser(current => {
+      if (!current) return current;
+      const updated = { ...current, ...updates };
+      try {
+        localStorage.setItem('ashk_auth_user', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
   const logout = () => {
     setUser(null);
     try {
@@ -54,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, login, updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   );
