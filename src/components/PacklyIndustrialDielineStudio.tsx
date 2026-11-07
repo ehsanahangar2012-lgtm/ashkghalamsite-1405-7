@@ -427,7 +427,15 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 <a className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100" href="https://www.fefco.org/technical-information/fefco-code" target="_blank" rel="noreferrer">مرجع رسمی FEFCO ↗</a>
                 <a className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100" href="https://www.packmage.com/Home/BoxLibrary" target="_blank" rel="noreferrer">کتابخانه Packmage ↗</a>
               </div>
-              {show3D && <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold"><Rotate3d className="h-4 w-4 text-sky-700"/>پیش‌نمایش حجمی با فلپ‌های لولایی</div><span className="text-xs text-slate-600">{Math.round(openRatio * 100)}٪ بازشدگی</span></div><div className="h-[360px] overflow-hidden rounded-lg"><ThreeDPreview width={length} height={height} depth={width} isOpenRatio={openRatio} autoRotate/></div><label className="mt-3 flex items-center gap-3 text-xs text-slate-700">بسته <input type="range" min={0} max={1} step={0.05} value={openRatio} onChange={e => setOpenRatio(Number(e.target.value))} className="w-full accent-sky-500"/> باز</label><p className="mt-2 text-xs leading-5 text-amber-800"><Info className="ml-1 inline h-4 w-4"/>این نسخه، مدل حجمی عمومی با چهار دیواره و فلپ‌های لولایی است؛ هنوز هندسه سه‌بعدی اختصاصی و ترتیب مونتاژ هر کد FEFCO/ECMA را از روی نقشه دوبعدی بازسازی نمی‌کند.</p></div>}
+              {show3D && <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="flex items-center gap-2 text-sm font-bold"><Rotate3d className="h-4 w-4 text-sky-700"/>پیش‌نمایش حجمی با فلپ‌های لولایی</div><span className="text-xs text-slate-600">{Math.round(openRatio * 100)}٪ بازشدگی</span></div><div className="h-[360px] overflow-hidden rounded-lg"><ThreeDPreview
+                    width={length}
+                    height={height}
+                    depth={width}
+                    isOpenRatio={openRatio}
+                    autoRotate
+                    materialThickness={thickness}
+                    paperType={materialPreset === 'folding-carton' || (materialPreset === 'custom' && thickness < 0.8) ? 'coated' : 'corrugated'}
+                  /></div><label className="mt-3 flex items-center gap-3 text-xs text-slate-700">بسته <input type="range" min={0} max={1} step={0.05} value={openRatio} onChange={e => setOpenRatio(Number(e.target.value))} className="w-full accent-sky-500"/> باز</label><p className="mt-2 text-xs leading-5 text-amber-800"><Info className="ml-1 inline h-4 w-4"/>این نسخه، مدل حجمی عمومی با چهار دیواره و فلپ‌های لولایی است؛ هنوز هندسه سه‌بعدی اختصاصی و ترتیب مونتاژ هر کد FEFCO/ECMA را از روی نقشه دوبعدی بازسازی نمی‌کند.</p></div>}
             </section>
             <section className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs leading-6 text-slate-600 sm:p-4">
               <h4 className="mb-1 flex items-center gap-2 font-bold text-slate-800"><Scissors className="h-4 w-4 text-rose-700"/>یادداشت تولید</h4>
