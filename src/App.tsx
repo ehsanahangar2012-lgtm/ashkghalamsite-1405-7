@@ -1508,7 +1508,7 @@ const AppContent = () => {
           <Route path="/" element={
             <>
               <SeoHead view={AppView.HOME} canonicalPath="/" />
-              <ThreeDProductSlider onNavigate={toggleView} />
+              <ThreeDProductSlider />
               
               <div id="catalog-section" className="w-full">
                  <CatalogSection />
