@@ -1,10 +1,16 @@
 export interface DimensionAccuracyInput {
-  targetL: number;
-  targetW: number;
-  targetH: number;
+  targetL?: number;
+  targetW?: number;
+  targetH?: number;
+  L?: number;
+  W?: number;
+  H?: number;
   tolerance?: number;
   thickness?: number;
   caliper?: number;
+  grammage?: number;
+  paperType?: string;
+  grainDirection?: 'horizontal' | 'vertical' | string;
   fefcoCode?: string;
   modelId?: string;
   tuck?: number;
@@ -46,9 +52,9 @@ export interface DimensionAccuracyReport {
 }
 
 export const evaluateDimensionAccuracy = (input: DimensionAccuracyInput): DimensionAccuracyReport => {
-  const L = input.targetL || 150;
-  const W = input.targetW || 100;
-  const H = input.targetH || 80;
+  const L = input.targetL ?? input.L ?? 150;
+  const W = input.targetW ?? input.W ?? 100;
+  const H = input.targetH ?? input.H ?? 80;
   const thickness = input.thickness || input.caliper || 0.45;
 
   const volumeCm3 = Math.round((L * W * H) / 1000);
