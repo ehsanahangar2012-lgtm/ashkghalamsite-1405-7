@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { SiteContent, MediaItem, BlogPost } from '../types';
+import { SiteContent, MediaItem, BlogPost, GlobalSettings as SharedGlobalSettings } from '../types';
 
-interface GlobalSettings {
+interface GlobalSettings extends Partial<SharedGlobalSettings> {
   siteName: string;
   primaryColor: string;
   enableAutoSave: boolean;
