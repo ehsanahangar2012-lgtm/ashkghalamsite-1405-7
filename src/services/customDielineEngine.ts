@@ -390,7 +390,22 @@ export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
  * coordinates rather than guessing how arbitrary imported artwork maps to L/W/H.
  * The provided dimensions are used only as a safe fallback for empty/invalid bounds.
  */
-export const scaleCustomDieline = (templateOrEntities: any, _l: number, _w: number, _h: number) => {
+export const scaleCustomDieline = (
+  templateOrEntities: any,
+  _l: number,
+  _w: number,
+  _h: number
+): {
+  cuts: string[];
+  creases: string[];
+  labels?: Array<{ x: number; y: number; text: string }>;
+  totalW: number;
+  totalH: number;
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+} => {
   const entities: DxfEntity[] = Array.isArray(templateOrEntities)
     ? templateOrEntities
     : (Array.isArray(templateOrEntities?.entities) ? templateOrEntities.entities : []);
