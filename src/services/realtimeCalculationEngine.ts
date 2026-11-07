@@ -4,4 +4,12 @@ export interface Dieline3DParameters {
   H: number;
   thickness?: number;
   foldAngle?: number;
+  glueTab?: number;
+  tuck?: number;
+  dustFlap?: number;
+  boxType?: string;
+  grainDirection?: string;
+  materialThickness?: number;
+  materialGsm?: number;
+  materialType?: string;
 }

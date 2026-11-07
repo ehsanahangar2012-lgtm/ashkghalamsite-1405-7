@@ -7,7 +7,6 @@ import { FileText, Clock, CheckCircle, Package, Download, Upload, Coins, Trendin
 import { SeoStudio, ContentManager, MediaManager } from './AdminTools';
 import { useAuth } from '../contexts/AuthContext';
 import { useContent } from '../contexts/ContentContext';
-import { usePersianNumberInput } from '../hooks/usePersianNumberInput';
 import { NumericFormatInput } from './NumericFormatInput';
 
 interface DashboardProps {

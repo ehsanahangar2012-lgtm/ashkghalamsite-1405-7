@@ -1,12 +1,18 @@
 export interface DimensionAccuracyInput {
-  targetL: number;
-  targetW: number;
-  targetH: number;
+  targetL?: number;
+  targetW?: number;
+  targetH?: number;
+  L?: number;
+  W?: number;
+  H?: number;
+  grammage?: number;
   tolerance?: number;
   thickness?: number;
   caliper?: number;
   fefcoCode?: string;
   modelId?: string;
+  paperType?: string;
+  grainDirection?: string;
   tuck?: number;
   dustFlap?: number;
   glueTab?: number;

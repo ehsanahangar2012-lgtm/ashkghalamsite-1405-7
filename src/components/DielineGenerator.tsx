@@ -6,7 +6,7 @@ import { Project } from '../types';
 import { 
   Download, Check, Rotate3d, Layers, LogOut, Pin, ArrowRight,
   Shapes, Ruler as RulerIcon, Ruler, ShieldCheck, ArrowDownToLine, Maximize, Minimize, Upload, ImageIcon, Trash2, Box, Info, Sparkles, 
-  Share2, Printer, Calculator, Cpu, ShieldAlert, FileText, Database, Settings, HelpCircle, Save, CheckCircle2, AlertTriangle, Send, RefreshCw, RotateCcw, Layers3, Flame, Clock, X, Camera, ChevronDown, MapPin, Eye, BookOpen, Search, Sliders, Magnet, Activity
+  Share2, Printer, Calculator, Cpu, ShieldAlert, FileText, Database, Settings, HelpCircle, Save, CheckCircle2, AlertTriangle, Send, RefreshCw, RotateCcw, Layers3, Flame, Clock, X, Camera, ChevronDown, MapPin, Eye, BookOpen, Search, Sliders, Magnet, Activity, Wrench
 , Orbit } from 'lucide-react';
 import { SmartHelpButton } from './SmartHelpModal';
 import { auth } from '../src/lib/firebase';
@@ -15,6 +15,8 @@ import { jsPDF } from 'jspdf';
 import { parsePersianFloat } from '../services/numberUtils';
 import { validateStandardConstraints } from '../services/standardsEngine';
 import { calculateMaterialCompensation } from '../services/materialCompensationEngine';
+import { generateSheetOptimizedDimensions, DimensionSuggestionOption } from '../services/dimensionOptimizerService';
+import { validateBoxPhysicalLimits, PhysicalValidationResult } from '../services/cardboardPhysicalValidator';
 import { PackagingStandardsService, StructuralWarning, PaperGrainAnalysis } from '../services/packagingStandards';
 import { StandardsEnginePanel } from './StandardsEnginePanel';
 import { Award, Play, Pause } from 'lucide-react';
@@ -600,9 +602,34 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     return () => cancelAnimationFrame(frameId);
   }, [foldingSpeed]);
 
-  const [textureUrl, setTextureUrl] = useState<string | null>(null);
-  const [autoRotate, setAutoRotate] = useState(false);
-  const [isExploded, setIsExploded] = useState(false);
+  const [validationBlockModal, setValidationBlockModal] = useState<{ isOpen: boolean; errors: string[]; warnings: string[] }>({
+    isOpen: false,
+    errors: [],
+    warnings: []
+  });
+
+  // Advanced pre-check mechanism before switching to 3D Preview
+  const handleTrySwitchTo3D = () => {
+    const check = validateStandardConstraints(selectedModel.id, dims.L, dims.W, dims.H, material);
+    const criticalErrors = [...check.errors];
+
+    // Check material thickness vs crease clearance
+    if (dims.W < material.thickness * 8) {
+      criticalErrors.push(`عرض جعبه (${dims.W}mm) از حداقل رواداری خمش ضخامت ورق ${material.name} (${Math.round(material.thickness * 8)}mm) کمتر است و در تاخوردن ۳بعدی شکسته خواهد شد.`);
+    }
+
+    if (criticalErrors.length > 0) {
+      setValidationBlockModal({
+        isOpen: true,
+        errors: criticalErrors,
+        warnings: check.warnings
+      });
+      return false;
+    }
+
+    setViewMode('3d');
+    return true;
+  };
   const [viewAngle, setViewAngle] = useState<'front' | 'top' | 'side' | 'perspective'>('perspective');
   const [wireframe, setWireframe] = useState(false);
   const [lightIntensity, setLightIntensity] = useState(1);
@@ -795,6 +822,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   const [diecutTolerance, setDiecutTolerance] = useState<number>(0.1);
   const [cadTheme, setCadTheme] = useState<'white' | 'blueprint' | 'charcoal'>('charcoal');
   const [alignmentKey, setAlignmentKey] = useState<number>(0);
+  const [appliedOptimizationId, setAppliedOptimizationId] = useState<string | null>(null);
+  const [optimizationFeedback, setOptimizationFeedback] = useState<string | null>(null);
 
   const getThemeStyle = (themeName: 'white' | 'blueprint' | 'charcoal') => {
     if (isProofMode) {
@@ -921,6 +950,9 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [svgCursor, setSvgCursor] = useState<{ x: number, y: number } | null>(null);
   const [cameraOrbit, setCameraOrbit] = useState(false);
+  const [textureUrl, setTextureUrl] = useState<string | null>(null);
+  const [autoRotate, setAutoRotate] = useState<boolean>(true);
+  const [isExploded, setIsExploded] = useState<boolean>(false);
 
   // =========================================================================
   // WINDOW MANAGEMENT SYSTEM & LAYERS (CAD BLUEPRINT SPECIFICATION)
@@ -2264,10 +2296,10 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     (geometryReport?.errors || []).forEach(err => reports.push({ type: 'error', msg: err }));
     (geometryReport?.warnings || []).forEach(warn => reports.push({ type: 'warning', msg: warn }));
 
-    // --- Module 1 & 2: Standards Engine validation ---
-    const stdValidation = validateStandardConstraints(selectedModel.id, L, W, H);
-    (stdValidation?.errors || []).forEach(err => reports.push({ type: 'error', msg: `استاندارد: ${err}` }));
-    (stdValidation?.warnings || []).forEach(warn => reports.push({ type: 'warning', msg: warn }));
+    // --- Module 1 & 2: Standards Engine & Physical Material Validation ---
+    const stdValidation = validateStandardConstraints(selectedModel.id, L, W, H, material);
+    (stdValidation?.errors || []).forEach(err => reports.push({ type: 'error', msg: `محدودیت فیزیکی مقوا: ${err}` }));
+    (stdValidation?.warnings || []).forEach(warn => reports.push({ type: 'warning', msg: `استاندارد کارگاهی: ${warn}` }));
 
     // Aspect ratio checks
     if (H > (L + W) * 2.5) {
@@ -2298,6 +2330,43 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
 
     return reports;
   }, [dims, material, nestingResult, physicsReport, specialEffect, selectedModel, geometryReport]);
+
+  // Comprehensive Cardboard Physical Limits Validation Engine
+  const physicalCardboardValidation: PhysicalValidationResult = useMemo(() => {
+    return validateBoxPhysicalLimits({
+      modelId: selectedModel.id,
+      modelName: selectedModel.name,
+      L: dims.L,
+      W: dims.W,
+      H: dims.H,
+      material: {
+        id: material.id,
+        name: material.name,
+        category: material.category,
+        thickness: material.thickness,
+        weight: material.weight,
+        ectValue: material.ectValue,
+        foldLoss: material.foldLoss,
+      },
+      tuck: typeof dieline?.tuck === 'number' ? dieline.tuck : 25,
+      glueTab: typeof dieline?.glueTab === 'number' ? dieline.glueTab : 30,
+      sheetSize: sheetSize ? { width: sheetSize.width, height: sheetSize.height } : undefined,
+    });
+  }, [dims, material, selectedModel, dieline, sheetSize]);
+
+  // Suggestions for standard dimensions optimized for maximum sheet yield based on selected material
+  const optimizedDimensionsSuggestions: DimensionSuggestionOption[] = useMemo(() => {
+    return generateSheetOptimizedDimensions({
+      currentDims: dims,
+      materialThickness: material.thickness || 0.45,
+      materialCategory: material.category,
+      modelId: selectedModel.id,
+      sheetSizes: STANDARD_SHEET_SIZES,
+      selectedSheet: sheetSize,
+      tuck: typeof dieline?.tuck === 'number' ? dieline.tuck : 25,
+      glueTab: typeof dieline?.glueTab === 'number' ? dieline.glueTab : 30,
+    });
+  }, [dims, material, selectedModel.id, sheetSize, dieline]);
 
   // Real-time AI Structural Integrity Diagnostics based on industry standards (ECMA / FEFCO)
   const structuralDiagnostics = useMemo(() => {
@@ -4109,6 +4178,107 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                 ))}
               </div>
 
+              {/* Material-based Standard Dimension & Sheet Yield Suggestions */}
+              <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="text-[10px] font-bold text-slate-200">پیشنهاد ابعاد استاندارد (بهره‌وری حداکثری ورق):</span>
+                  </div>
+                  <SmartHelpButton
+                    sectionTitle="بهینه‌سازی ابعاد و چیدمان شیت مقوا"
+                    sectionKey="sheet_optimization"
+                    description="موتور هوشمند اشک قلم ابعاد وارد شده را با گرین مقوا و ضخامت فلوت تطبیق داده و گزینه‌هایی با حداقل باطله و بیشترین راندمان چاپ و دایکات به شما پیشنهاد می‌دهد."
+                    tips={[
+                      "تغییر چند میلی‌متری ابعاد می‌تواند امکان چیدمان یک ردیف اضافه در شیت را باز کند.",
+                      "در صورت عدم امکان تغییر ابعاد، تغییر سایز شیت (مثلاً از ۱۰۰×۷۰ به ۹۰×۶۰) ضایعات را تا ۱۵٪ کاهش می‌دهد.",
+                      "ابعاد پیشنهادی همواره محدوده استحکام فیزیکی مقوا (حداقل ۸ برابر ضخامت) را رعایت می‌کنند."
+                    ]}
+                    className="w-5 h-5 text-amber-300 bg-amber-500/15 border-amber-500/30"
+                  />
+                </div>
+
+                <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800 text-[9px] text-slate-400 flex items-center justify-between">
+                  <span>جنس انتخابی: <strong className="text-amber-300 font-sans">{material.name}</strong> ({material.thickness}mm)</span>
+                  <span>شیت جاری: <strong className="text-sky-300 font-sans">{sheetSize.name}</strong></span>
+                </div>
+
+                {optimizationFeedback && (
+                  <div className="p-2 rounded-lg bg-emerald-950/70 border border-emerald-800/80 text-[9.5px] text-emerald-300 flex items-center gap-1.5 animate-fadeIn">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>{optimizationFeedback}</span>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {optimizedDimensionsSuggestions.map((opt) => {
+                    const isApplied = appliedOptimizationId === opt.id || (
+                      dims.L === opt.dimensions.L && dims.W === opt.dimensions.W && dims.H === opt.dimensions.H
+                    );
+                    return (
+                      <div
+                        key={opt.id}
+                        className={`p-2.5 rounded-lg border transition-all ${
+                          isApplied
+                            ? 'bg-amber-950/30 border-amber-500/60 shadow-sm shadow-amber-950/50'
+                            : 'bg-slate-950/70 border-slate-800/80 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1 mb-1">
+                          <span className="text-[10px] font-bold text-slate-200">{opt.title}</span>
+                          <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                            opt.efficiencyPercentage >= 85
+                              ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/50'
+                              : 'bg-sky-950/80 text-sky-300 border border-sky-800/50'
+                          }`}>
+                            راندمان {opt.efficiencyPercentage}٪
+                          </span>
+                        </div>
+
+                        <p className="text-[9px] text-slate-400 leading-relaxed mb-2">
+                          {opt.description}
+                        </p>
+
+                        <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/60 text-[9px]">
+                          <div className="font-mono text-slate-300">
+                            {convertMmToUnit(opt.dimensions.L, unit).toFixed(unit === 'inches' ? 2 : 1)} × {convertMmToUnit(opt.dimensions.W, unit).toFixed(unit === 'inches' ? 2 : 1)} × {convertMmToUnit(opt.dimensions.H, unit).toFixed(unit === 'inches' ? 2 : 1)} {unit}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDims({ L: opt.dimensions.L, W: opt.dimensions.W, H: opt.dimensions.H });
+                              if (opt.sheetSize && opt.sheetSize.name !== sheetSize.name) {
+                                setSheetSize(opt.sheetSize);
+                              }
+                              setAppliedOptimizationId(opt.id);
+                              setOptimizationFeedback(`ابعاد بهینه (${opt.dimensions.L}×${opt.dimensions.W}×${opt.dimensions.H} mm) با موفقیت روی قالب اعمال شد.`);
+                              setTimeout(() => setOptimizationFeedback(null), 4000);
+                            }}
+                            className={`px-2 py-1 rounded text-[9px] font-bold flex items-center gap-1 transition-all ${
+                              isApplied
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 border border-amber-500/30'
+                            }`}
+                          >
+                            {isApplied ? (
+                              <>
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>اعمال‌شده</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3 h-3" />
+                                <span>تنظیم خودکار ابعاد</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Extended Flap & Material Parameters in Sidebar */}
               <div className="pt-3 border-t border-slate-800/80 space-y-2.5">
                 <span className="text-[10px] font-bold text-sky-400 block">پارامترهای فرعی و زواید اتصال:</span>
@@ -4447,11 +4617,11 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                     <div className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
                       <span>💡 پیشنهادهای اصلاحی بر اساس استانداردهای ساخت کارتن:</span>
                     </div>
-                    {geometryReport.suggestions.map((sug, idx) => (
+                    {geometryReport.suggestions.map((sug: any, idx: number) => (
                       <div key={idx} className="bg-slate-900/90 border border-amber-500/40 p-2.5 rounded-lg text-[9.5px] space-y-1.5">
-                        <div className="font-bold text-slate-100">{sug.title}</div>
-                        <div className="text-slate-300">{sug.issue}</div>
-                        <div className="text-amber-300 font-mono text-[9px]">{sug.fix}</div>
+                        <div className="font-bold text-slate-100">{typeof sug === 'string' ? sug : sug?.title || sug?.issue || ''}</div>
+                        {typeof sug !== 'string' && sug?.issue && <div className="text-slate-300">{sug.issue}</div>}
+                        {typeof sug !== 'string' && sug?.fix && <div className="text-amber-300 font-mono text-[9px]">{sug.fix}</div>}
                       </div>
                     ))}
                   </div>
@@ -6287,7 +6457,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
               </button>
 
               <button
-                onClick={() => setViewMode('3d')}
+                onClick={handleTrySwitchTo3D}
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
                   viewMode === '3d'
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-black'
@@ -7874,7 +8044,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                       transition={{ duration: 0.3 }}
                     >
                       <button
-                        onClick={() => setViewMode('3d')}
+                        onClick={handleTrySwitchTo3D}
                         className="group relative flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-950/85 backdrop-blur-md border border-slate-800/80 hover:border-indigo-500/80 shadow-lg shadow-black/60 hover:shadow-indigo-500/10 hover:shadow-2xl transition-all cursor-pointer select-none overflow-hidden text-right h-11"
                         title="ورود به فضای سه‌بعدی جعبه"
                         type="button"
@@ -8022,6 +8192,69 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                   
                   {/* ThreeDPreview component mounting container */}
                   <div className="flex-1 w-full bg-[#050608] flex items-center justify-center relative min-h-[300px] lg:min-h-[500px]">
+                    
+                    {/* Physical Material Validation Warning/Error Banner Overlay for 3D View */}
+                    {(!physicalCardboardValidation.isValid || physicalCardboardValidation.warnings.length > 0) && (
+                      <div className="absolute top-4 left-4 right-16 z-30 pointer-events-auto" dir="rtl">
+                        <div className={`p-3 rounded-2xl border backdrop-blur-md shadow-2xl ${
+                          !physicalCardboardValidation.isValid 
+                            ? 'bg-rose-950/90 border-rose-600/80 text-rose-200' 
+                            : 'bg-amber-950/90 border-amber-600/80 text-amber-200'
+                        }`}>
+                          <div className="flex items-start gap-2.5">
+                            {!physicalCardboardValidation.isValid ? (
+                              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5 animate-bounce" />
+                            ) : (
+                              <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <h4 className="text-xs font-black">
+                                  {!physicalCardboardValidation.isValid 
+                                    ? 'خطای عدم انطباق با محدودیت‌های فیزیکی مقوا (تولید غیرممکن است)' 
+                                    : 'توصیه‌های مهندسی مقاومت و خمش مقوا'}
+                                </h4>
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/50 border border-white/10">
+                                  ضخامت: {material.thickness}mm | {material.category}
+                                </span>
+                              </div>
+
+                              {/* Error list */}
+                              {physicalCardboardValidation.errors.length > 0 && (
+                                <ul className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-rose-200 font-sans">
+                                  {physicalCardboardValidation.errors.map((err, i) => (
+                                    <li key={i} className="flex items-start gap-1.5">
+                                      <span className="text-rose-400 font-bold">•</span>
+                                      <span>{err}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+
+                              {/* Warning list */}
+                              {physicalCardboardValidation.warnings.length > 0 && physicalCardboardValidation.errors.length === 0 && (
+                                <ul className="mt-1.5 space-y-1 text-[11px] leading-relaxed text-amber-200 font-sans">
+                                  {physicalCardboardValidation.warnings.map((warn, i) => (
+                                    <li key={i} className="flex items-start gap-1.5">
+                                      <span className="text-amber-400 font-bold">•</span>
+                                      <span>{warn}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+
+                              {/* Detailed physical dimensions badge */}
+                              <div className="mt-2.5 pt-2 border-t border-white/10 flex flex-wrap items-center gap-3 text-[10px]">
+                                <span>ابعاد مفید داخلی: <strong className="font-mono text-white">{physicalCardboardValidation.calculatedInnerDims.L} × {physicalCardboardValidation.calculatedInnerDims.W} × {physicalCardboardValidation.calculatedInnerDims.H} mm</strong></span>
+                                <span>تخمین مقاومت فشاری BCT: <strong className="font-mono text-emerald-300">{physicalCardboardValidation.bctEstimateKg} کیلوگرم</strong></span>
+                                <span>حداقل شیت مورد نیاز: <strong className="font-mono text-sky-300">{physicalCardboardValidation.minSheetRequirementMm.width} × {physicalCardboardValidation.minSheetRequirementMm.height} mm</strong></span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="absolute inset-0 z-10">
                       <ThreeDPreview 
                         width={dims.L}
@@ -9474,6 +9707,107 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             <div className="flex-1 overflow-hidden">
               <PacklyIndustrialDielineStudio onSaveProject={onSaveProject} />
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ADVANCED 3D PREVIEW PHYSICAL VALIDATION MODAL */}
+      <AnimatePresence>
+        {validationBlockModal.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+            dir="rtl"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="w-full max-w-lg bg-slate-900 border border-rose-500/40 rounded-3xl shadow-2xl shadow-rose-950/40 overflow-hidden flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-rose-950/60 via-slate-900 to-slate-900 p-5 border-b border-rose-900/30 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-base text-slate-100">
+                      محدودیت فیزیکی مقوا در رندر سه‌بعدی
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      ابعاد فعلی با مشخصات فیزیکی متریال {material.name} تضاد ساختاری دارد
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setValidationBlockModal(prev => ({ ...prev, isOpen: false }))}
+                  className="p-1.5 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                  سیستم هوشمند CAD اشک قلم جهت جلوگیری از خطای رندر، شکستن وجوه و خرابی در خط تا، مقادیر ورودی را بررسی کرد. پیش از ورود به فضای ۳بعدی، خطاهای زیر را برطرف نمایید:
+                </div>
+
+                {/* Errors List */}
+                <div className="space-y-2">
+                  {validationBlockModal.errors.map((err, idx) => (
+                    <div key={`err-${idx}`} className="p-3.5 rounded-xl bg-rose-950/30 border border-rose-800/40 text-rose-200 text-xs flex items-start gap-2.5">
+                      <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span className="leading-relaxed font-medium">{err}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Warnings List */}
+                {validationBlockModal.warnings.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-slate-800">
+                    <span className="text-[11px] font-bold text-amber-400 block">نکات مهندسی قابل تامل:</span>
+                    {validationBlockModal.warnings.map((warn, idx) => (
+                      <div key={`warn-${idx}`} className="p-3 rounded-xl bg-amber-950/20 border border-amber-800/30 text-amber-200 text-[11px] flex items-start gap-2">
+                        <Info className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                        <span className="leading-relaxed">{warn}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between gap-3">
+                <Button
+                  onClick={() => {
+                    // Auto-fix dimensions to safe minimums
+                    const safeW = Math.max(dims.W, Math.round(material.thickness * 10), 40);
+                    const safeH = Math.max(dims.H, 30);
+                    const safeL = Math.max(dims.L, safeW);
+                    setDims({ L: safeL, W: safeW, H: safeH });
+                    setValidationBlockModal(prev => ({ ...prev, isOpen: false }));
+                    setViewMode('3d');
+                  }}
+                  variant="primary"
+                  className="flex-1 py-2 text-xs font-black bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950"
+                >
+                  <Wrench className="w-3.5 h-3.5" />
+                  <span>اصلاح اتوماتیک ابعاد بر اساس ضخامت ورق و ورود به 3D</span>
+                </Button>
+
+                <Button
+                  onClick={() => setValidationBlockModal(prev => ({ ...prev, isOpen: false }))}
+                  variant="secondary"
+                  className="px-4 py-2 text-xs font-bold"
+                >
+                  ویرایش دستی ابعاد
+                </Button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

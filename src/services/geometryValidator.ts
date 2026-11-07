@@ -1,5 +1,9 @@
 export interface DxfValidationResult {
   valid: boolean;
+  passed?: boolean;
+  score?: number;
+  connectivityScore?: number;
+  openVertices?: any;
   errors: string[];
   warnings: string[];
   entityCount: number;

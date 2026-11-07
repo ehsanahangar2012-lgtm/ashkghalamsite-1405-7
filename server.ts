@@ -13,7 +13,7 @@ async function startServer() {
 
   // API Endpoints
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', version: '3.10.0' });
+    res.json({ status: 'ok', version: '3.13.0' });
   });
 
   app.get('/api/catalogs', (req, res) => {
@@ -64,7 +64,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Ashk Ghalam ERP Server v3.10.0 running on port ${PORT}`);
+    console.log(`Ashk Ghalam ERP Server v3.13.0 running on port ${PORT}`);
   });
 }
 

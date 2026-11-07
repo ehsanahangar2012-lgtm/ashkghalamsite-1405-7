@@ -6,15 +6,39 @@ export interface DielineCalculationResult {
   wastePercentage: number;
   cutLength: number;
   creaseLength: number;
+  glueTab?: number;
+  tuck?: number;
+  dustFlap?: number;
+  isSmallBoxActive?: boolean;
 }
 
-export const calculateDielineParameters = (
-  fefcoCode: string,
-  l: number,
-  w: number,
-  h: number,
-  caliper: number = 3
-): DielineCalculationResult => {
+export function calculateDielineParameters(
+  arg1: any,
+  arg2?: any,
+  arg3?: any,
+  arg4?: any,
+  arg5?: any
+): DielineCalculationResult {
+  let fefcoCode = 'fefco-0201';
+  let l = 200;
+  let w = 150;
+  let h = 100;
+  let caliper = 3;
+
+  if (typeof arg1 === 'number') {
+    l = arg1;
+    w = Number(arg2) || 150;
+    h = Number(arg3) || 100;
+    caliper = Number(arg4) || 3;
+    fefcoCode = String(arg5 || 'fefco-0201');
+  } else {
+    fefcoCode = String(arg1 || 'fefco-0201');
+    l = Number(arg2) || 200;
+    w = Number(arg3) || 150;
+    h = Number(arg4) || 100;
+    caliper = Number(arg5) || 3;
+  }
+
   const totalLength = 2 * (l + w) + 40;
   const totalHeight = h + w;
   const grossArea = (totalLength * totalHeight) / 10000;
@@ -29,8 +53,12 @@ export const calculateDielineParameters = (
     wastePercentage: waste,
     cutLength: Math.round((2 * totalLength + 2 * totalHeight + 4 * w) / 10),
     creaseLength: Math.round((totalLength + 4 * h) / 10),
+    glueTab: Math.max(15, Math.round(caliper * 5)),
+    tuck: Math.max(15, Math.round(w * 0.15)),
+    dustFlap: Math.max(15, Math.round(w * 0.2)),
+    isSmallBoxActive: l < 100 || w < 70,
   };
-};
+}
 
 export interface DielineEngineParams {
   L: number;

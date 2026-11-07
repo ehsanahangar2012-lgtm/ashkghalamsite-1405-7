@@ -104,6 +104,7 @@ export interface Project {
 
 export interface BlogPost {
   id: string;
+  slug?: string;
   title: string;
   excerpt: string;
   content: string; // Markdown or HTML

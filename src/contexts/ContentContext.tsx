@@ -10,6 +10,7 @@ interface GlobalSettings {
   address: string;
   heroBadge?: string;
   heroHeadline?: string;
+  [key: string]: any;
 }
 
 interface ContentContextType {
@@ -18,8 +19,15 @@ interface ContentContextType {
   portfolioItems: MediaItem[];
   blogPosts: BlogPost[];
   catalogItems: MediaItem[];
-  updateSiteContent: (updates: Partial<SiteContent>) => void;
+  updateSiteContent: (arg1: any, arg2?: any) => void;
   updateGlobalSettings: (updates: Partial<GlobalSettings>) => void;
+  seoConfigs?: any;
+  updateSeoConfig?: (key: any, val?: any) => void;
+  assets?: any[];
+  uploadAsset?: (asset: any, onProgress?: (percent: number) => void) => Promise<any>;
+  deleteAsset?: (id: string) => Promise<any>;
+  pricingFormula?: any;
+  [key: string]: any;
 }
 
 const defaultSiteContent: SiteContent = {
@@ -81,7 +89,7 @@ const defaultBlogPosts: BlogPost[] = [
     content: 'کدهای استاندارد ففکو (FEFCO) زبان مشترک طراحان و تولیدکنندگان کارتن در سرتاسر جهان است...',
     date: '۱۴۰۳/۰۹/۱۰',
     author: 'واحد فنی و تحقیق و توسعه اشک قلم',
-    readTime: '۶ دقیقه',
+    readTime: 6,
     tags: ['FEFCO', 'طراحی کارتن', 'دایکات'],
   },
   {
@@ -92,7 +100,7 @@ const defaultBlogPosts: BlogPost[] = [
     content: 'برای اطمینان از چیدمان ستونی کارتن‌ها روی پالت، محاسبه تست BCT حیاتی است...',
     date: '۱۴۰۳/۰۹/۲۰',
     author: 'مهندسی متریال اشک قلم',
-    readTime: '۸ دقیقه',
+    readTime: 8,
     tags: ['BCT', 'تست مقاومت', 'مهندسی بسته بندی'],
   },
 ];
@@ -126,8 +134,12 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .catch(() => {});
   }, []);
 
-  const updateSiteContent = (updates: Partial<SiteContent>) => {
-    setSiteContent(prev => ({ ...prev, ...updates }));
+  const updateSiteContent = (arg1: any, arg2?: any) => {
+    if (typeof arg1 === 'string') {
+      setSiteContent(prev => ({ ...prev, [arg1]: arg2 }));
+    } else if (typeof arg1 === 'object' && arg1 !== null) {
+      setSiteContent(prev => ({ ...prev, ...arg1 }));
+    }
   };
 
   const updateGlobalSettings = (updates: Partial<GlobalSettings>) => {

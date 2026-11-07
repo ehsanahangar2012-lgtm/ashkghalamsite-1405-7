@@ -1,10 +1,13 @@
 import { useState } from 'react';
 
 export interface CadDimensions {
-  length: number;
-  width: number;
-  height: number;
-  thickness: number;
+  length?: number;
+  width?: number;
+  height?: number;
+  thickness?: number;
+  L?: number;
+  W?: number;
+  H?: number;
 }
 
 export const useCadStore = () => {
@@ -14,6 +17,9 @@ export const useCadStore = () => {
     width: 200,
     height: 150,
     thickness: 3,
+    L: 300,
+    W: 200,
+    H: 150,
   });
   const [refTemplateUrl, setRefTemplateUrl] = useState<string | null>(null);
   const [refTemplateOpacity, setRefTemplateOpacity] = useState<number>(0.5);

@@ -60,14 +60,22 @@
       })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>اشک قلم (Ashk Ghalam) - CAD Studio v3.10.0</title>
-    <meta name="description" content="سامانه جامع مهندسی کارتن، بسته‌بندی، محصولات و کاتالوگ هوشمند اشک قلم v3.10.0 با سئو اختصاصی و پیش‌رندرهای صنعتی." />
+    <title>اشک قلم (Ashk Ghalam) - CAD Studio v3.13.0</title>
+    <meta name="description" content="سامانه جامع مهندسی کارتن، بسته‌بندی، محصولات و کاتالوگ هوشمند اشک قلم v3.13.0 با سئو اختصاصی و پیش‌رندرهای صنعتی." />
     <link rel="canonical" href="https://ashkghalam.ir/" />
-    <meta property="og:title" content="اشک قلم (Ashk Ghalam) - CAD Studio v3.10.0" />
-    <meta property="og:description" content="سامانه جامع مهندسی کارتن، بسته‌بندی، محصولات و کاتالوگ هوشمند اشک قلم v3.10.0 با سئو اختصاصی و پیش‌رندرهای صنعتی." />
+    <link rel="manifest" href="/manifest.json" />
+    <meta property="og:title" content="اشک قلم (Ashk Ghalam) - CAD Studio v3.13.0" />
+    <meta property="og:description" content="سامانه جامع مهندسی کارتن، بسته‌بندی، محصولات و کاتالوگ هوشمند اشک قلم v3.13.0 با سئو اختصاصی و پیش‌رندرهای صنعتی." />
     <meta property="og:url" content="https://ashkghalam.ir/" />
     <meta property="og:type" content="website" />
     <meta name="theme-color" content="#f59e0b" />
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').catch(function() {});
+        });
+      }
+    </script>
   </head>
   <body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-amber-500 selection:text-slate-950">
     <div id="root"></div>
