@@ -388,7 +388,13 @@ export const PacklyIndustrialDielineStudio: React.FC<{ onSaveProject?: (project:
                 <p className="mt-1">کنترل تقاطع: برش/برش {geometryAudit.topology.cutCutCrossings} · برش/خط‌تا {geometryAudit.topology.cutCreaseCrossings} · هم‌پوشانی {geometryAudit.topology.overlaps} · اتصال T نیازمند بازبینی {geometryAudit.topology.teeContacts} · خارج از محدوده {geometryAudit.topology.boundsViolations}</p>
                 {geometryAudit.errors.map((message, i) => <p key={`audit-error-${i}`} className="mt-1">• {message}</p>)}
                 {geometryAudit.warnings.map((message, i) => <p key={`audit-warning-${i}`} className="mt-1">• {message}</p>)}
-                {geometryAudit.suggestions.map((message, i) => <p key={`audit-suggestion-${i}`} className="mt-1 text-slate-700">• {message}</p>)}
+                {geometryAudit.suggestions.map((suggestion, i) => (
+                  <div key={`audit-suggestion-${i}`} className="mt-2 rounded-lg bg-slate-50 p-2 text-slate-700">
+                    <strong>{suggestion.title}</strong>
+                    <p>{suggestion.issue}</p>
+                    <p className="text-slate-600">{suggestion.fix}</p>
+                  </div>
+                ))}
                 {(geometryAudit.hasSelfIntersection || geometryAudit.topology.cutCutCrossings > 0 || geometryAudit.topology.cutCreaseCrossings > 0 || geometryAudit.topology.overlaps > 0 || geometryAudit.topology.boundsViolations > 0) && <p className="mt-1 font-bold">به‌دلیل تقاطع، هم‌پوشانی یا خروج از محدودهٔ گسترده، خروجی فایل و ثبت پروژه غیرفعال است.</p>}
               </div></details>}
               {geometryState.error && <div role="alert" className="mb-3 flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800"><XCircle className="mt-0.5 h-5 w-5 shrink-0"/><div><strong>تولید دایلاین متوقف شد.</strong><p className="mt-1 text-xs leading-5">{geometryState.error}</p></div></div>}
