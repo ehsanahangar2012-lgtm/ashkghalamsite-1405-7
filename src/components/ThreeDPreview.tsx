@@ -2,6 +2,10 @@ import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 
 export interface FlapDirections {
+  top?: 'inside' | 'outside';
+  bottom?: 'inside' | 'outside';
+  left?: 'inside' | 'outside';
+  right?: 'inside' | 'outside';
   topFlap?: number;
   bottomFlap?: number;
   leftFlap?: number;
