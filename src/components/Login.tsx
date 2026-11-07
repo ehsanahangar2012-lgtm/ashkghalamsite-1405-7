@@ -2,9 +2,17 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button, Card } from './UIComponents';
 import { Lock, User as UserIcon, LogIn, AlertCircle } from 'lucide-react';
-import { UserRole } from '../types';
+import { AppView, User, UserRole } from '../types';
 
-export const Login: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
+interface LoginProps {
+  onSuccess?: () => void;
+  onBack?: () => void;
+  onLoginSuccess?: (user: User) => void;
+  targetRole?: UserRole;
+  onNavigateView?: (view: AppView) => void;
+}
+
+export const Login: React.FC<LoginProps> = ({ onSuccess, onBack, onLoginSuccess, targetRole, onNavigateView }) => {
   const { login } = useAuth();
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('ashk1403');
@@ -16,9 +24,12 @@ export const Login: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
       setError('نام کاربری را وارد کنید');
       return;
     }
-    const success = login(username, UserRole.ADMIN);
+    const success = login(username, targetRole, onLoginSuccess);
     if (success) {
-      if (onSuccess) onSuccess();
+      onSuccess?.();
+      if (!onLoginSuccess && onNavigateView) {
+        onNavigateView(targetRole === UserRole.ADMIN ? AppView.ADMIN_PANEL : AppView.DASHBOARD);
+      }
     } else {
       setError('اطلاعات ورود نادرست است');
     }
@@ -74,6 +85,11 @@ export const Login: React.FC<{ onSuccess?: () => void }> = ({ onSuccess }) => {
             ورود به سیستم
           </Button>
         </form>
+        {onBack && (
+          <button type="button" onClick={onBack} className="mt-3 w-full text-xs text-slate-400 hover:text-slate-200">
+            بازگشت
+          </button>
+        )}
       </Card>
     </div>
   );
