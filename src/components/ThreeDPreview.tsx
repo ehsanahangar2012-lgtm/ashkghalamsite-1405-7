@@ -55,6 +55,7 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
   showDimensions = true,
   resetTrigger = 0,
   cameraOrbit,
+  textureUrl,
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +121,15 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
     const carton = new THREE.Group();
     scene.add(carton);
     const disposables: { dispose: () => void }[] = [];
+    const surfaceTexture = textureUrl
+      ? new THREE.TextureLoader().load(textureUrl, loaded => {
+          loaded.colorSpace = THREE.SRGBColorSpace;
+          loaded.wrapS = THREE.RepeatWrapping;
+          loaded.wrapT = THREE.RepeatWrapping;
+          loaded.needsUpdate = true;
+        })
+      : null;
+    if (surfaceTexture) disposables.push(surfaceTexture);
 
     const panelMaterial = (tint: string) => {
       const hasGoldFoil = specialEffect === 'gold_foil' || specialEffect === 'both';
@@ -128,6 +138,7 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
         color: hasGoldFoil ? 0xd6ad42 : tint,
         roughness: hasSpotUv ? 0.26 : hasGoldFoil ? 0.24 : paperType === 'kraft' || paperType === 'corrugated' ? 0.92 : 0.82,
         metalness: hasGoldFoil ? 0.72 : 0,
+        map: surfaceTexture,
         side: THREE.DoubleSide,
         wireframe: !!wireframe,
       });
@@ -224,7 +235,7 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
   }, [
     width, height, depth, color, wireframe, autoRotate, isOpenRatio,
     materialThickness, paperType, specialEffect, viewAngle, flapDirections,
-    isExploded, lightIntensity, showDimensions, resetTrigger, cameraOrbit,
+    isExploded, lightIntensity, showDimensions, resetTrigger, cameraOrbit, textureUrl,
   ]);
 
   return (
