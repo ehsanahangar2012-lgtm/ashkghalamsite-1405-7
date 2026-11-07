@@ -51,6 +51,9 @@ export const calculateGangingLayout = (
   const usedRatio = totalSheetArea > 0 ? Math.min(1, usedArea / totalSheetArea) : 0;
 
   return {
+    sheetId: selectedSheetId,
+    sheetWidth: sheetW,
+    sheetHeight: sheetH,
     placedItems,
     unplacedItems,
     usedAreaPercentage: usedRatio,
