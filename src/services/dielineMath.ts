@@ -12,6 +12,7 @@ export interface DielineCalculationResult {
   glueTab: number;
   tuck: number;
   dustFlap: number;
+  isSmallBoxActive?: boolean;
 }
 
 /**
