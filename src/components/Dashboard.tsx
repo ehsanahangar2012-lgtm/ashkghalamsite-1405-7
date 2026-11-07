@@ -7,7 +7,7 @@ import { FileText, Clock, CheckCircle, Package, Download, Upload, Coins, Trendin
 import { SeoStudio, ContentManager, MediaManager } from './AdminTools';
 import { useAuth } from '../contexts/AuthContext';
 import { useContent } from '../contexts/ContentContext';
-import { usePersianNumberInput } from '../hooks/usePersianNumberInput';
+
 import { NumericFormatInput } from './NumericFormatInput';
 
 interface DashboardProps {
@@ -67,7 +67,7 @@ const OrderTimeline = ({ status }: { status: string }) => {
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, activeRole, projects = [] }) => {
-  const { login } = useAuth();
+  const { updateUser } = useAuth();
   const { uploadAsset } = useContent();
   const isAdmin = activeRole === UserRole.ADMIN;
   const [adminTab, setAdminTab] = useState<'overview' | 'seo' | 'cms' | 'media'>('overview');
@@ -97,7 +97,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, activeRole, projects
       const asset = await uploadAsset(file);
       if (asset) {
         // Update user context with new avatar
-        login({ ...user, avatar: asset.data });
+        updateUser({ avatar: asset.data });
       }
     }
   };
