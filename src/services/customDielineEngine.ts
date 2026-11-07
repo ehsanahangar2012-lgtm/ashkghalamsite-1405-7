@@ -423,7 +423,21 @@ export const scaleCustomDieline = (
   });
   const minX=xs.length?Math.min(...xs):0, maxX=xs.length?Math.max(...xs):Math.max(100,Number(_l)||100);
   const minY=ys.length?Math.min(...ys):0, maxY=ys.length?Math.max(...ys):Math.max(100,Number(_h)||100);
-  return { cuts, creases, totalW: Math.max(1,maxX-minX), totalH: Math.max(1,maxY-minY), xMin:minX, yMin:minY, xMax:maxX, yMax:maxY };
+  return {
+    cuts,
+    creases,
+    labels: [{
+      x: (minX + maxX) / 2,
+      y: maxY + 22,
+      text: 'DXF واردشده: مقیاس و مختصات منبع حفظ شده‌اند؛ تغییر L/W/H این الگو را مقیاس‌بندی نمی‌کند',
+    }],
+    totalW: Math.max(1, maxX - minX),
+    totalH: Math.max(1, maxY - minY),
+    xMin: minX,
+    yMin: minY,
+    xMax: maxX,
+    yMax: maxY,
+  };
 };
 
 export const analyzeTopology = (entities: any[], dims?: { L: number; W: number; H: number }) => {
