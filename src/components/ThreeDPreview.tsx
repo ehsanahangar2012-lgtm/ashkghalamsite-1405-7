@@ -90,14 +90,16 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
     };
     const selectedCamera = cameraPresets[viewAngle] || cameraPresets.perspective;
     camera.position.set(...selectedCamera);
-    camera.lookAt(0, 0, 0);
+    let hasCameraOrbit = false;
     if (cameraOrbit && typeof cameraOrbit === 'object') {
       const orbit = cameraOrbit as { x?: number; y?: number; z?: number };
       if ([orbit.x, orbit.y, orbit.z].every(value => typeof value === 'number' && Number.isFinite(value))) {
         camera.position.set(orbit.x as number, orbit.y as number, orbit.z as number);
-        camera.lookAt(0, 0, 0);
+        hasCameraOrbit = true;
       }
     }
+    if (viewAngle === 'top' && !hasCameraOrbit) camera.up.set(0, 0, -1);
+    camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setSize(viewportWidth, viewportHeight);
