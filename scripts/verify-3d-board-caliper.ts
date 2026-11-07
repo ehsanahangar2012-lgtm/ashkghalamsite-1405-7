@@ -17,9 +17,9 @@ for (const [physical, expected] of cases) {
   }
 }
 
-if (resolveScaledBoardThickness(0) !== 0.36) {
+if (Math.abs(resolveScaledBoardThickness(0) - 0.36) > 1e-9) {
   fail('invalid material thickness must use the 0.45 mm safe default');
 }
-if (resolveScaledBoardThickness(1.5, Number.NaN) !== 1.2) {
+if (Math.abs(resolveScaledBoardThickness(1.5, Number.NaN) - 1.2) > 1e-9) {
   fail('invalid geometry scale must use the 0.8 safe default');
 }
