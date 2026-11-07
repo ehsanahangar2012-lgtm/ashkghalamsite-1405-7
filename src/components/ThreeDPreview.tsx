@@ -25,6 +25,16 @@ export interface ThreeDPreviewProps {
   customEntities?: any[];
   customAnchors?: any[];
   textureUrl?: string;
+  paperType?: string;
+  materialThickness?: number;
+  cameraOrbit?: unknown;
+  resetTrigger?: number;
+  viewAngle?: 'front' | 'top' | 'side' | 'perspective';
+  isExploded?: boolean;
+  flapDirections?: FlapDirections;
+  hasDieCut?: boolean;
+  lightIntensity?: number;
+  showDimensions?: boolean;
 }
 
 export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
