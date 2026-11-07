@@ -146,7 +146,7 @@ export interface ComprehensiveGeometryReport {
   score: number;
   errors: string[];
   warnings: string[];
-  suggestions: string[];
+  suggestions: Array<{ title: string; issue: string; fix: string }>; 
   cutLength: number;
   creaseLength: number;
   isClosedLoop: boolean;
@@ -163,7 +163,7 @@ export const runComprehensiveGeometryCheck = (
   tuck=20, dustFlap=15, totalW=500, totalH=300, sheetW=1000, sheetH=700, glueTab=35,
   geometryBounds?: DielineGeometryBounds
 ):ComprehensiveGeometryReport=>{
-  const errors:string[]=[],warnings:string[]=[],suggestions:string[]=[];
+  const errors:string[]=[],warnings:string[]=[],suggestions:Array<{title:string;issue:string;fix:string}>=[];
   const allPaths=[...(Array.isArray(cuts)?cuts:[]),...(Array.isArray(creases)?creases:[])];
   const segments:Segment[]=[];
   let malformedCount=0, zeroLengthCount=0;
@@ -186,7 +186,7 @@ export const runComprehensiveGeometryCheck = (
     errors.push('ابعاد محصول، نقشه یا ورق دارای مقدار نامعتبر هستند.');
   if(totalW>sheetW)errors.push(`عرض کل نقشه (${Math.round(totalW)}mm) از عرض ورق (${sheetW}mm) بیشتر است.`);
   if(totalH>sheetH)errors.push(`ارتفاع کل نقشه (${Math.round(totalH)}mm) از ارتفاع ورق (${sheetH}mm) بیشتر است.`);
-  if(glueTab<15){warnings.push(`عرض لبه چسب (${Math.round(glueTab)}mm) کم است؛ مقدار نهایی را با استاندارد محصول و ماشین بررسی کنید.`);suggestions.push('عرض لبه چسب را بر اساس قالب و دستگاه واقعی تعیین کنید.');}
+  if(glueTab<15){const issue=`عرض لبه چسب (${Math.round(glueTab)}mm) کم است؛ مقدار نهایی را با استاندارد محصول و ماشین بررسی کنید.`;warnings.push(issue);suggestions.push({title:'اصلاح لبه چسب',issue,fix:'عرض لبه چسب را بر اساس قالب و دستگاه واقعی تعیین کنید.'});}
   let dustFlapCollision=false,tuckCollision=false;
   if(dustFlap>w*0.48){warnings.push('عرض زبانه گردگیر نسبت به عرض محصول زیاد است؛ احتمال تداخل را در حالت مونتاژ بررسی کنید.');dustFlapCollision=true;}
   if(tuck>h*0.6){warnings.push('عمق زبانه درب نسبت به ارتفاع محصول زیاد است؛ قفل‌شدن را در حالت مونتاژ بررسی کنید.');tuckCollision=true;}
@@ -268,7 +268,7 @@ export const runComprehensiveGeometryCheck = (
   if (cutCreaseCrossings) errors.push(cutCreaseCrossings + ' عبور نامعتبر بین خط‌برش و خط‌تا یافت شد.');
   if (overlaps) errors.push(overlaps + ' هم‌پوشانی خطی بین مسیرهای برش/خط‌تا یافت شد؛ ممکن است برش یا خط‌تا دوباره اجرا شود. نمونه‌ها: ' + topologyDetails.filter(detail => detail.includes('هم‌پوشانی')).join('؛ '));
   if (teeContacts) warnings.push(teeContacts + ' اتصال T بین قطعات برش دیده شد؛ نقاطی که شیار به فلپ کوتاه می‌رسد ممکن است عمدی باشد و نیاز به بازبینی تصویری دارد.');
-  if (topologyDetails.length) suggestions.push('نمونه‌های برخورد: ' + topologyDetails.join('؛ '));
+  if (topologyDetails.length) suggestions.push({title:'بازبینی تداخل مسیرها',issue:'نمونه‌های برخورد: ' + topologyDetails.join('؛ '),fix:'مسیرهای برش و خط‌تا را در پیش‌نمایش دوبعدی جداگانه بررسی و نقاط برخورد را اصلاح کنید.'});
 
   if (geometryBounds) {
     const b = geometryBounds;
