@@ -70,11 +70,12 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
     const d = Math.max(10, Number.isFinite(depth) ? depth : 100) * 0.8;
     const scale = Math.max(w, h, d, 100);
     const open = THREE.MathUtils.clamp(Number.isFinite(isOpenRatio) ? isOpenRatio : 0, 0, 1);
-    const board = Math.max(
-      Number.isFinite(materialThickness) ? Math.max(0, materialThickness) * 0.8 : 0,
-      scale * 0.006,
-      0.7
-    );
+    const physicalThickness = Number.isFinite(materialThickness) && materialThickness > 0
+      ? materialThickness
+      : 0.45;
+    // Geometry dimensions are scaled by 0.8 above; board caliper must use the same scale.
+    // Do not inflate thin boards based on the carton height or overall model size.
+    const board = Math.max(0.08, physicalThickness * 0.8);
     const explodeOffset = isExploded ? scale * 0.08 : 0;
     const safeLightIntensity = THREE.MathUtils.clamp(Number.isFinite(lightIntensity) ? lightIntensity : 1, 0.25, 2.5);
     const foldSign = (side: keyof FlapDirections, defaultSign: number) =>
