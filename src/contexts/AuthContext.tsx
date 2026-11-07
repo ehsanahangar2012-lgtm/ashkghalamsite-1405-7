@@ -6,6 +6,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (username: string, role?: UserRole, onSuccess?: (user: User) => void) => boolean;
   updateUser: (updates: Partial<User>) => void;
+  hasPermission: (permission?: string) => boolean;
   logout: () => void;
 }
 
@@ -14,6 +15,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   login: () => false,
   updateUser: () => {},
+  hasPermission: () => false,
   logout: () => {},
 });
 
@@ -59,6 +61,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const hasPermission = (_permission?: string) => user?.role === UserRole.ADMIN;
+
   const logout = () => {
     setUser(null);
     try {
@@ -67,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, updateUser, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, login, updateUser, hasPermission, logout }}>
       {children}
     </AuthContext.Provider>
   );
