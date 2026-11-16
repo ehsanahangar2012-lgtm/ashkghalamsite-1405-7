@@ -16,8 +16,10 @@ export const Blog: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedShare, setCopiedShare] = useState(false);
 
+  const publishedPosts = blogPosts.filter((p) => p.status !== 'draft' && p.status !== 'rejected');
+
   // If a slug param is present in URL, find the matching post
-  const activePost = slug ? findBySlugOrId(blogPosts, slug) : null;
+  const activePost = slug ? findBySlugOrId(publishedPosts, slug) : null;
 
   // If slug was specified in URL but no matching post exists, render 404
   if (slug && !activePost) {
@@ -26,8 +28,16 @@ export const Blog: React.FC = () => {
 
   // Single post view (when route is /blog/:slug)
   if (activePost) {
-    const postSlug = activePost.id || toSlug(activePost.title);
+    const postSlug = activePost.slug || activePost.id || toSlug(activePost.title);
     const canonical = `/blog/${postSlug}`;
+    const articleSchema = activePost.seo?.jsonLd || {
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      headline: activePost.title,
+      description: activePost.excerpt || activePost.title,
+      author: { '@type': 'Organization', name: activePost.author || 'اشک قلم' },
+      mainEntityOfPage: `https://ashkghalam.ir${canonical}`,
+    };
 
     const handleShare = () => {
       if (typeof window !== 'undefined') {
@@ -43,9 +53,13 @@ export const Blog: React.FC = () => {
         <SeoHead 
           view={AppView.BLOG}
           canonicalPath={canonical}
-          customTitle={`${activePost.title} | مجله تخصصی اشک قلم`}
-          customDescription={activePost.excerpt || activePost.title}
+          customTitle={activePost.seo?.metaTitle || `${activePost.title} | مجله تخصصی اشک قلم`}
+          customDescription={activePost.seo?.metaDescription || activePost.excerpt || activePost.title}
           noIndex={false}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
         />
 
         {/* Breadcrumb / Back button */}
@@ -124,7 +138,7 @@ export const Blog: React.FC = () => {
   }
 
   // Blog archive list view (when route is /blog)
-  const filteredPosts = blogPosts.filter(post => 
+  const filteredPosts = publishedPosts.filter(post => 
     post.title.includes(searchQuery) || 
     post.content.includes(searchQuery) ||
     post.tags.some(tag => tag.includes(searchQuery))

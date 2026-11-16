@@ -62,12 +62,16 @@ export interface PortalItemConfig {
 export interface EmergencyBannerConfig {
   enabled: boolean;
   message: string;
-  targetView: 'ALL' | AppView;
+  targetView?: 'ALL' | AppView;
   linkText?: string;
   linkUrl?: string;
   urgency?: 'critical' | 'warning' | 'info';
   dismissible?: boolean;
+  backgroundColor?: string;
+  viewOnly?: string;
 }
+
+export type EmergencyConfig = EmergencyBannerConfig;
 
 export interface Order {
   id: string;
@@ -113,6 +117,24 @@ export interface BlogPost {
   imageUrl?: string;
   tags: string[];
   readTime: number; // minutes
+  status?: 'draft' | 'published' | 'rejected';
+  source?: 'ai-auto' | 'manual-web-llm' | 'admin';
+  seo?: {
+    metaTitle?: string;
+    metaDescription?: string;
+    focusKeyword?: string;
+    canonicalPath?: string;
+    jsonLd?: Record<string, unknown>;
+  };
+  qualityReport?: {
+    score: number;
+    wordCount: number;
+    maxContentSimilarity?: number;
+    maxTitleSimilarity?: number;
+    passed: boolean;
+    notes?: string[];
+    providerUsed?: string;
+  };
 }
 
 export interface DielineConfig {
@@ -281,6 +303,8 @@ export interface PricingFormulaConfig {
   defaultMachine: MachineConfig;
   standardSheets: SheetStandard[]; // Available raw sheet sizes (100x70, 60x90, etc.)
 }
+
+export type PricingFormula = PricingFormulaConfig;
 
 // New Types for Ganging / Mixed Layout
 export interface ImpositionItemInput {

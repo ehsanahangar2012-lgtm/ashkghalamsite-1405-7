@@ -3,26 +3,32 @@ import { HelpCircle, X, CheckCircle, Lightbulb } from 'lucide-react';
 
 export interface SmartHelpButtonProps {
   sectionTitle?: string;
+  title?: string;
   sectionKey?: string;
   description?: string;
   tips?: string[];
+  steps?: string[];
   className?: string;
 }
 
 export const SmartHelpButton: React.FC<SmartHelpButtonProps> = ({
-  sectionTitle = 'راهنمای هوشمند',
+  sectionTitle,
+  title,
   description,
   tips = [],
+  steps = [],
   className = '',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const resolvedTitle = sectionTitle || title || 'راهنمای هوشمند';
+  const resolvedTips = tips.length > 0 ? tips : steps;
 
   return (
     <>
       <button
         onClick={() => setIsOpen(true)}
         className={`inline-flex items-center justify-center transition-all cursor-pointer ${className || 'w-8 h-8 rounded-xl bg-slate-800 text-amber-400 hover:bg-slate-700'}`}
-        title={`راهنمای ${sectionTitle}`}
+        title={`راهنمای ${resolvedTitle}`}
       >
         <HelpCircle className="w-4 h-4" />
       </button>
@@ -35,7 +41,7 @@ export const SmartHelpButton: React.FC<SmartHelpButtonProps> = ({
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
                   <Lightbulb className="w-5 h-5" />
                 </div>
-                <h3 className="text-base font-black text-slate-100">{sectionTitle}</h3>
+                <h3 className="text-base font-black text-slate-100">{resolvedTitle}</h3>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
@@ -51,10 +57,10 @@ export const SmartHelpButton: React.FC<SmartHelpButtonProps> = ({
               </p>
             )}
 
-            {tips.length > 0 && (
+            {resolvedTips.length > 0 && (
               <div className="space-y-2 mb-6">
                 <span className="text-[11px] font-bold text-amber-400">نکات و ترفندهای کاربردی:</span>
-                {tips.map((tip, idx) => (
+                {resolvedTips.map((tip, idx) => (
                   <div key={idx} className="flex items-start gap-2 text-xs text-slate-400">
                     <CheckCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
                     <span className="leading-relaxed">{tip}</span>

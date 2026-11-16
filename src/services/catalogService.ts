@@ -1,3 +1,11 @@
+export interface CatalogSpecs {
+  standardCode?: string;
+  boardOptions?: string;
+  finishOptions?: string;
+  applications?: string;
+  sheetHint?: string;
+}
+
 export interface CatalogItem {
   id: string | number;
   uuid?: string;
@@ -9,6 +17,7 @@ export interface CatalogItem {
   pdfUrl?: string;
   pageCount?: number;
   pages?: string[];
+  specs?: CatalogSpecs;
   isPublished: boolean;
   createdAt?: string;
   updatedAt?: string;

@@ -11,13 +11,13 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/assets/aistudio/box-icon-192.png",
+      "src": "/assets/aistudio/image_28ec7871.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/assets/aistudio/box-icon-512.png",
+      "src": "/assets/aistudio/image_5dbff7ac.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

@@ -1173,12 +1173,29 @@ export const ContentManager = () => {
                   <Button 
                     size="sm"
                     disabled={isSubmitting}
-                    onClick={() => {
+                    onClick={async () => {
                       setIsSubmitting(true);
-                      setTimeout(() => {
+                      setSubmittedMessage('');
+                      try {
+                        await fetch('/api/settings', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ seoRobotsBots: allowedBots }),
+                        });
+                        const res = await fetch('/api/seo/ping', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ allowedBots }),
+                        });
+                        const data = await res.json();
+                        setSubmittedMessage(
+                          `✅ نقشه سایت (${data.urlCount || 0} آدرس) و robots.txt به‌روزرسانی شد. ${data?.notify?.indexNow?.message || ''}`
+                        );
+                      } catch {
+                        setSubmittedMessage('⚠️ خطا در ارتباط با سرور هنگام به‌روزرسانی نقشه سایت.');
+                      } finally {
                         setIsSubmitting(false);
-                        setSubmittedMessage("✅ نقشه سایت (sitemap.xml) و تنظیمات خزنده‌های هوش مصنوعی با موفقیت به Google Search API و Bing IndexNow ارسال شدند!");
-                      }, 1500);
+                      }
                     }}
                     className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
                   >

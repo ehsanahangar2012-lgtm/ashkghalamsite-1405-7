@@ -1,85 +1,82 @@
-import { GoogleGenAI } from '@google/genai';
-
-// Initialize Gemini Client
-const getClient = () => {
-  const apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
-                 (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GEMINI_API_KEY) || '';
-  return new GoogleGenAI({ apiKey });
-};
+/**
+ * Client-side AI service adapter.
+ * All LLM SDK calls are executed server-side (/api/ai/*) with offline/deterministic fallbacks.
+ */
 
 export async function analyzeDesignStyle(title: string): Promise<{ tags: string[]; suggestion: string }> {
   try {
-    const ai = getClient();
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `شما یک مهندس ارشد صنایع بسته‌بندی کارتن و جعبه هستید. برای عنوان محصول زیر:
-"${title}"
-یک تحلیل فنی مختصر (حداکثر دو جمله به زبان فارسی تخصصی) درباره ساختار بهینه، مقاومت مقوا و تیغ‌زنی ارائه دهید و ۳ تا ۵ تگ تخصصی (مثل #فلوت_E، #دایکات_روتاری، #کرافت_سنگین) برگردانید.
-خروجی به صورت JSON با ساختار:
-{
-  "suggestion": "متن توضیح",
-  "tags": ["تگ۱", "تگ۲"]
-}`,
-      config: {
-        responseMimeType: 'application/json',
-      }
+    const res = await fetch('/api/ai/analyze-design', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title }),
     });
-
-    if (response.text) {
-      const parsed = JSON.parse(response.text);
-      return {
-        suggestion: parsed.suggestion || 'طراحی متناسب با خطوط تولید جعبه و استانداردهای بسته‌بندی صنعتی.',
-        tags: parsed.tags || ['مهندسی_کارتن', 'دایکات', 'صنایع_چاپ']
-      };
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.suggestion && Array.isArray(data?.tags)) {
+        return data;
+      }
     }
   } catch (err) {
-    console.warn('Gemini AI fallback used:', err);
+    console.warn('Server AI design analysis fallback used:', err);
   }
 
   return {
     suggestion: 'ساختار مقاوم و طراحی استاندارد متناسب با خطوط چاپ افست و بسته‌بندی صادراتی.',
-    tags: ['فلوت_B', 'دایکات_صنعتی', 'چاپ_افست', 'FEFCO']
+    tags: ['فلوت_B', 'دایکات_صنعتی', 'چاپ_افست', 'FEFCO'],
   };
 }
 
 export async function generateSupportResponse(userPrompt: string): Promise<string> {
   try {
-    const ai = getClient();
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `شما مشاور فنی و مهندسی صنایع کارتن و چاپ «اشک قلم» هستید. با لحنی حرفه‌ای، محترمانه و دقیق به کاربر پاسخ دهید:
-سوال مشتری: ${userPrompt}`,
+    const res = await fetch('/api/ai/support', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: userPrompt }),
     });
-    return response.text || 'کارشناسان ما به زودی با شما تماس خواهند گرفت.';
-  } catch {
-    return 'همکاران ما در بخش مهندسی دایکات و تیغ‌زنی اشک قلم در ساعات اداری آماده پاسخگویی به استعلام شما هستند.';
-  }
-}
-
-export async function generateBlogContent(topic: string): Promise<{ title: string; content: string; excerpt: string }> {
-  try {
-    const ai = getClient();
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `یک مقاله تخصصی جامع و دقیق درباره موضوع "${topic}" برای وبلاگ مهندسی کارتن و بسته‌بندی بنویسید.
-خروجی به صورت JSON با فیلدهای title، content، excerpt باشد.`,
-      config: { responseMimeType: 'application/json' }
-    });
-    if (response.text) {
-      return JSON.parse(response.text);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.reply) return data.reply;
     }
   } catch {}
+
+  return 'همکاران ما در بخش مهندسی دایکات و تیغ‌زنی اشک قلم در ساعات اداری آماده پاسخگویی به استعلام شما هستند.';
+}
+
+export async function generateBlogContent(
+  topic: string
+): Promise<{ title: string; content: string; excerpt: string; tags?: string[]; slug?: string; status?: string }> {
+  try {
+    const res = await fetch('/api/ai/generate-post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.post) {
+        return data.post;
+      }
+    }
+  } catch {}
+
   return {
     title: topic,
     content: 'مقاله در دست تدوین توسط واحد تحقیق و توسعه صنایع چاپ اشک قلم.',
-    excerpt: `بررسی تخصصی ${topic} در خطوط تولید کارتن.`
+    excerpt: `بررسی تخصصی ${topic} در خطوط تولید کارتن.`,
+    tags: ['مهندسی کارتن', 'دایکات'],
   };
 }
 
 export async function suggestTrendingTopic(): Promise<string> {
-  return 'استانداردهای نوین بسته‌بندی زیست‌تخریب‌پذیر و چاپ بدون حلال';
+  const topics = [
+    'استانداردهای نوین بسته‌بندی زیست‌تخریب‌پذیر و چاپ بدون حلال',
+    'محاسبه بهینه چیدمان دایلاین روی شیت ۷۰×۱۰۰ برای کاهش پرت مقوا',
+    'مقایسه فنی فلوت E و B در طراحی کارتن‌های پستی تجارت الکترونیک',
+    'تأثیر رطوبت انبار بر ضریب مقاومت فشاری BCT در کارتن‌های ۵ لایه صادراتی',
+  ];
+  return topics[Math.floor(Math.random() * topics.length)];
 }
 
-export async function generateAIPattern(specs: string): Promise<string> {
+export async function generateAIPattern(_specs: string): Promise<string> {
   return 'الگوی بهینه مهندسی بر اساس نسبت ابعادی کارتن ایجاد شد.';
 }

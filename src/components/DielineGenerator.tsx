@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, Badge } from './UIComponents';
-import { ThreeDPreview, FlapDirections } from './ThreeDPreview';
+import { ThreeDPreview, FlapDirections, InnerBoardStyle, StudioEnvPreset } from './ThreeDPreview';
+import { PACKAGING_SURFACE_PRESETS, SurfacePresetId } from './three/packagingTextures';
 import { Project } from '../types';
 import { 
   Download, Check, Rotate3d, Layers, LogOut, Pin, ArrowRight,
@@ -33,6 +34,8 @@ import { Dieline3DParameters } from '../services/realtimeCalculationEngine';
 import { DimensionAccuracyEvaluator } from './DimensionAccuracyEvaluator';
 import { AccuracyIssueSuggestion, DimensionAccuracyInput } from '../services/dimensionAccuracyService';
 import { PacklyIndustrialDielineStudio } from './PacklyIndustrialDielineStudio';
+import { buildAutoCadDxfString, buildCff2String, flattenSvgPathToSegments } from '../utils/dielineExport';
+import { calculateGangingLayout } from '../services/impositionService';
 
 
 // =========================================================================
@@ -564,7 +567,43 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [isProofMode, setIsProofMode] = useState(false);
   const [material, setMaterial] = useState<PackagingMaterial>(MATERIAL_PRESETS[1]); // Inderboard-300
+  const [surfacePreset, setSurfacePreset] = useState<SurfacePresetId>('glossy_coated');
+  const [customTintColor, setCustomTintColor] = useState<string | null>(null);
+  const [innerBoardStyle, setInnerBoardStyle] = useState<InnerBoardStyle>('auto');
+  const [textureScale, setTextureScale] = useState<number>(1.0);
+  const [grainIntensity, setGrainIntensity] = useState<number>(1.0);
+  const [studioEnvPreset, setStudioEnvPreset] = useState<StudioEnvPreset>('dark_studio');
+  const [is3DMaterialPanelCollapsed, setIs3DMaterialPanelCollapsed] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
   const [specialEffect, setSpecialEffect] = useState<'none' | 'gold_foil' | 'uv_spot' | 'both'>('none');
+
+  const activeSurfacePresetObj = useMemo(
+    () => PACKAGING_SURFACE_PRESETS.find((p) => p.id === surfacePreset) || PACKAGING_SURFACE_PRESETS[0],
+    [surfacePreset]
+  );
+
+  const handleSelectSurfacePreset = (presetId: SurfacePresetId) => {
+    setSurfacePreset(presetId);
+    const presetObj = PACKAGING_SURFACE_PRESETS.find((p) => p.id === presetId);
+    if (presetObj) {
+      setCustomTintColor(presetObj.defaultColor);
+      if (presetObj.linkedMaterialId) {
+        const linked = MATERIAL_PRESETS.find((m) => m.id === presetObj.linkedMaterialId);
+        if (linked) setMaterial(linked);
+      }
+    }
+  };
+
+  const handleSelectPhysicalMaterial = (m: PackagingMaterial) => {
+    setMaterial(m);
+    setCustomTintColor(null);
+    if (m.id === 'corrugated-b' || m.id === 'corrugated-eb') setSurfacePreset('corrugated_b');
+    else if (m.category === 'Corrugated') setSurfacePreset('corrugated_e');
+    else if (m.category === 'Kraft') setSurfacePreset('kraft_natural');
+    else if (m.id === 'sbs-400') setSurfacePreset('matte_laminated');
+    else setSurfacePreset('glossy_coated');
+  };
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [showQuickView3D, setShowQuickView3D] = useState(false);
   const [foldRatio, setFoldRatio] = useState(0.85);
@@ -750,7 +789,9 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     setOpenPanels(prev => ({ ...prev, [key]: !prev[key] }));
   };
   const [showTelemetry, setShowTelemetry] = useState(false);
-  const [is3DControlsCollapsed, setIs3DControlsCollapsed] = useState(false);
+  const [is3DControlsCollapsed, setIs3DControlsCollapsed] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  );
 
   useEffect(() => {
     const handleResize = () => {
@@ -948,6 +989,23 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanActive, setIsPanActive] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const touchGestureRef = useRef<{
+    mode: 'none' | 'pan' | 'pinch';
+    startX: number;
+    startY: number;
+    originPanX: number;
+    originPanY: number;
+    startDist: number;
+    originZoom: number;
+  }>({
+    mode: 'none',
+    startX: 0,
+    startY: 0,
+    originPanX: 0,
+    originPanY: 0,
+    startDist: 0,
+    originZoom: 1,
+  });
   const [svgCursor, setSvgCursor] = useState<{ x: number, y: number } | null>(null);
   const [cameraOrbit, setCameraOrbit] = useState(false);
   const [textureUrl, setTextureUrl] = useState<string | null>(null);
@@ -1080,6 +1138,62 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   };
 
   const handleMouseUp = () => {
+    setIsPanActive(false);
+  };
+
+  // Mobile single-finger pan & two-finger pinch-to-zoom for 2D CAD canvas
+  const handleTouchStartCanvas = (e: React.TouchEvent) => {
+    if ((e.target as HTMLElement).closest('button, input, select, textarea, [role="button"], a, nav, svg .interactive-dim')) {
+      return;
+    }
+    if (e.touches.length === 1) {
+      const t = e.touches[0];
+      setIsPanActive(true);
+      touchGestureRef.current = {
+        mode: 'pan',
+        startX: t.clientX,
+        startY: t.clientY,
+        originPanX: pan.x,
+        originPanY: pan.y,
+        startDist: 0,
+        originZoom: zoomScale,
+      };
+    } else if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      touchGestureRef.current = {
+        mode: 'pinch',
+        startX: (t1.clientX + t2.clientX) / 2,
+        startY: (t1.clientY + t2.clientY) / 2,
+        originPanX: pan.x,
+        originPanY: pan.y,
+        startDist: dist || 1,
+        originZoom: zoomScale,
+      };
+    }
+  };
+
+  const handleTouchMoveCanvas = (e: React.TouchEvent) => {
+    const state = touchGestureRef.current;
+    if (state.mode === 'pan' && e.touches.length === 1) {
+      const t = e.touches[0];
+      setPan({
+        x: state.originPanX + (t.clientX - state.startX),
+        y: state.originPanY + (t.clientY - state.startY),
+      });
+    } else if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const scaleFactor = dist / (state.startDist || 1);
+      const nextZoom = Math.min(4.5, Math.max(0.25, state.originZoom * scaleFactor));
+      setZoomScale(nextZoom);
+    }
+  };
+
+  const handleTouchEndCanvas = () => {
+    touchGestureRef.current.mode = 'none';
     setIsPanActive(false);
   };
 
@@ -1874,6 +1988,9 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
         return {
           cuts: snappedCuts,
           creases: snappedCreases,
+          glues: (scaled as any).glues || [],
+          bleeds: (scaled as any).bleeds || [],
+          perforations: (scaled as any).perforations || [],
           labels: [
             ...(scaled.labels || []),
             { x: totalWVal / 2, y: totalHVal - 12, text: `الگوی استاندارد (اورراید شده با DXF): ${activeOverride.name}` }
@@ -1887,7 +2004,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
           glueTab: 15,
           tuck: 15,
           dustFlap: 15,
-          isSmallBoxActive: false
+          isSmallBoxActive: false,
+          compensated
         };
     }
 
@@ -1914,6 +2032,9 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                 return {
                   cuts: snappedCuts,
                   creases: snappedCreases,
+                  glues: (scaled as any).glues || [],
+                  bleeds: (scaled as any).bleeds || [],
+                  perforations: (scaled as any).perforations || [],
                   labels: [
                     ...(scaled.labels || []),
                     { x: totalWVal / 2, y: totalHVal - 12, text: `الگوی سفارشی: ${tpl.name}` }
@@ -1927,7 +2048,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                   glueTab: 15,
                   tuck: 15,
                   dustFlap: 15,
-                  isSmallBoxActive: false
+                  isSmallBoxActive: false,
+                  compensated
                 };
             } else if (tpl.baseModelId) {
                 // Duplicate of standard template with customized dimensions
@@ -2019,7 +2141,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     // Viewport canvas scale offsets
     const x0 = 80; 
 
-    const cacheKey = `${id}_${effL.toFixed(3)}_${effW.toFixed(3)}_${effH.toFixed(3)}_${glueTab.toFixed(3)}_${tuck.toFixed(3)}_${dustFlap.toFixed(3)}_${snapLockVariant}_${material.thickness}_${autoLockAngle}_${autoLockGlueWidth}`;
+    const cacheKey = `${id}_${effL.toFixed(3)}_${effW.toFixed(3)}_${effH.toFixed(3)}_${glueTab.toFixed(3)}_${tuck.toFixed(3)}_${dustFlap.toFixed(3)}_${snapLockVariant}_${material.thickness}_${autoLockAngle}_${autoLockGlueWidth}_${bleedOffset}`;
     
     let result: any;
     if (dielineMathCache.has(cacheKey)) {
@@ -2042,12 +2164,17 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
           variant: snapLockVariant,
           thickness: material.thickness,
           autoLockAngle,
-          autoLockGlueWidth
+          autoLockGlueWidth,
+          bleedMm: bleedOffset,
+          includePerforations: true
         });
       } else {
         result = {
           cuts: [],
           creases: [],
+          glues: [],
+          bleeds: [],
+          perforations: [],
           labels: [],
           xMin: 0,
           yMin: 0,
@@ -2084,6 +2211,11 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       debugVals: { effL, effW, effH },
       cuts: snappedCuts,
       creases: snappedCreases,
+      glues: result.glues || [],
+      bleeds: result.bleeds || [],
+      perforations: result.perforations || [],
+      metrics: result.metrics,
+      compensated,
       labels: finalLabels,
       totalW: Math.max(100, totalW),
       totalH: Math.max(100, totalH),
@@ -2097,7 +2229,22 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
       isSmallBoxActive: !!params.isSmallBoxActive
     };
 
-  }, [dims, selectedModel, material, calibrationState, calibrationTrigger, customTemplates]);
+  }, [
+    dims,
+    selectedModel,
+    material,
+    calibrationState,
+    calibrationTrigger,
+    customTemplates,
+    paramOverrides,
+    snapLockVariant,
+    useStandardMathEngine,
+    diecutTolerance,
+    creaseCompensation,
+    autoLockAngle,
+    autoLockGlueWidth,
+    bleedOffset
+  ]);
 
   // Extract key CAD vertices (corner flaps, locking tab notches, crease ends) for magnetic snap-to-grid
   const keyDielineVertices = useMemo(() => {
@@ -2200,55 +2347,41 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   // =========================================================================
 
   const nestingResult = useMemo(() => {
-    // Machine specs and Sheet size
     const sheetW = sheetSize.width;
     const sheetH = sheetSize.height;
-    
-    // Scale items slightly with safety margins/gaps
-    const gap = nestingGap;
-    const itemW = dieline.totalW + gap;
-    const itemH = dieline.totalH + gap;
+    const allowInterlock = nestingMode === 'ai' || nestingMode === 'max_efficiency';
+    const layout = calculateGangingLayout(
+      [
+        {
+          id: selectedModel.id,
+          name: selectedModel.code,
+          w: dieline.totalW,
+          h: dieline.totalH,
+          netArea: (dieline as any).metrics?.netBlankAreaSqCm
+            ? (dieline as any).metrics.netBlankAreaSqCm * 100
+            : dieline.totalW * dieline.totalH * 0.85,
+          allowInterlock,
+        },
+      ],
+      sheetSize.name,
+      { gripperMargin: 10, trimMargin: 5, bladeKerf: nestingGap },
+      STANDARD_SHEET_SIZES.map((s) => ({ ...s, id: s.name }))
+    );
 
-    // Standard imposition (parallel)
-    const fitXNormal = Math.floor(sheetW / itemW);
-    const fitYNormal = Math.floor(sheetH / itemH);
-    const countNormal = fitXNormal * fitYNormal;
-
-    // Nested (rotated) imposition
-    const fitXRotated = Math.floor(sheetW / itemH);
-    const fitYRotated = Math.floor(sheetH / itemW);
-    const countRotated = fitXRotated * fitYRotated;
-
-    // Nesting algorithm selection
-    let bestCount = Math.max(countNormal, countRotated);
-    let rotationNeeded = countRotated > countNormal;
-
-    // AI Nesting Mode boosts up yield with interlaced nesting layout if enabled
-    if (nestingMode === 'ai' || nestingMode === 'max_efficiency') {
-      // simulate complex nested interlocking (Boosts layout efficiency by 15-20%)
-      const interlockingFactor = 1.15;
-      const interlockingCount = Math.floor(bestCount * interlockingFactor);
-      if (interlockingCount > bestCount) {
-        bestCount = interlockingCount;
-      }
-    }
-
-    if (bestCount === 0) bestCount = 1; // Safely draw at least one template
-
-    const itemArea = dieline.totalW * dieline.totalH;
-    const sheetArea = sheetW * sheetH;
-    const efficiencyPercentage = Math.round(((bestCount * itemArea) / sheetArea) * 100);
-    const wastePercentage = 100 - efficiencyPercentage;
+    const bestCount = Math.max(1, layout.yieldCount);
+    const efficiencyPercentage = Math.round(layout.usedAreaPercentage * 100);
+    const wastePercentage = Math.max(2, 100 - efficiencyPercentage);
 
     return {
       yieldCount: bestCount,
-      rotated: rotationNeeded,
+      rotated: layout.orientation === 'rotated_90',
+      interlocked: layout.interlocked,
       efficiency: Math.min(98, efficiencyPercentage),
-      waste: Math.max(2, wastePercentage),
-      sheetAreaSqCm: Math.round(sheetArea / 100),
+      waste: wastePercentage,
+      sheetAreaSqCm: Math.round((sheetW * sheetH) / 100),
+      layout,
     };
-
-  }, [dieline, sheetSize, nestingMode, nestingGap]);
+  }, [dieline, sheetSize, nestingMode, nestingGap, selectedModel]);
 
   // =========================================================================
   // 5. TECHNICAL INDUSTRIAL COST ENGINE
@@ -2799,41 +2932,24 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
         doc.restoreGraphicsState();
       }
 
-      // Helper to draw vector paths to PDF without coordinate cropping
+      // Helper to draw vector paths (including Q, C, A curves) smoothly to PDF
       const drawPathsToPDF = (paths: string[], rgbColor: [number, number, number], width: number, isCrease: boolean) => {
         doc.setDrawColor(rgbColor[0], rgbColor[1], rgbColor[2]);
         doc.setLineWidth(width);
-        
+        if (isCrease) {
+          doc.setLineDashPattern([2, 1.5], 0);
+        } else {
+          doc.setLineDashPattern([], 0);
+        }
+
         paths.forEach(pathStr => {
-          const parts = pathStr.split(/(?=[MLZ])/);
-          let startX = 0, startY = 0;
-          let subStartX = 0, subStartY = 0;
-          
-          parts.forEach(part => {
-            const type = part[0];
-            const nums = part.substring(1).trim().split(/[\s,]+/).map(parseFloat);
-            if (nums.length >= 2) {
-              const px = (nums[0] - dieline.xMin) * scale + margin;
-              const py = (nums[1] - dieline.yMin) * scale + headerH + margin;
-              
-              if (type === 'M') {
-                startX = px;
-                startY = py;
-                subStartX = px;
-                subStartY = py;
-              } else if (type === 'L') {
-                if (isCrease) {
-                  doc.setLineDashPattern([2, 1.5], 0);
-                } else {
-                  doc.setLineDashPattern([], 0);
-                }
-                doc.line(startX, startY, px, py);
-                startX = px;
-                startY = py;
-              } else if (type === 'Z') {
-                doc.line(startX, startY, subStartX, subStartY);
-              }
-            }
+          const segs = flattenSvgPathToSegments(pathStr);
+          segs.forEach(s => {
+            const px1 = (s.x1 - dieline.xMin) * scale + margin;
+            const py1 = (s.y1 - dieline.yMin) * scale + headerH + margin;
+            const px2 = (s.x2 - dieline.xMin) * scale + margin;
+            const py2 = (s.y2 - dieline.yMin) * scale + headerH + margin;
+            doc.line(px1, py1, px2, py2);
           });
         });
       };
@@ -2905,53 +3021,11 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
 
 
   const handleExportDXF = () => {
-    let dxf = "  0\nSECTION\n  2\nENTITIES\n";
-    
-    const appendPath = (pathStr: string, layer: string, color: number) => {
-      // Very basic SVG path to DXF LINE parser. Handles M, L, Z. Ignores arcs/curves for simplicity or converts to simple line.
-      const cmds = pathStr.split(/(?=[MLAZ])/).map(s => s.trim()).filter(Boolean);
-      let cx = 0, cy = 0;
-      let startX = 0, startY = 0;
-      
-      for (const cmd of cmds) {
-        const type = cmd[0];
-        const args = cmd.substring(1).trim().replace(/,/g, ' ').split(/\s+/).map(Number);
-        
-        if (type === 'M') {
-          cx = args[0]; cy = args[1];
-          startX = cx; startY = cy;
-        } else if (type === 'L') {
-          const nx = args[0], ny = args[1];
-          dxf += `  0\nLINE\n  8\n${layer}\n 62\n${color}\n 10\n${cx.toFixed(3)}\n 20\n${-cy.toFixed(3)}\n 30\n0.0\n 11\n${nx.toFixed(3)}\n 21\n${-ny.toFixed(3)}\n 31\n0.0\n`;
-          cx = nx; cy = ny;
-        } else if (type === 'Z') {
-          dxf += `  0\nLINE\n  8\n${layer}\n 62\n${color}\n 10\n${cx.toFixed(3)}\n 20\n${-cy.toFixed(3)}\n 30\n0.0\n 11\n${startX.toFixed(3)}\n 21\n${-startY.toFixed(3)}\n 31\n0.0\n`;
-          cx = startX; cy = startY;
-        } else if (type === 'A') {
-          // Arc approximation by a straight line for now
-          const nx = args[5], ny = args[6];
-          if(!isNaN(nx) && !isNaN(ny)) {
-             dxf += `  0\nLINE\n  8\n${layer}\n 62\n${color}\n 10\n${cx.toFixed(3)}\n 20\n${-cy.toFixed(3)}\n 30\n0.0\n 11\n${nx.toFixed(3)}\n 21\n${-ny.toFixed(3)}\n 31\n0.0\n`;
-             cx = nx; cy = ny;
-          }
-        }
-      }
-    };
+    const dxf = buildAutoCadDxfString(dieline, {
+      includeDimensions: showDimensions,
+      bleedOffset,
+    });
 
-    dieline.cuts.forEach(path => appendPath(path, "CUT", 1)); // 1 = Red
-    dieline.creases.forEach(path => appendPath(path, "CREASE", 3)); // 3 = Green
-    if ((dieline as any).glues) (dieline as any).glues.forEach((path: string) => appendPath(path, "GLUE", 4)); // 4 = Cyan
-
-    if (showDimensions && dieline.labels && dieline.labels.length > 0) {
-      dieline.labels.forEach((lbl: any) => {
-        if (lbl.x !== undefined && lbl.y !== undefined && lbl.text) {
-          dxf += `  0\nTEXT\n  8\nDIMENSIONS\n 62\n5\n 10\n${lbl.x.toFixed(3)}\n 20\n${-lbl.y.toFixed(3)}\n 30\n0.0\n 40\n3.0\n  1\n${lbl.text}\n`;
-        }
-      });
-    }
-    
-    dxf += "  0\nENDSEC\n  0\nEOF\n";
-    
     const blob = new Blob([dxf], { type: 'application/dxf' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -2961,8 +3035,34 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    
-    showCustomAlert('خروجی موفق DXF', 'نقشه با موفقیت برای دستگاه قالب‌سازی و لیزر صادر شد.', 'success');
+
+    showCustomAlert(
+      'خروجی صنعتی DXF صادر شد',
+      'فایل AutoCAD DXF با جدول کامل لایه‌های مجزا (CUT, CREASE, PERFORATION, GLUE, BLEED, DIMENSIONS) و انحناهای دقیق برای دستگاه لیزر قالب‌سازی آماده است.',
+      'success'
+    );
+  };
+
+  const handleExportCF2 = () => {
+    const cf2 = buildCff2String(
+      dieline,
+      `${selectedModel.code}_${dims.L}x${dims.W}x${dims.H}`
+    );
+    const blob = new Blob([cf2], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `AshkGhalam_Die_${selectedModel.code}_${dims.L}x${dims.W}x${dims.H}.cf2`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showCustomAlert(
+      'خروجی استاندارد CFF2 (.cf2) صادر شد',
+      'فایل CFF2 مخصوص دستگاه‌های برش قالب، پلاترهای Kongsberg / Zünd و میز برش نمونه با تفکیک کد تیغ‌های ۱ (برش)، ۲ (خط تا) و ۳ (پرفراژ) دانلود شد.',
+      'success'
+    );
   };
 
   interface AssemblyStep {
@@ -3392,7 +3492,16 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
 
   <g id="BleedLayer">
     <rect x="${dieline.xMin - bleedOffset}" y="${dieline.yMin - bleedOffset}" width="${dieline.totalW + (bleedOffset * 2)}" height="${dieline.totalH + (bleedOffset * 2)}" class="bleed-line" />
+    ${((dieline as any).bleeds || []).map((p: string) => `<path d="${p}" class="bleed-line" />`).join('\n    ')}
     <text x="${dieline.xMin - bleedOffset + 2}" y="${dieline.yMin - bleedOffset - 2}" font-family="sans-serif" font-size="2.5" fill="#94a3b8">محدوده بلید و حاشیه امن (${bleedOffset} میلی‌متر)</text>
+  </g>
+
+  <g id="GlueLayer" stroke="#10b981" stroke-width="0.35" fill="rgba(16,185,129,0.12)">
+    ${((dieline as any).glues || []).map((p: string) => `<path d="${p}" />`).join('\n    ')}
+  </g>
+
+  <g id="PerforationLayer" stroke="#f97316" stroke-width="0.4" stroke-dasharray="2,1.5" fill="none">
+    ${((dieline as any).perforations || []).map((p: string) => `<path d="${p}" />`).join('\n    ')}
   </g>
 
   <g id="CreaseLayer">
@@ -4433,7 +4542,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                 {MATERIAL_PRESETS.map(m => (
                   <button 
                     key={m.id} 
-                    onClick={() => setMaterial(m)}
+                    onClick={() => handleSelectPhysicalMaterial(m)}
                     className={`w-full text-right px-3 py-2 text-[10px] rounded-lg border transition-all flex justify-between items-center ${material.id === m.id ? 'bg-indigo-950/40 border-sky-600 text-sky-400 font-black' : 'bg-[#070a0e]/40 border-slate-850 text-slate-400 hover:bg-[#161b22]/20'}`}
                     type="button"
                   >
@@ -5480,6 +5589,16 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             <span className="hidden md:inline">دانلود DXF (لیزر)</span>
           </button>
 
+          {/* Download CFF2 button */}
+          <button 
+            onClick={handleExportCF2} 
+            className="bg-amber-600 hover:bg-amber-500 text-white font-black text-[9.5px] md:text-[10px] px-2.5 py-1.5 md:py-2 rounded-lg flex items-center gap-1 md:gap-1.5 transition-all shadow border-none cursor-pointer"
+            title="دانلود فایل صنعتی CFF2 (.cf2) مخصوص پلاتر و دستگاه قالب‌سازی"
+          >
+            <Download className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden lg:inline">دانلود CFF2</span>
+          </button>
+
           {/* Download PDF button */}
           <button 
             onClick={handleExportPDF} 
@@ -6488,18 +6607,18 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                 type="button"
                 title="باز کردن استودیو صنعتی دایلاین Packly"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
+                <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span>استودیو صنعتی Packly</span>
               </button>
             </div>
 
             {/* Group 2: Quick CAD Action Tools */}
             {viewMode === '2d' && (
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto no-scrollbar max-w-full">
                 {/* Direct Toggle Dimensions Panel */}
                 <button
                   onClick={() => setShowFloatingDims(!showFloatingDims)}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border cursor-pointer ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border cursor-pointer whitespace-nowrap shrink-0 ${
                     showFloatingDims 
                       ? 'bg-sky-600 text-white border-sky-400 shadow-sm font-black' 
                       : 'bg-slate-900/90 text-sky-300 border-sky-900/60 hover:bg-slate-800'
@@ -6507,14 +6626,14 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                   type="button"
                   title="نمایش / مخفی‌سازی پنجره ابعاد اصلی"
                 >
-                  <RulerIcon className="w-3.5 h-3.5 text-sky-300" />
-                  <span>ابعاد اصلی (L,W,H)</span>
+                  <RulerIcon className="w-3.5 h-3.5 text-sky-300 shrink-0" />
+                  <span>ابعاد اصلی <span className="hidden sm:inline">(L,W,H)</span></span>
                 </button>
 
                 {/* Direct Toggle Pattern Selection Panel */}
                 <button
                   onClick={() => setShowFloatingPatterns(!showFloatingPatterns)}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border cursor-pointer ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border cursor-pointer whitespace-nowrap shrink-0 ${
                     showFloatingPatterns 
                       ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm font-black' 
                       : 'bg-slate-900/90 text-indigo-300 border-indigo-900/60 hover:bg-slate-800'
@@ -6522,7 +6641,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                   type="button"
                   title="نمایش / مخفی‌سازی پنجره انتخاب نوع الگو"
                 >
-                  <Shapes className="w-3.5 h-3.5 text-indigo-300" />
+                  <Shapes className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
                   <span>انتخاب الگو</span>
                 </button>
 
@@ -6651,10 +6770,10 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             <div className="flex items-center gap-2">
               {/* Zoom Bar */}
               {viewMode === '2d' && (
-                <div className="flex items-center gap-1 bg-[#03060c] px-2 py-1 rounded-xl border border-slate-800/90">
+                <div className="flex items-center gap-1 bg-[#03060c] px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-xl border border-slate-800/90">
                   <button
                     onClick={() => setZoomScale(prev => Math.max(0.2, prev - 0.15))}
-                    className="text-slate-400 hover:text-white px-1.5 py-0.5 rounded text-xs font-bold font-mono cursor-pointer"
+                    className="text-slate-300 hover:text-white min-w-[32px] min-h-[32px] sm:min-w-0 sm:min-h-0 px-1.5 py-0.5 rounded-lg hover:bg-slate-800 text-xs font-bold font-mono cursor-pointer flex items-center justify-center"
                     type="button"
                     title="کاهش بزرگنمایی"
                   >
@@ -6665,16 +6784,16 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                   </span>
                   <button
                     onClick={() => setZoomScale(prev => Math.min(5.0, prev + 0.15))}
-                    className="text-slate-400 hover:text-white px-1.5 py-0.5 rounded text-xs font-bold font-mono cursor-pointer"
+                    className="text-slate-300 hover:text-white min-w-[32px] min-h-[32px] sm:min-w-0 sm:min-h-0 px-1.5 py-0.5 rounded-lg hover:bg-slate-800 text-xs font-bold font-mono cursor-pointer flex items-center justify-center"
                     type="button"
                     title="افزایش بزرگنمایی"
                   >
                     +
                   </button>
-                  <div className="w-px h-3.5 bg-slate-800 mx-1" />
+                  <div className="w-px h-3.5 bg-slate-800 mx-0.5 sm:mx-1" />
                   <button 
                     onClick={handleAutoFitDieline}
-                    className="text-[10px] text-slate-300 hover:text-white font-bold transition-all cursor-pointer bg-slate-800/80 hover:bg-slate-700 px-2 py-0.5 rounded-lg border-none"
+                    className="text-[10px] text-slate-300 hover:text-white font-bold transition-all cursor-pointer bg-slate-800/80 hover:bg-slate-700 px-2 py-1 sm:py-0.5 rounded-lg border-none"
                     type="button"
                     title="انطباق خودکار بوم"
                   >
@@ -6761,15 +6880,20 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
               <div 
                 id="print-area"
                 ref={cadContainerRef}
-                className="flex-1 w-full flex flex-col items-center justify-start p-4 md:p-6 overflow-hidden custom-scrollbar-none relative transition-all duration-300 print:bg-white"
+                className="flex-1 w-full flex flex-col items-center justify-start p-3 md:p-6 overflow-hidden custom-scrollbar-none relative transition-all duration-300 print:bg-white pb-16 lg:pb-6"
                 style={{ 
                   backgroundColor: themeStyle.bg,
-                  cursor: isPanActive ? 'grabbing' : 'grab'
+                  cursor: isPanActive ? 'grabbing' : 'grab',
+                  touchAction: 'none',
                 }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
+                onTouchStart={handleTouchStartCanvas}
+                onTouchMove={handleTouchMoveCanvas}
+                onTouchEnd={handleTouchEndCanvas}
+                onTouchCancel={handleTouchEndCanvas}
               >
               
               <CanvasRulers 
@@ -7022,43 +7146,9 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                     {(() => {
                       const sw = sheetSize.width;
                       const sh = sheetSize.height;
-                      
                       const itemW = dieline.totalW;
                       const itemH = dieline.totalH;
-                      
-                      const overlapOffset = layoutAlgorithm === 'nested_optimized' ? 0.92 : 1.0;
-                      const gap = nestingGap;
-                      
-                      // Arrangement grid layout
-                      let cols = Math.floor(sw / (itemW + gap));
-                      let rows = Math.floor(sh / (itemH + gap));
-                      if (cols === 0) cols = 1;
-                      if (rows === 0) rows = 1;
-                      
-                      const colsRot = Math.floor(sw / (itemH + gap));
-                      const rowsRot = Math.floor(sh / (itemW + gap));
-                      const useRotation = (colsRot * rowsRot) > (cols * rows);
-                      
-                      const finalCols = useRotation ? colsRot : cols;
-                      const finalRows = useRotation ? rowsRot : rows;
-                      
-                      const countToRender = nestingResult.yieldCount;
-                      const gridItems: { tx: number, ty: number, rotate: boolean, index: number }[] = [];
-                      
-                      for (let i = 0; i < countToRender; i++) {
-                        const r = Math.floor(i / finalCols);
-                        const c = i % finalCols;
-                        
-                        let tx = c * (useRotation ? itemH + gap : itemW + gap) * overlapOffset + 25;
-                        let ty = r * (useRotation ? itemW + gap : itemH + gap) * overlapOffset + 25;
-                        
-                        // Alternate offset for interlocking simulation!
-                        if (layoutAlgorithm === 'nested_optimized' && r % 2 === 1) {
-                          tx += (useRotation ? itemH + gap : itemW + gap) * 0.12;
-                        }
-                        
-                        gridItems.push({ tx, ty, rotate: useRotation, index: i });
-                      }
+                      const placed = (nestingResult as any).layout?.placedItems || [];
 
                       return (
                         <svg 
@@ -7079,11 +7169,11 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                                 <path 
                                   key={`scr-${index}`} 
                                   d={pathStr} 
-                                  stroke="#dc2626" 
+                                  stroke="#16a34a" 
                                   strokeWidth="1.0" 
                                   strokeDasharray="2,2" 
                                   fill="none" 
-                                  opacity="0.7" 
+                                  opacity="0.75" 
                                 />
                               ))}
                               {/* Draw Cuts */}
@@ -7110,6 +7200,26 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                             strokeWidth="3" 
                             rx="4" 
                           />
+
+                          {/* Press Gripper Margin Zone (10mm) */}
+                          <rect
+                            x="20"
+                            y="20"
+                            width={sw}
+                            height="10"
+                            fill="rgba(245, 158, 11, 0.22)"
+                          />
+                          <text
+                            x={sw / 2 + 20}
+                            y="27"
+                            fontSize="7"
+                            fontWeight="bold"
+                            fill="#b45309"
+                            textAnchor="middle"
+                            className="font-sans"
+                          >
+                            حاشیه پنجه ماشین چاپ (10mm Gripper)
+                          </text>
 
                           {/* Sheet Imposition Watermark */}
                           <g opacity="0.04" className="pointer-events-none select-none">
@@ -7140,33 +7250,42 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                           <line x1="20" y1="20" x2={sw + 20} y2={sh + 20} stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="5,5" />
                           <line x1="20" y1={sh + 20} x2={sw + 20} y2="20" stroke="#e2e8f0" strokeWidth="0.5" strokeDasharray="5,5" />
 
-                          {/* Grid items rendering */}
-                          {gridItems.map((item) => {
-                            const transformStr = `translate(${item.tx}, ${item.ty})` + 
-                              (item.rotate ? ` rotate(90) translate(0, -${itemH})` : '');
-                            
+                          {/* Grid items rendering powered by impositionService */}
+                          {placed.map((item: any, idx: number) => {
+                            const angle = item.angle || (item.rotated ? 90 : 0);
+                            const gx = 20 + item.x;
+                            const gy = 20 + item.y;
+                            let innerTransform = `translate(${-dieline.xMin}, ${-dieline.yMin})`;
+                            if (angle === 90) {
+                              innerTransform = `rotate(90) translate(${-dieline.xMin}, ${-dieline.yMin - itemH})`;
+                            } else if (angle === 180) {
+                              innerTransform = `rotate(180) translate(${-dieline.xMin - itemW}, ${-dieline.yMin - itemH})`;
+                            } else if (angle === 270) {
+                              innerTransform = `rotate(270) translate(${-dieline.xMin - itemW}, ${-dieline.yMin})`;
+                            }
+
                             return (
-                              <g key={`sh-item-${item.index}`} transform={transformStr}>
+                              <g key={`sh-item-${idx}`} transform={`translate(${gx}, ${gy})`}>
                                 <rect 
                                   x="0" 
                                   y="0" 
-                                  width={itemW} 
-                                  height={itemH} 
-                                  fill="#cbd5e1" 
+                                  width={item.w} 
+                                  height={item.h} 
+                                  fill={angle === 180 || angle === 270 ? '#10b981' : '#cbd5e1'} 
                                   fillOpacity="0.12" 
                                   stroke="#94a3b8" 
                                   strokeWidth="0.5" 
                                   strokeDasharray="2,3" 
-                                  rx="2"
+                                  rx="2" 
                                 />
-                                <g transform={`translate(${-dieline.xMin}, ${-dieline.yMin})`}>
+                                <g transform={innerTransform}>
                                   <use href="#sheet-single-element-di" />
                                 </g>
                                 
-                                <g transform={`translate(${itemW / 2}, ${itemH / 2})`}>
-                                  <circle r="9" fill="#1e293b" stroke="#334155" strokeWidth="1" />
-                                  <text y="3" textAnchor="middle" fill="#38bdf8" fontSize="8" fontWeight="bold" className="font-mono">
-                                    {item.index + 1}
+                                <g transform={`translate(${item.w / 2}, ${item.h / 2})`}>
+                                  <circle r="10" fill="#1e293b" stroke="#334155" strokeWidth="1" />
+                                  <text y="3" textAnchor="middle" fill="#38bdf8" fontSize="7.5" fontWeight="bold" className="font-mono">
+                                    {idx + 1}
                                   </text>
                                 </g>
                               </g>
@@ -7528,57 +7647,60 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                             </g>
                           </g>
                         )}
-                        {showDimensions && isDimensionsVisible && dieline.labels.map((l, index) => (
-                          <g id={`cad-dim-badge-group-${index}`} key={`lb-${index}`}>
-                            {l.lineW && (
-                              <line 
-                                x1={l.x - l.lineW / 2 + 6} 
-                                y1={l.y} 
-                                x2={l.x + l.lineW / 2 - 6} 
-                                y2={l.y} 
-                                stroke="#eab308" 
-                                strokeWidth="0.4" 
-                                markerStart="url(#cad-arrow-start-yellow)"
-                                markerEnd="url(#cad-arrow-end-yellow)"
+                        {showDimensions && isDimensionsVisible && dieline.labels.map((l, index) => {
+                          const badgeW = Math.max(24, String(l.text || '').length * 4.2 + 8);
+                          return (
+                            <g id={`cad-dim-badge-group-${index}`} key={`lb-${index}`}>
+                              {l.lineW && (
+                                <line 
+                                  x1={l.x - l.lineW / 2 + 6} 
+                                  y1={l.y} 
+                                  x2={l.x + l.lineW / 2 - 6} 
+                                  y2={l.y} 
+                                  stroke="#eab308" 
+                                  strokeWidth="0.4" 
+                                  markerStart="url(#cad-arrow-start-yellow)"
+                                  markerEnd="url(#cad-arrow-end-yellow)"
+                                />
+                              )}
+                              {l.lineH && (
+                                <line 
+                                  x1={l.x} 
+                                  y1={l.y - l.lineH / 2 + 6} 
+                                  x2={l.x} 
+                                  y2={l.y + l.lineH / 2 - 6} 
+                                  stroke="#eab308" 
+                                  strokeWidth="0.4" 
+                                  markerStart="url(#cad-arrow-start-yellow)"
+                                  markerEnd="url(#cad-arrow-end-yellow)"
+                                />
+                              )}
+                              <rect 
+                                id={`cad-dim-badge-bg-${index}`}
+                                x={l.x - badgeW / 2} 
+                                y={l.y - 5.5} 
+                                width={badgeW} 
+                                height="11" 
+                                fill={themeStyle.labelBg} 
+                                rx="2.5" 
+                                stroke={themeStyle.labelBorder} 
+                                strokeWidth="0.6" 
                               />
-                            )}
-                            {l.lineH && (
-                              <line 
-                                x1={l.x} 
-                                y1={l.y - l.lineH / 2 + 6} 
-                                x2={l.x} 
-                                y2={l.y + l.lineH / 2 - 6} 
-                                stroke="#eab308" 
-                                strokeWidth="0.4" 
-                                markerStart="url(#cad-arrow-start-yellow)"
-                                markerEnd="url(#cad-arrow-end-yellow)"
-                              />
-                            )}
-                            <rect 
-                              id={`cad-dim-badge-bg-${index}`}
-                              x={l.x - 11} 
-                              y={l.y - 5.5} 
-                              width="22" 
-                              height="11" 
-                              fill={themeStyle.labelBg} 
-                              rx="2.5" 
-                              stroke={themeStyle.labelBorder} 
-                              strokeWidth="0.6" 
-                            />
-                            <text 
-                              id={`cad-dim-badge-text-${index}`}
-                              x={l.x} 
-                              y={l.y + 2.5} 
-                              fontSize="6.5" 
-                              fontWeight="bold" 
-                              fill={themeStyle.labelText} 
-                              textAnchor="middle" 
-                              className="select-none font-mono"
-                            >
-                              {l.text}
-                            </text>
-                          </g>
-                        ))}
+                              <text 
+                                id={`cad-dim-badge-text-${index}`}
+                                x={l.x} 
+                                y={l.y + 2.5} 
+                                fontSize="6" 
+                                fontWeight="bold" 
+                                fill={themeStyle.labelText} 
+                                textAnchor="middle" 
+                                className="select-none font-mono"
+                              >
+                                {l.text}
+                              </text>
+                            </g>
+                          );
+                        })}
 
                          {/* Native CAD Arrow Dimensions Group */}
                         {showDimensions && (
@@ -8012,7 +8134,13 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                           width={dims.L}
                           height={dims.H}
                           depth={dims.W}
-                          color={material.color || '#e2cfb6'}
+                          color={customTintColor || activeSurfacePresetObj.defaultColor || material.color || '#e2cfb6'}
+                          surfacePreset={surfacePreset}
+                          innerBoardStyle={innerBoardStyle}
+                          textureScale={textureScale}
+                          grainIntensity={grainIntensity}
+                          studioEnvPreset={studioEnvPreset}
+                          textureUrl={textureUrl}
                           specialEffect={specialEffect}
                           isOpenRatio={foldRatio}
                           wireframe={wireframe}
@@ -8038,14 +8166,14 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                   {/* Floating Interactive Smart 3D Button - placed at the bottom-left of the viewport container */}
                   {viewMode === '2d' && (
                     <motion.div 
-                      className="absolute bottom-4 left-4 z-40"
+                      className="absolute bottom-16 lg:bottom-4 left-3 sm:left-4 z-40"
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ duration: 0.3 }}
                     >
                       <button
                         onClick={handleTrySwitchTo3D}
-                        className="group relative flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-950/85 backdrop-blur-md border border-slate-800/80 hover:border-indigo-500/80 shadow-lg shadow-black/60 hover:shadow-indigo-500/10 hover:shadow-2xl transition-all cursor-pointer select-none overflow-hidden text-right h-11"
+                        className="group relative flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-slate-950/90 backdrop-blur-md border border-slate-800/80 hover:border-indigo-500/80 shadow-lg shadow-black/60 hover:shadow-indigo-500/10 hover:shadow-2xl transition-all cursor-pointer select-none overflow-hidden text-right min-h-[44px]"
                         title="ورود به فضای سه‌بعدی جعبه"
                         type="button"
                       >
@@ -8086,7 +8214,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                             نمای ۳بعدی پویا
                           </span>
                           <span className="text-[8px] text-slate-400 font-bold mt-0.5 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             فعال‌سازی ماژول تاشو
                           </span>
                         </div>
@@ -8095,7 +8223,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                   )}
 
                   {/* Specs validation banner overlays inside viewport */}
-                  <div className="absolute bottom-4 right-4 flex items-center gap-2">
+                  <div className="hidden sm:flex absolute bottom-4 right-4 items-center gap-2">
                     <Badge color="green" className="font-mono text-[8px] font-black uppercase">دقیق و استاندارد</Badge>
                     <Badge color="blue" className="font-mono text-[8px] font-black uppercase">بهینه‌سازی شده برای تولید</Badge>
                   </div>
@@ -8195,11 +8323,11 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                     
                     {/* Physical Material Validation Warning/Error Banner Overlay for 3D View */}
                     {(!physicalCardboardValidation.isValid || physicalCardboardValidation.warnings.length > 0) && (
-                      <div className="absolute top-4 left-4 right-16 z-30 pointer-events-auto" dir="rtl">
-                        <div className={`p-3 rounded-2xl border backdrop-blur-md shadow-2xl ${
+                      <div className="absolute top-2 left-2 right-14 sm:top-4 sm:left-4 sm:right-16 z-30 pointer-events-auto" dir="rtl">
+                        <div className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl border shadow-2xl ${
                           !physicalCardboardValidation.isValid 
-                            ? 'bg-rose-950/90 border-rose-600/80 text-rose-200' 
-                            : 'bg-amber-950/90 border-amber-600/80 text-amber-200'
+                            ? 'bg-rose-950/95 border-rose-600/80 text-rose-200' 
+                            : 'bg-amber-950/95 border-amber-600/80 text-amber-200'
                         }`}>
                           <div className="flex items-start gap-2.5">
                             {!physicalCardboardValidation.isValid ? (
@@ -8260,8 +8388,13 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                         width={dims.L}
                         height={dims.H}
                         depth={dims.W}
-                        color={material.color || '#e2cfb6'}
+                        color={customTintColor || activeSurfacePresetObj.defaultColor || material.color || '#e2cfb6'}
                         paperType={material.id.includes('corrugated') ? 'corrugated' : material.id.includes('kraft') ? 'kraft' : 'coated'}
+                        surfacePreset={surfacePreset}
+                        innerBoardStyle={innerBoardStyle}
+                        textureScale={textureScale}
+                        grainIntensity={grainIntensity}
+                        studioEnvPreset={studioEnvPreset}
                         isOpenRatio={foldRatio}
                         textureUrl={textureUrl}
                         specialEffect={specialEffect}
@@ -8292,156 +8425,353 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
 
 
                     {/* Unified 3D Toolbox (Right side) */}
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-2 bg-[#0c1015]/90 backdrop-blur-md p-2 rounded-2xl border border-slate-700/80 shadow-2xl" dir="rtl">
+                    <div className="absolute right-2 md:right-4 top-3 md:top-1/2 md:-translate-y-1/2 z-20 flex flex-col gap-1.5 md:gap-2 bg-[#0c1015]/95 p-1.5 md:p-2 rounded-xl md:rounded-2xl border border-slate-700/80 shadow-2xl" dir="rtl">
                       {/* Camera Angles */}
-                      <div className="flex flex-col gap-1.5 pb-2 border-b border-slate-700/50">
-                        <span className="text-[8.5px] font-black text-slate-400 text-center select-none tracking-wider font-sans uppercase">زاویه دید</span>
-                        <button onClick={() => setViewAngle('perspective')} className={`p-2 rounded-xl transition-all border ${viewAngle === 'perspective' ? 'bg-indigo-600 border-indigo-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="پرسپکتیو"><Rotate3d className="w-4 h-4 mx-auto" /></button>
-                        <button onClick={() => setViewAngle('front')} className={`p-2 rounded-xl transition-all border ${viewAngle === 'front' ? 'bg-indigo-600 border-indigo-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="روبرو"><Box className="w-4 h-4 mx-auto" /></button>
-                        <button onClick={() => setViewAngle('top')} className={`p-2 rounded-xl transition-all border ${viewAngle === 'top' ? 'bg-indigo-600 border-indigo-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="بالا"><ArrowDownToLine className="w-4 h-4 mx-auto" /></button>
-                        <button onClick={() => setViewAngle('side')} className={`p-2 rounded-xl transition-all border ${viewAngle === 'side' ? 'bg-indigo-600 border-indigo-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="بغل"><Layers3 className="w-4 h-4 mx-auto" /></button>
+                      <div className="flex flex-col gap-1 md:gap-1.5 pb-1.5 md:pb-2 border-b border-slate-700/50">
+                        <span className="hidden sm:block text-[8.5px] font-black text-slate-400 text-center select-none tracking-wider font-sans uppercase">زاویه دید</span>
+                        <button onClick={() => setViewAngle('perspective')} className={`p-2 min-w-[38px] min-h-[38px] rounded-xl transition-all border ${viewAngle === 'perspective' ? 'bg-indigo-600 border-indigo-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="پرسپکتیو"><Rotate3d className="w-4 h-4 mx-auto" /></button>
+                        <button onClick={() => setViewAngle('front')} className={`p-2 min-w-[38px] min-h-[38px] rounded-xl transition-all border ${viewAngle === 'front' ? 'bg-indigo-600 border-indigo-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="روبرو"><Box className="w-4 h-4 mx-auto" /></button>
+                        <button onClick={() => setViewAngle('top')} className={`p-2 min-w-[38px] min-h-[38px] rounded-xl transition-all border ${viewAngle === 'top' ? 'bg-indigo-600 border-indigo-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="بالا"><ArrowDownToLine className="w-4 h-4 mx-auto" /></button>
+                        <button onClick={() => setViewAngle('side')} className={`p-2 min-w-[38px] min-h-[38px] rounded-xl transition-all border ${viewAngle === 'side' ? 'bg-indigo-600 border-indigo-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="بغل"><Layers3 className="w-4 h-4 mx-auto" /></button>
                       </div>
 
                       {/* Display Modes */}
-                      <div className="flex flex-col gap-1.5 pt-1 pb-2 border-b border-slate-700/50">
-                        <span className="text-[8.5px] font-black text-slate-400 text-center select-none tracking-wider font-sans uppercase">نمایش</span>
-                        <button onClick={() => setWireframe(!wireframe)} className={`p-2 rounded-xl transition-all border ${wireframe ? 'bg-emerald-600 border-emerald-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="فریم لاین / اسکتچ (Wireframe)"><Eye className="w-4 h-4 mx-auto" /></button>
-                        <button onClick={() => setIsExploded(!isExploded)} className={`p-2 rounded-xl transition-all border ${isExploded ? 'bg-amber-600 border-amber-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="نمای انفجاری (Exploded View)"><Maximize className="w-4 h-4 mx-auto" /></button>
-                        <button onClick={() => setAutoRotate(!autoRotate)} className={`p-2 rounded-xl transition-all border ${autoRotate ? 'bg-sky-600 border-sky-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="چرخش خودکار (Auto Rotate)"><RefreshCw className="w-4 h-4 mx-auto" /></button>
-                        <button onClick={() => setCameraOrbit(!cameraOrbit)} className={`p-2 rounded-xl transition-all border ${cameraOrbit ? 'bg-violet-600 border-violet-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="گردش دوربین (Camera Orbit)"><Orbit className="w-4 h-4 mx-auto" /></button>
-                        <button onClick={handleCaptureSnapshot} className="p-2 rounded-xl transition-all border bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-indigo-900 hover:text-indigo-300 hover:border-indigo-500" title="برداشت اسکرین شات (Live Snapshot)"><Camera className="w-4 h-4 mx-auto" /></button>
+                      <div className="flex flex-col gap-1 md:gap-1.5 pt-0.5 md:pt-1 pb-1.5 md:pb-2 border-b border-slate-700/50">
+                        <span className="hidden sm:block text-[8.5px] font-black text-slate-400 text-center select-none tracking-wider font-sans uppercase">نمایش</span>
+                        <button onClick={() => setWireframe(!wireframe)} className={`p-2 min-w-[38px] min-h-[38px] rounded-xl transition-all border ${wireframe ? 'bg-emerald-600 border-emerald-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="فریم لاین / اسکتچ (Wireframe)"><Eye className="w-4 h-4 mx-auto" /></button>
+                        <button onClick={() => setIsExploded(!isExploded)} className={`p-2 min-w-[38px] min-h-[38px] rounded-xl transition-all border ${isExploded ? 'bg-amber-600 border-amber-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="نمای انفجاری (Exploded View)"><Maximize className="w-4 h-4 mx-auto" /></button>
+                        <button onClick={() => setAutoRotate(!autoRotate)} className={`p-2 min-w-[38px] min-h-[38px] rounded-xl transition-all border ${autoRotate ? 'bg-sky-600 border-sky-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="چرخش خودکار (Auto Rotate)"><RefreshCw className="w-4 h-4 mx-auto" /></button>
+                        <button onClick={() => setCameraOrbit(!cameraOrbit)} className={`p-2 min-w-[38px] min-h-[38px] rounded-xl transition-all border ${cameraOrbit ? 'bg-violet-600 border-violet-400 text-white shadow-md' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`} title="گردش دوربین (Camera Orbit)"><Orbit className="w-4 h-4 mx-auto" /></button>
+                        <button onClick={handleCaptureSnapshot} className="p-2 min-w-[38px] min-h-[38px] rounded-xl transition-all border bg-slate-900/50 border-slate-800 text-slate-400 hover:bg-indigo-900 hover:text-indigo-300 hover:border-indigo-500" title="برداشت اسکرین شات (Live Snapshot)"><Camera className="w-4 h-4 mx-auto" /></button>
                       </div>
 
                       {/* Reset */}
-                      <div className="flex flex-col gap-1.5 pt-1">
-                        <button onClick={() => setResetTrigger(prev => prev + 1)} className="p-2 rounded-xl transition-all border bg-rose-950/40 border-rose-900/50 text-rose-400 hover:bg-rose-900 hover:text-white" title="بازنشانی دوربین (Reset Camera)"><Camera className="w-4 h-4 mx-auto" /></button>
+                      <div className="flex flex-col gap-1 pt-0.5 md:pt-1">
+                        <button onClick={() => setResetTrigger(prev => prev + 1)} className="p-2 min-w-[38px] min-h-[38px] rounded-xl transition-all border bg-rose-950/40 border-rose-900/50 text-rose-400 hover:bg-rose-900 hover:text-white" title="بازنشانی دوربین (Reset Camera)"><RotateCcw className="w-4 h-4 mx-auto" /></button>
                       </div>
                     </div>
 
-                    {/* Unified Environment Toolbox (Left side) */}
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-3 bg-[#0c1015]/90 backdrop-blur-md p-3 rounded-2xl border border-slate-700/80 shadow-2xl w-52" dir="rtl">
-                      {/* Lighting */}
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <Flame className="w-4 h-4 text-amber-400" />
-                          <span className="text-[10px] font-bold text-white font-sans">شدت نورپردازی</span>
-                        </div>
-                        <input 
-                          type="range" min="0.2" max="3" step="0.1" 
-                          value={lightIntensity} 
-                          onChange={(e) => setLightIntensity(parseFloat(e.target.value))}
-                          className="w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-amber-500"
+                    {/* Material, Texture & Environment Studio Panel (Left side, collapsible) */}
+                    {is3DMaterialPanelCollapsed ? (
+                      <button
+                        type="button"
+                        onClick={() => setIs3DMaterialPanelCollapsed(false)}
+                        className="absolute left-2 md:left-4 top-3 md:top-4 z-20 bg-[#0c1015]/95 border border-amber-500/40 hover:border-amber-400 px-3 py-2 min-h-[44px] rounded-xl shadow-2xl flex items-center gap-2 text-xs font-bold text-slate-100 cursor-pointer"
+                        dir="rtl"
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                        <span>متریال و بافت</span>
+                        <span
+                          className="w-3 h-3 rounded-full border border-white/30"
+                          style={{ backgroundColor: customTintColor || activeSurfacePresetObj.defaultColor }}
                         />
-                      </div>
-
-                      {/* Effects */}
-                      <div className="flex flex-col gap-2 border-t border-slate-700/50 pt-2">
-                        <span className="text-[9px] font-black text-slate-400 font-sans uppercase">افکت چاپ</span>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {[
-                            { id: 'none', label: 'ساده' },
-                            { id: 'gold_foil', label: 'طلاکوب' },
-                            { id: 'uv_spot', label: 'UV' },
-                            { id: 'both', label: 'ترکیبی' }
-                          ].map(eff => (
-                            <button
-                              key={eff.id}
-                              onClick={() => setSpecialEffect(eff.id as any)}
-                              className={`py-1.5 rounded-lg text-[9px] font-bold border transition-all cursor-pointer ${specialEffect === eff.id ? 'bg-amber-600 border-amber-400 text-white' : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'}`}
-                            >
-                              {eff.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Material Type Selector */}
-                      <div className="flex flex-col gap-2 border-t border-slate-700/50 pt-2">
-                        <span className="text-[9px] font-black text-slate-400 font-sans uppercase">متریال و جنس مقوا</span>
-                        <div className="flex flex-col gap-1.5">
-                          {[
-                            { id: 'inderboard-300', label: 'ایندربرد سفید (Glossy)', desc: 'coated' },
-                            { id: 'kraft-300', label: 'کرافت قهوه‌ای (Kraft)', desc: 'kraft' },
-                            { id: 'corrugated-e', label: 'کارتن مایکروویو (E-Flute)', desc: 'corrugated' }
-                          ].map(matItem => {
-                            const isSelected = material.id === matItem.id;
-                            return (
-                              <button
-                                key={matItem.id}
-                                onClick={() => {
-                                  const found = MATERIAL_PRESETS.find(m => m.id === matItem.id);
-                                  if (found) setMaterial(found);
-                                }}
-                                className={`w-full text-right px-2.5 py-1.5 text-[9.5px] rounded-lg border transition-all flex items-center gap-2 ${isSelected ? 'bg-indigo-950/50 border-sky-500 text-sky-400 font-bold' : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-white'}`}
-                                type="button"
-                              >
-                                <span className={`w-2.5 h-2.5 rounded-full border ${matItem.desc === 'coated' ? 'bg-white border-slate-400' : matItem.desc === 'kraft' ? 'bg-[#c2a278] border-amber-900' : 'bg-[#d8c3a5] border-yellow-800'}`}></span>
-                                <span className="truncate">{matItem.label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Texture */}
-                      <div className="flex flex-col gap-2 border-t border-slate-700/50 pt-2">
-                        <span className="text-[9px] font-black text-slate-400 font-sans uppercase">بافت طرح</span>
-                        <input type="file" ref={fileInputRef} onChange={handleTextureUpload} accept="image/*" className="hidden" />
-                        {textureUrl ? (
-                          <div className="flex items-center justify-between bg-slate-900/50 border border-indigo-500/30 p-1.5 rounded-lg">
-                            <img src={textureUrl} alt="Skin" className="w-6 h-6 rounded object-cover" />
-                            <button onClick={() => setTextureUrl(null)} className="p-1 text-rose-400 hover:text-rose-300"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </button>
+                    ) : (
+                      <div
+                        className="absolute left-2 md:left-4 top-3 md:top-1/2 md:-translate-y-1/2 z-20 flex flex-col gap-2.5 bg-[#0c1015]/95 p-3 rounded-2xl border border-slate-700/80 shadow-2xl w-64 max-w-[calc(100vw-4.5rem)] max-h-[56vh] md:max-h-[78vh] overflow-y-auto custom-scrollbar"
+                        dir="rtl"
+                      >
+                        {/* Header */}
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                          <div className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                            <span className="text-[11px] font-black text-white font-sans">استودیو متریال و بافت</span>
                           </div>
-                        ) : (
-                          <button onClick={() => fileInputRef.current?.click()} className="w-full py-1.5 rounded-lg border border-dashed border-slate-600 hover:border-indigo-500 text-slate-400 hover:text-indigo-400 text-[9px] font-bold flex items-center justify-center gap-1">
-                            <Upload className="w-3 h-3" /> طرح دلخواه
+                          <button
+                            type="button"
+                            onClick={() => setIs3DMaterialPanelCollapsed(true)}
+                            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+                            title="بستن پنل متریال"
+                          >
+                            <X className="w-3.5 h-3.5" />
                           </button>
-                        )}
-                      </div>
+                        </div>
 
-                      {/* PDF output settings and line thickness (Relocated) */}
-                      <div className="mt-2 pt-3 border-t border-slate-700/50 space-y-3">
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1.5 flex justify-between items-center font-sans">
-                            <span>کیفیت خروجی نقشه (PDF)</span>
-                            <span className="text-[9px] font-mono text-emerald-400">{pdfQuality === 'high' ? 'عالی' : 'استاندارد'}</span>
-                          </label>
-                          <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950/60 border border-slate-800 rounded-xl">
-                            <button onClick={() => setPdfQuality('standard')} className={`py-1 rounded-lg text-[9px] font-bold transition-all cursor-pointer ${pdfQuality === 'standard' ? 'bg-[#1f2d42] text-white font-black' : 'text-slate-550 hover:bg-[#1f2d42]/30'}`}>150 DPI</button>
-                            <button onClick={() => setPdfQuality('high')} className={`py-1 rounded-lg text-[9px] font-bold transition-all cursor-pointer ${pdfQuality === 'high' ? 'bg-[#1f2d42] text-white font-black' : 'text-slate-550 hover:bg-[#1f2d42]/30'}`}>300 DPI</button>
+                        {/* Surface Material & Texture Presets (9 Realistic PBR Boards) */}
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9.5px] font-black text-slate-400 font-sans">جنس و بافت سطح مقوا</span>
+                            <span className="text-[9px] font-bold text-amber-300 truncate max-w-[115px]">{activeSurfacePresetObj.shortLabelFa}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {PACKAGING_SURFACE_PRESETS.map((preset) => {
+                              const isSelected = surfacePreset === preset.id;
+                              return (
+                                <button
+                                  key={preset.id}
+                                  type="button"
+                                  onClick={() => handleSelectSurfacePreset(preset.id)}
+                                  className={`text-right px-2 py-1.5 text-[9.5px] rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-amber-500/15 border-amber-400 text-amber-200 font-bold'
+                                      : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'
+                                  }`}
+                                  title={preset.labelFa}
+                                >
+                                  <span
+                                    className="w-3 h-3 rounded-full border border-white/30 shrink-0"
+                                    style={{ backgroundColor: preset.swatchColor }}
+                                  />
+                                  <span className="truncate">{preset.shortLabelFa}</span>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
-                        <div>
-                          <label className="text-[10px] text-slate-400 block mb-1.5 flex justify-between items-center font-sans">
-                            <span>ضخامت خطوط</span>
-                            <span className="text-[9px] font-mono text-sky-405">{lineWidthStyle === 'bold' ? 'ضخیم' : 'ظریف'}</span>
-                          </label>
-                          <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950/60 border border-slate-800 rounded-xl">
-                            <button onClick={() => setLineWidthStyle('standard')} className={`py-1 rounded-lg text-[9px] font-bold transition-all cursor-pointer ${lineWidthStyle === 'standard' ? 'bg-sky-600 text-white' : 'text-slate-500 hover:bg-slate-900'}`}>معمولی</button>
-                            <button onClick={() => setLineWidthStyle('bold')} className={`py-1 rounded-lg text-[9px] font-bold transition-all cursor-pointer ${lineWidthStyle === 'bold' ? 'bg-sky-600 text-white' : 'text-slate-500 hover:bg-slate-900'}`}>ضخیم</button>
+
+                        {/* Brand Tint Color */}
+                        <div className="flex flex-col gap-1.5 border-t border-slate-800 pt-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[9.5px] font-black text-slate-400 font-sans">رنگ زمینه / چاپ مقوا</span>
+                            {customTintColor && (
+                              <button
+                                type="button"
+                                onClick={() => setCustomTintColor(null)}
+                                className="text-[9px] text-sky-400 hover:text-sky-300 cursor-pointer"
+                              >
+                                پیش‌فرض متریال
+                              </button>
+                            )}
                           </div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {[
+                              { hex: '#ffffff', name: 'سفید خالص' },
+                              { hex: '#f4efe6', name: 'کرم عاجی' },
+                              { hex: '#c49868', name: 'کرافت طبیعی' },
+                              { hex: '#986c43', name: 'کرافت تیره' },
+                              { hex: '#1e2433', name: 'سرمه‌ای تیره' },
+                              { hex: '#171717', name: 'مشکی مات' },
+                              { hex: '#134e4a', name: 'سبز یشمی' },
+                            ].map((c) => {
+                              const currentHex = (customTintColor || activeSurfacePresetObj.defaultColor).toLowerCase();
+                              const isActive = currentHex === c.hex.toLowerCase();
+                              return (
+                                <button
+                                  key={c.hex}
+                                  type="button"
+                                  onClick={() => setCustomTintColor(c.hex)}
+                                  title={c.name}
+                                  className={`w-5 h-5 rounded-full border cursor-pointer transition-transform ${
+                                    isActive ? 'border-amber-400 scale-110 ring-2 ring-amber-400/30' : 'border-slate-600 hover:scale-105'
+                                  }`}
+                                  style={{ backgroundColor: c.hex }}
+                                />
+                              );
+                            })}
+                            <label
+                              className="w-5 h-5 rounded-full border border-dashed border-slate-500 flex items-center justify-center cursor-pointer overflow-hidden text-[9px] text-slate-300 hover:border-amber-400"
+                              title="انتخاب رنگ دلخواه"
+                            >
+                              <input
+                                type="color"
+                                value={customTintColor || activeSurfacePresetObj.defaultColor}
+                                onChange={(e) => setCustomTintColor(e.target.value)}
+                                className="opacity-0 w-0 h-0 absolute"
+                              />
+                              <span>+</span>
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* Inner Board Liner */}
+                        <div className="flex flex-col gap-1.5 border-t border-slate-800 pt-2">
+                          <span className="text-[9.5px] font-black text-slate-400 font-sans">لایه داخلی جعبه</span>
+                          <div className="grid grid-cols-4 gap-1">
+                            {[
+                              { id: 'auto' as InnerBoardStyle, label: 'خودکار' },
+                              { id: 'kraft' as InnerBoardStyle, label: 'کرافت' },
+                              { id: 'white' as InnerBoardStyle, label: 'سفید' },
+                              { id: 'grey' as InnerBoardStyle, label: 'طوسی' },
+                            ].map((opt) => (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => setInnerBoardStyle(opt.id)}
+                                className={`py-1 rounded-lg text-[9px] font-bold border transition-colors cursor-pointer ${
+                                  innerBoardStyle === opt.id
+                                    ? 'bg-sky-600 border-sky-400 text-white'
+                                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Micro-Grain & Texture Scale Sliders */}
+                        <div className="flex flex-col gap-2 border-t border-slate-800 pt-2">
+                          <div>
+                            <div className="flex items-center justify-between text-[9.5px] mb-1">
+                              <span className="text-slate-300 font-bold">برجستگی الیاف و بافت</span>
+                              <span className="font-mono text-amber-400">{grainIntensity.toFixed(1)}x</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.2"
+                              max="2.2"
+                              step="0.1"
+                              value={grainIntensity}
+                              onChange={(e) => setGrainIntensity(parseFloat(e.target.value))}
+                              className="w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between text-[9.5px] mb-1">
+                              <span className="text-slate-300 font-bold">تراکم بافت سطح</span>
+                              <span className="font-mono text-sky-400">{textureScale.toFixed(1)}x</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.5"
+                              max="2.5"
+                              step="0.1"
+                              value={textureScale}
+                              onChange={(e) => setTextureScale(parseFloat(e.target.value))}
+                              className="w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-sky-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Special Print Effects (Gold Foil & Spot UV) */}
+                        <div className="flex flex-col gap-1.5 border-t border-slate-800 pt-2">
+                          <span className="text-[9.5px] font-black text-slate-400 font-sans">افکت چاپ تکمیلی روی جعبه</span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {[
+                              { id: 'none', label: 'ساده' },
+                              { id: 'gold_foil', label: 'طلاکوب ۲۴K' },
+                              { id: 'uv_spot', label: 'یووی موضعی (UV)' },
+                              { id: 'both', label: 'طلاکوب + UV' },
+                            ].map((eff) => (
+                              <button
+                                key={eff.id}
+                                type="button"
+                                onClick={() => setSpecialEffect(eff.id as any)}
+                                className={`py-1.5 rounded-lg text-[9px] font-bold border transition-all cursor-pointer ${
+                                  specialEffect === eff.id
+                                    ? 'bg-amber-600 border-amber-400 text-white'
+                                    : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                {eff.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Studio Environment & Light Intensity */}
+                        <div className="flex flex-col gap-2 border-t border-slate-800 pt-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                              <Flame className="w-3.5 h-3.5 text-amber-400" />
+                              <span className="text-[9.5px] font-bold text-slate-200">نورپردازی استودیو</span>
+                            </div>
+                            <span className="text-[9px] font-mono text-amber-400">{lightIntensity.toFixed(1)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.3"
+                            max="2.5"
+                            step="0.1"
+                            value={lightIntensity}
+                            onChange={(e) => setLightIntensity(parseFloat(e.target.value))}
+                            className="w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-amber-500"
+                          />
+                          <div className="grid grid-cols-3 gap-1">
+                            {[
+                              { id: 'dark_studio' as StudioEnvPreset, label: 'استودیو تیره' },
+                              { id: 'warm_atelier' as StudioEnvPreset, label: 'آتلیه گرم' },
+                              { id: 'bright_showroom' as StudioEnvPreset, label: 'نمایشگاه' },
+                            ].map((env) => (
+                              <button
+                                key={env.id}
+                                type="button"
+                                onClick={() => setStudioEnvPreset(env.id)}
+                                className={`py-1 rounded-lg text-[8.5px] font-bold border transition-colors cursor-pointer ${
+                                  studioEnvPreset === env.id
+                                    ? 'bg-indigo-600 border-indigo-400 text-white'
+                                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                {env.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Custom Artwork Skin Upload */}
+                        <div className="flex flex-col gap-1.5 border-t border-slate-800 pt-2">
+                          <span className="text-[9.5px] font-black text-slate-400 font-sans">طرح چاپی دلخواه (روی بافت فعلی)</span>
+                          <input type="file" ref={fileInputRef} onChange={handleTextureUpload} accept="image/*" className="hidden" />
+                          {textureUrl ? (
+                            <div className="flex items-center justify-between bg-slate-900/70 border border-indigo-500/40 p-1.5 rounded-lg">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <img src={textureUrl} alt="طرح چاپی" className="w-7 h-7 rounded object-cover shrink-0" />
+                                <span className="text-[9px] text-slate-300 truncate">طرح بارگذاری‌شده</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setTextureUrl(null)}
+                                className="p-1 text-rose-400 hover:text-rose-300 cursor-pointer"
+                                title="حذف طرح چاپی"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="w-full py-1.5 rounded-lg border border-dashed border-slate-600 hover:border-indigo-500 text-slate-300 hover:text-indigo-300 text-[9.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>آپلود گرافیک جعبه (PNG/JPG)</span>
+                            </button>
+                          )}
+                        </div>
+                        {/* Compact PDF & Line Thickness Output Footer */}
+                        <div className="grid grid-cols-2 gap-1.5 border-t border-slate-800 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setPdfQuality((q) => (q === 'high' ? 'standard' : 'high'))}
+                            className="py-1 px-2 rounded-lg bg-slate-900/70 border border-slate-800 hover:border-slate-600 text-[9px] font-bold text-slate-300 flex items-center justify-between cursor-pointer"
+                            title="تغییر کیفیت خروجی PDF"
+                          >
+                            <span>PDF</span>
+                            <span className="font-mono text-emerald-400">{pdfQuality === 'high' ? '300' : '150'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLineWidthStyle((w) => (w === 'bold' ? 'standard' : 'bold'))}
+                            className="py-1 px-2 rounded-lg bg-slate-900/70 border border-slate-800 hover:border-slate-600 text-[9px] font-bold text-slate-300 flex items-center justify-between cursor-pointer"
+                            title="تغییر ضخامت خطوط برش و تا"
+                          >
+                            <span>خطوط</span>
+                            <span className="text-sky-400">{lineWidthStyle === 'bold' ? 'ضخیم' : 'ظریف'}</span>
+                          </button>
                         </div>
                       </div>
-                    </div>
+                    )}
 
                   </div>
                   {/* Folding simulation controls */}
-                  <div className="absolute inset-x-4 bottom-22 lg:bottom-12 flex justify-center z-20 transition-all duration-300">
+                  <div className="absolute inset-x-3 md:inset-x-4 bottom-16 lg:bottom-10 flex justify-center z-20 transition-all duration-300">
                     {is3DControlsCollapsed ? (
                       <motion.button
                         layoutId="folding-controls-panel"
                         onClick={() => setIs3DControlsCollapsed(false)}
-                        className="bg-[#111622]/95 backdrop-blur-md border border-indigo-500/30 hover:border-indigo-400/60 px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2 cursor-pointer text-slate-200 hover:text-white transition-all text-xs font-bold font-sans"
+                        className="bg-[#111622]/95 border border-indigo-500/30 hover:border-indigo-400/60 px-4 py-2.5 min-h-[44px] rounded-full shadow-2xl flex items-center gap-2 cursor-pointer text-slate-200 hover:text-white transition-all text-xs font-bold font-sans"
                         dir="rtl"
                       >
-                        <Layers className="w-4 h-4 text-indigo-455 animate-pulse" />
-                        <span>تنظیمات تا کردن و شبیه‌ساز سه بعدی (۳D)</span>
+                        <Layers className="w-4 h-4 text-indigo-400" />
+                        <span>کنترل تاشو و شبیه‌ساز ۳D</span>
                         <ChevronDown className="w-3.5 h-3.5 text-slate-400 rotate-180 transition-transform" />
                       </motion.button>
                     ) : (
                       <motion.div 
                         layoutId="folding-controls-panel"
-                        className="bg-[#111622]/95 backdrop-blur-md border border-slate-800/80 p-3 rounded-2xl shadow-xl flex flex-col lg:flex-row gap-4 items-center justify-between w-full max-w-5xl relative animate-fade-in"
+                        className="bg-[#111622]/95 border border-slate-800/80 p-2.5 sm:p-3 rounded-2xl shadow-xl flex flex-col lg:flex-row gap-2.5 sm:gap-4 items-center justify-between w-full max-w-5xl max-h-[36vh] lg:max-h-none overflow-y-auto lg:overflow-visible relative animate-fade-in"
                         dir="rtl"
                       >
                         {/* Section 1: Slider, Player, and Quick presets */}
@@ -8504,7 +8834,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                                 <span className="text-[10px] font-black text-slate-350 font-sans whitespace-nowrap">وضعیت تاخوردگی:</span>
                                 <span className="font-mono bg-slate-950 px-2 py-0.5 rounded text-sky-400 text-[10.5px] font-black shadow-inner">{Math.round(foldRatio * 100)}%</span>
                               </div>
-                              <span className="text-[7.5px] text-emerald-450/90 font-bold block leading-none mt-1 animate-pulse" dir="rtl">💡 پایش برخورد و تداخل زواایای لبه‌ها</span>
+                              <span className="text-[7.5px] text-emerald-400/90 font-bold block leading-none mt-1" dir="rtl">پایش برخورد و تداخل زوایای لبه‌ها</span>
                             </div>
 
                             <input 
@@ -8806,7 +9136,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
 
       {/* 4. MOBILE STACKED TABBAR & BOTTOM DRAWER */}
       {isMobile && (
-        <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-[#0b0e14] border-t border-slate-800 shadow-2xl">
+        <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-[#0b0e14] border-t border-slate-800 pb-[env(safe-area-inset-bottom)] shadow-2xl">
           
           {/* Mobile Bottom sheet content panel */}
           <AnimatePresence>
@@ -8817,12 +9147,13 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 220 }}
-                className="max-h-[60vh] bg-[#0c1015]/98 backdrop-blur-xl border-t border-sky-900/40 p-4 overflow-y-auto custom-scrollbar flex flex-col gap-4 rounded-t-2xl shadow-inner text-right"
+                className="max-h-[68vh] bg-[#0c1015]/98 backdrop-blur-xl border-t border-sky-900/40 p-4 pt-2.5 overflow-y-auto custom-scrollbar flex flex-col gap-4 rounded-t-2xl shadow-inner text-right"
                 style={{ direction: 'rtl' }}
               >
-                {/* Drag handle & close top indicator */}
+                {/* Ergonomic drag handle + top title bar */}
+                <div className="w-10 h-1 rounded-full bg-slate-600/80 mx-auto shrink-0" />
                 <div className="flex justify-between items-center pb-2 border-b border-slate-850">
-                  <span className="text-[10px] font-black text-sky-400 block font-sans">
+                  <span className="text-xs font-black text-sky-400 block font-sans">
                     {activeTab === 'cad' && 'تنظیمات طراحی سازه'}
                     {activeTab === 'standards' && 'استانداردهای بین‌المللی هندسی'}
                     {activeTab === 'physics' && 'شبیه‌ساز فیزیک BCT'}
@@ -8833,14 +9164,14 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                   </span>
                   <button 
                     onClick={() => setIsSidebarCollapsed(true)}
-                    className="p-1.5 px-3.5 bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-white rounded-lg text-[10px] font-bold border-none cursor-pointer"
+                    className="min-h-[36px] px-3.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg text-[11px] font-bold border border-slate-800 cursor-pointer"
                   >
-                    بستن تنظیمات
+                    بستن
                   </button>
                 </div>
                 
                 {/* Embedded Tab content (shares exact same logics as desktop) */}
-                <div className="space-y-6 pt-2 pb-6">
+                <div className="space-y-6 pt-1 pb-6">
                   {renderPrimaryControls()}
                   {renderSecondaryControls(true)}
                 </div>
@@ -8848,29 +9179,37 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             )}
           </AnimatePresence>
 
-          {/* Sticky Mobile Icons Tab Bar Row */}
-          <div className="flex bg-[#070a0e] py-1 border-t border-slate-900 text-center items-center justify-around h-14 shrink-0">
+          {/* Sticky Mobile Icons Tab Bar Row (5 core engineering tabs) */}
+          <div className="grid grid-cols-5 bg-[#070a0e] border-t border-slate-900 text-center items-stretch h-14 shrink-0">
             {[
               { id: 'cad', label: 'طراحی', icon: Settings },
+              { id: 'standards', label: 'استاندارد', icon: ShieldCheck },
+              { id: 'physics', label: 'فیزیک BCT', icon: Activity },
               { id: 'nesting', label: 'لیتوگرافی', icon: Calculator },
               { id: 'pricing', label: 'مالی', icon: Database }
             ].map(tab => {
               const IconComp = tab.icon;
+              const isTabActive = activeTab === tab.id && !isSidebarCollapsed;
               return (
                 <button
                   key={tab.id}
                   onClick={() => {
-                    if (activeTab === tab.id && !isSidebarCollapsed) {
+                    if (isTabActive) {
                       setIsSidebarCollapsed(true);
                     } else {
                       setActiveTab(tab.id as any);
                       setIsSidebarCollapsed(false);
                     }
                   }}
-                  className={`flex-1 py-2 text-[8.5px] rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${activeTab === tab.id && !isSidebarCollapsed ? 'text-sky-450 bg-[#162032] font-black shadow-inner border-t-2 border-t-sky-500 rounded-t-none border' : 'text-slate-500 hover:bg-slate-900/50'}`}
+                  className={`relative min-h-[44px] py-1.5 text-[9.5px] flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
+                    isTabActive
+                      ? 'text-sky-400 bg-[#131d2e] font-black'
+                      : 'text-slate-400 hover:bg-slate-900/50 hover:text-slate-200 font-semibold'
+                  }`}
                 >
+                  {isTabActive && <span className="absolute top-0 w-7 h-0.5 bg-sky-500 rounded-full" />}
                   <IconComp className="w-4 h-4" />
-                  <span>{tab.label}</span>
+                  <span className="leading-none">{tab.label}</span>
                 </button>
               );
             })}
@@ -9705,7 +10044,11 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
 
             {/* Studio Workspace */}
             <div className="flex-1 overflow-hidden">
-              <PacklyIndustrialDielineStudio onSaveProject={onSaveProject} />
+              <PacklyIndustrialDielineStudio
+                onSaveProject={onSaveProject}
+                initialModelId={selectedModel.id}
+                initialDims={dims}
+              />
             </div>
           </motion.div>
         )}

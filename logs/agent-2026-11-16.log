@@ -1,0 +1,4 @@
+{"timestamp":"2026-11-16T03:39:27.866Z","level":"INFO","module":"Worker","message":"Running one-shot SEO worker task=\"audit\" (remotePush=false)"}
+{"timestamp":"2026-11-16T03:39:27.871Z","level":"INFO","module":"SitemapBuilder","message":"Built sitemap.xml (17 URLs) and robots.txt"}
+{"timestamp":"2026-11-16T03:39:28.261Z","level":"INFO","module":"TechnicalAuditor","message":"SEO audit finished. Score=100, URLs=17"}
+{"timestamp":"2026-11-16T03:39:28.262Z","level":"INFO","module":"SitemapBuilder","message":"Built sitemap.xml (17 URLs) and robots.txt"}

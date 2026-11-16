@@ -1,1 +1,74 @@
-[]
+[
+  {
+    "id": "cat-fefco-industrial",
+    "slug": "fefco-industrial-corrugated-catalog",
+    "title": "کاتالوگ مهندسی استانداردهای FEFCO (کارتن ۳ و ۵ لایه)",
+    "category": "کارتن‌های صنعتی و صادراتی",
+    "description": "مرجع کامل ابعاد استاندارد، تلورانس خط تا، ضرایب مقاومت فشاری McKee BCT و نقشه‌های اجرایی کدهای ۰۲۰۱، ۰۳۰۱ و ۰۴۲۷ برای خطوط تولید کارتن.",
+    "coverImage": "/src/assets/images/catalog_fefco_corrugated_1794764676518.jpg",
+    "pageCount": 28,
+    "isPublished": true,
+    "createdAt": "1403-11-10T09:00:00.000Z",
+    "specs": {
+      "standardCode": "FEFCO 0201 / 0203 / 0301",
+      "boardOptions": "ورق ۳ لایه (B/C/E-Flute) و ۵ لایه (BC/EB-Flute)",
+      "finishOptions": "چاپ فلکسو ۱ تا ۴ رنگ و لمینت افست",
+      "applications": "صادرات محصولات کشاورزی، قطعات صنعتی، لوازم خانگی",
+      "sheetHint": "برش بهینه تا عرض ۲۲۰ سانتی‌متر و شیت لمینتی ۱۰۰×۷۰"
+    }
+  },
+  {
+    "id": "cat-luxury-hardbox",
+    "slug": "luxury-hardbox-gold-foil-catalog",
+    "title": "ژورنال تخصصی هاردباکس مگنتی، طلاکوب و بسته‌بندی لوکس",
+    "category": "هاردباکس و لوکس",
+    "description": "نمونه‌های بسته‌بندی زعفران، پسته صادراتی، عطر و هدایای مدیریتی با مقوای سخت ۲ تا ۳ میلی‌متری، روکش مخملی، UV موضعی و طلاکوب حرارتی ۲۴ عیار.",
+    "coverImage": "/src/assets/images/catalog_luxury_hardbox_1794764676452.jpg",
+    "pageCount": 36,
+    "isPublished": true,
+    "createdAt": "1403-11-12T10:30:00.000Z",
+    "specs": {
+      "standardCode": "Rigid Book-Style / Two-Piece Shoulder",
+      "boardOptions": "مقوای کرجی ۲.۵mm + روکش گلاسه ۱۵۰ گرم یا کاغذ فانتزی",
+      "finishOptions": "سلفون سافت‌تاچ مخملی، طلاکوب ۲۴K، برجسته‌سازی، فوم EVA",
+      "applications": "زعفران و خشکبار صادراتی، عطر و ادکلن، ست هدایای سازمانی",
+      "sheetHint": "چاپ افست ۱۰۰×۷۰ و لیزر برش فوم داخلی دقیق"
+    }
+  },
+  {
+    "id": "cat-ecommerce-mailer",
+    "slug": "ecommerce-fefco-0427-mailer-catalog",
+    "title": "کاتالوگ جعبه‌های کیبوردی و ارسال پستی (FEFCO 0427)",
+    "category": "ای‌کامرس و پستی",
+    "description": "ساختارهای خودبست بدون نیاز به چسب‌کاری با دیواره جانبی دوبل مقاوم در برابر ضربه ارسال مرسولات، مناسب فروشگاه‌های آنلاین و تجهیزات الکترونیک.",
+    "coverImage": "/src/assets/images/catalog_ecommerce_mailer_1794764677888.jpg",
+    "pageCount": 18,
+    "isPublished": true,
+    "createdAt": "1403-11-15T11:15:00.000Z",
+    "specs": {
+      "standardCode": "FEFCO 0427 / 0426",
+      "boardOptions": "میکروویو E-Flute کرافت طبیعی یا لمینت سفید ۳۰۰ گرم",
+      "finishOptions": "چاپ دوطرفه داخلی و خارجی، نوار چسب پاره شونده (Tear-Strip)",
+      "applications": "پوشاک، اکسسوری، گجت‌های الکترونیکی، پک‌های اشتراک ماهانه",
+      "sheetHint": "چیدمان متداخل قفل‌دار روی شیت ۷۰×۱۰۰ برای کاهش پرت ورق"
+    }
+  },
+  {
+    "id": "cat-ecma-pharma",
+    "slug": "ecma-pharmaceutical-carton-catalog",
+    "title": "استاندارد جعبه‌های دارویی، آرایشی و بهداشتی (ECMA)",
+    "category": "دارویی و بهداشتی",
+    "description": "طراحی دقیق درب دارویی قفل‌دار (Tuck-End)، خط تاهای ظریف ایندربرد ۳۰۰ تا ۳۵۰ گرم و بهینه‌سازی چیدمان روی شیت چاپی ۷۰×۱۰۰ برای تیراژ بالا.",
+    "coverImage": "/src/assets/images/catalog_pharma_cosmetic_1794764676825.jpg",
+    "pageCount": 22,
+    "isPublished": true,
+    "createdAt": "1403-11-18T14:00:00.000Z",
+    "specs": {
+      "standardCode": "ECMA A20.20 / A21.10 (1-2-3 Lock)",
+      "boardOptions": "ایندربرد سفید FBB و سولفات بهداشتی ۲۵۰ تا ۴۰۰ گرم",
+      "finishOptions": "بریل برجسته (Braille)، یووی موضعی، سلفون مات، هولوگرام امنیتی",
+      "applications": "دارو و مکمل‌های غذایی، سرم‌های پوستی، محصولات آرایشی",
+      "sheetHint": "تلورانس برش ±0.15mm سازگار با خطوط بسته‌بندی اتوماتیک"
+    }
+  }
+]

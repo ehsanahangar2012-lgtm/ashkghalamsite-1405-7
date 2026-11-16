@@ -20,7 +20,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Studio Modes: 'local' (Guaranteed HTML5 Studio) and 'photopea' (Advanced Photoshop Cloud)
-  const [activeStudioTab, setActiveStudioTab] = useState<'local' | 'photopea'>('photopea');
+  const [activeStudioTab, setActiveStudioTab] = useState<'local' | 'photopea'>('local');
 
   // Common UI State
   const [isFullscreen, setIsFullscreen] = useState(false);

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { 
   BrowserRouter, 
   Routes, 
@@ -12,38 +12,39 @@ import {
 } from 'react-router-dom';
 import { findBySlugOrId, toSlug } from './utils/slugUtils';
 import { AppView, User, UserRole, Project, SitePortalId } from './types';
-import { Dashboard } from './components/Dashboard';
 import { Inquiry } from './components/Inquiry';
 import { CatalogSection } from './components/catalog/CatalogSection';
 import { CatalogItemPage } from './components/catalog/CatalogItemPage';
 import { Button, Card, Badge } from './components/UIComponents';
 import { generateSupportResponse, analyzeDesignStyle } from './services/geminiService';
-import { DesignStudio } from './components/DesignStudio';
-import { DielineGenerator } from './components/DielineGenerator';
 import { ThreeDProductSlider } from './components/ThreeDProductSlider';
+import { InteractiveServicesSpace } from './components/InteractiveServicesSpace';
 import { ContentProvider, useContent } from './contexts/ContentContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Login } from './components/Login';
-import { AdminPanel } from './components/AdminPanel';
 import { SeoHead } from './components/SeoHead';
-import { Blog } from './components/Blog';
-import { NexusDXP } from './dxp/NexusDXP';
 import { ServicesHub } from './components/ServicesHub';
 import { ProductsHub } from './components/ProductsHub';
 import { NotFound } from './components/NotFound';
 import { getPathForView, getViewForPath } from './utils/navigationRoutes';
 
-import { AutoCADStudio } from './components/AutoCADStudio';
 import { EmergencyNotificationBar } from './components/EmergencyNotificationBar';
 import { SiteSwitcherModal } from './components/SiteSwitcherModal';
-import { AboutUs } from './components/AboutUs';
-import { Library } from './components/Library';
-import { SoftwareMarketplace } from './components/SoftwareMarketplace';
+
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+const DesignStudio = lazy(() => import('./components/DesignStudio').then(m => ({ default: m.DesignStudio })));
+const DielineGenerator = lazy(() => import('./components/DielineGenerator').then(m => ({ default: m.DielineGenerator })));
+const AdminPanel = lazy(() => import('./components/AdminPanel').then(m => ({ default: m.AdminPanel })));
+const Blog = lazy(() => import('./components/Blog').then(m => ({ default: m.Blog })));
+const AutoCADStudio = lazy(() => import('./components/AutoCADStudio').then(m => ({ default: m.AutoCADStudio })));
+const AboutUs = lazy(() => import('./components/AboutUs').then(m => ({ default: m.AboutUs })));
+const Library = lazy(() => import('./components/Library').then(m => ({ default: m.Library })));
+const SoftwareMarketplace = lazy(() => import('./components/SoftwareMarketplace').then(m => ({ default: m.SoftwareMarketplace })));
 
 import { 
   Menu, X, Home, Grid, Users, Moon, Sun, MessageSquare, 
-  Phone, Mail, ArrowLeft, Send, CheckCircle, Image as ImageIcon, Sparkles, X as CloseIcon, Box, Package, Lock, LogOut, LogIn, User as UserIcon, BookOpen, Clock, ChevronRight, Rocket, Palette, TrendingUp, Layers, Search, Zap, Folder, PenTool, Globe, Download,
-  Cpu, ShieldCheck, Terminal, Laptop, HelpCircle
+  Phone, Mail, Lock, ArrowLeft, Send, Image as ImageIcon, Sparkles, Box, Package, LogOut, LogIn, BookOpen, Clock, ChevronRight, ChevronDown, Palette, Layers, PenTool, Globe, Download,
+  Cpu, ShieldCheck, Laptop, HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -246,7 +247,7 @@ const SmartPortfolio = ({ isEmbedded = false }: { isEmbedded?: boolean }) => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-4 md:p-8 font-sans dir-rtl text-right">
+    <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:py-10 font-sans dir-rtl text-right">
       {!isEmbedded && (
         <SeoHead 
           view={AppView.PORTFOLIO}
@@ -258,31 +259,42 @@ const SmartPortfolio = ({ isEmbedded = false }: { isEmbedded?: boolean }) => {
       )}
 
       <motion.div 
-        className="text-center mb-12"
+        className="text-center md:text-right flex flex-col md:flex-row md:items-end justify-between mb-6 md:mb-10 gap-3"
         variants={containerVariants}
         initial="hidden"
         whileInView="visible"
         viewport={{ once: true }}
       >
-        <motion.h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-4" variants={itemVariants}>
-          گالری هوشمند نمونه‌کارها
-        </motion.h1>
-        <motion.p className="text-gray-500 max-w-2xl mx-auto text-xs sm:text-sm leading-relaxed" variants={itemVariants}>
-          روی هر پروژه کلیک کنید تا مشخصات دقیق، متریال ساختار و تحلیل هوش مصنوعی سبک آن را مشاهده فرمایید.
-        </motion.p>
+        <div>
+          <motion.h1 className="text-2xl md:text-4xl font-black text-gray-900 dark:text-white mb-2" variants={itemVariants}>
+            گالری نمونه‌کارها
+          </motion.h1>
+          <motion.p className="text-gray-500 dark:text-gray-400 max-w-xl text-xs sm:text-sm leading-relaxed" variants={itemVariants}>
+            پروژه‌های منتخب چاپ افست و بسته‌بندی صادراتی همراه با جزئیات فنی و تحلیل سبک.
+          </motion.p>
+        </div>
+        {isEmbedded && (
+          <Link
+            to="/portfolio"
+            className="text-xs font-bold text-primary-600 dark:text-primary-400 hover:underline flex items-center justify-center gap-1 shrink-0"
+          >
+            <span>آرشیو کامل نمونه‌کارها</span>
+            <ArrowLeft className="w-3.5 h-3.5" />
+          </Link>
+        )}
       </motion.div>
 
-      {/* Filters & Sorting */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 bg-white dark:bg-gray-800 p-4 rounded-3xl shadow-sm border border-gray-150 dark:border-gray-700">
-        <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+      {/* Filters & Sorting (single-row horizontal scroll on mobile) */}
+      <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center mb-6 md:mb-8 gap-3 bg-white dark:bg-gray-800/80 p-3 md:p-4 rounded-2xl shadow-sm border border-gray-150 dark:border-gray-700/80">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
           {categories.map(cat => (
             <button
               key={cat}
               onClick={() => setFilterCategory(cat || 'All')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 filterCategory === cat
-                  ? 'bg-primary-600 text-white shadow-md shadow-primary-500/20'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'bg-gray-100 dark:bg-gray-700/80 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
               {cat === 'All' ? 'همه' : cat}
@@ -290,12 +302,12 @@ const SmartPortfolio = ({ isEmbedded = false }: { isEmbedded?: boolean }) => {
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="hidden sm:flex items-center gap-2 shrink-0">
           <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">مرتب‌سازی:</span>
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500 border-none cursor-pointer"
+            className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs rounded-xl px-3 py-1.5 outline-none focus:ring-2 focus:ring-primary-500 border-none cursor-pointer"
           >
             <option value="newest">جدیدترین</option>
             <option value="oldest">قدیمی‌ترین</option>
@@ -305,53 +317,49 @@ const SmartPortfolio = ({ isEmbedded = false }: { isEmbedded?: boolean }) => {
       </div>
 
       {filteredAndSortedItems.length === 0 ? (
-        <div className="text-center py-16 bg-white dark:bg-gray-800/60 rounded-3xl border border-gray-100 dark:border-gray-750">
-          <Sparkles className="w-10 h-10 text-gray-400 mx-auto mb-3 opacity-60" />
+        <div className="text-center py-12 bg-white dark:bg-gray-800/60 rounded-2xl border border-gray-100 dark:border-gray-750">
+          <Sparkles className="w-8 h-8 text-gray-400 mx-auto mb-2 opacity-60" />
           <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-medium">
-            هیچ نمونه‌کاری ثبت نشده است. می‌توانید نمونه‌کارهای جدید را از پنل مدیریت اضافه نمایید.
+            هنوز نمونه‌کاری ثبت نشده است.
           </p>
         </div>
       ) : (
         <motion.div 
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          className={
+            isEmbedded
+              ? 'flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 overflow-x-auto md:overflow-visible snap-x snap-mandatory pb-2 md:pb-0 no-scrollbar'
+              : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6'
+          }
           variants={containerVariants}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
         >
-          {filteredAndSortedItems.map((item) => {
+          {(isEmbedded ? filteredAndSortedItems.slice(0, 6) : filteredAndSortedItems).map((item) => {
             const itemSlug = item.id ? String(item.id) : toSlug(item.title);
             return (
               <motion.div 
                 key={item.id} 
                 variants={itemVariants}
-                className="group relative overflow-hidden rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-150 dark:border-gray-700 bg-white dark:bg-gray-800"
+                className={`group relative overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-150 dark:border-gray-700 bg-white dark:bg-gray-800 ${
+                  isEmbedded ? 'w-[78vw] sm:w-[56vw] md:w-auto shrink-0 snap-start' : ''
+                }`}
                 style={{ backgroundColor: themes[item.id] || undefined }}
               >
-                <Link to={`/portfolio/${itemSlug}`} className="block relative h-64 overflow-hidden">
+                <Link to={`/portfolio/${itemSlug}`} className="block relative h-52 sm:h-60 overflow-hidden">
                   <img 
                     src={item.img} 
                     alt={item.title} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent opacity-90 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-6">
-                    <span className="text-secondary-400 text-xs font-black mb-1">{item.category}</span>
-                    <h3 className="text-white text-lg font-black mb-2">{item.title}</h3>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent flex flex-col justify-end p-4 sm:p-5">
+                    <span className="text-secondary-400 text-[11px] font-black mb-0.5">{item.category}</span>
+                    <h3 className="text-white text-base sm:text-lg font-black mb-1.5 line-clamp-1">{item.title}</h3>
                     <div className="flex items-center justify-between text-white/80 text-xs">
                       <span className="flex items-center gap-1.5 text-primary-300 font-bold">
                         <span>مشاهده جزییات</span>
                         <ArrowLeft className="w-3.5 h-3.5" />
                       </span>
-                      <button 
-                        onClick={(e) => { 
-                          e.preventDefault(); 
-                          e.stopPropagation(); 
-                          toggleTheme(item.id, '#1e3a8a'); 
-                        }}
-                        className="px-2.5 py-1 bg-white/20 hover:bg-white/30 backdrop-blur rounded-lg text-[10px] text-white transition-colors"
-                      >
-                        تم رنگی
-                      </button>
                     </div>
                   </div>
                 </Link>
@@ -370,58 +378,51 @@ const LatestBlogSection = ({ onViewAll }: { onViewAll: () => void }) => {
   const latestPosts = blogPosts.slice(0, 3);
 
   return (
-    <div className="bg-white dark:bg-gray-800 py-16 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-8">
-        <div className="flex justify-between items-end mb-10">
+    <div className="bg-white dark:bg-gray-800/50 py-10 md:py-16 transition-colors duration-300 border-t border-gray-100 dark:border-gray-800/80">
+      <div className="max-w-7xl mx-auto px-4 md:px-8">
+        <div className="flex justify-between items-end mb-6 md:mb-10 gap-3">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">مجله خبری و آموزشی</h2>
-            <p className="text-gray-500 text-sm">آخرین مقالات تخصصی صنعت چاپ و بسته‌بندی</p>
+            <h2 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white mb-1">مجله خبری و آموزشی</h2>
+            <p className="text-gray-500 text-xs md:text-sm">آخرین مقالات تخصصی صنعت چاپ و بسته‌بندی</p>
           </div>
           <button 
             onClick={onViewAll} 
-            className="flex items-center gap-1 text-primary-600 hover:text-primary-700 font-bold text-sm"
+            className="flex items-center gap-1 text-primary-600 hover:text-primary-700 font-bold text-xs md:text-sm whitespace-nowrap shrink-0 cursor-pointer"
           >
-            مشاهده آرشیو <ChevronRight className="w-4 h-4 rotate-180" />
+            آرشیو <ChevronRight className="w-4 h-4 rotate-180" />
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="flex md:grid md:grid-cols-3 gap-4 md:gap-8 overflow-x-auto md:overflow-visible snap-x snap-mandatory pb-2 md:pb-0 no-scrollbar">
           {latestPosts.map((post) => {
             const postSlug = post.id || toSlug(post.title);
             return (
               <Link 
                 key={post.id} 
                 to={`/blog/${postSlug}`}
-                className="group bg-gray-50 dark:bg-gray-900 rounded-3xl overflow-hidden border border-gray-150 dark:border-gray-750 hover:shadow-xl transition-all duration-300 block text-right dir-rtl"
+                className="group w-[78vw] sm:w-[55vw] md:w-auto shrink-0 snap-start bg-gray-50 dark:bg-gray-900 rounded-2xl overflow-hidden border border-gray-150 dark:border-gray-800 hover:shadow-xl transition-all duration-300 block text-right dir-rtl"
               >
-                <div className="relative h-48 overflow-hidden">
+                <div className="relative h-40 md:h-48 overflow-hidden">
                   <img 
                     src={post.imageUrl} 
                     alt={post.title} 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                   />
-                  <div className="absolute top-4 right-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur px-2.5 py-1 rounded-lg text-xs font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1 shadow-sm">
+                  <div className="absolute top-3 right-3 bg-white/90 dark:bg-gray-800/90 backdrop-blur px-2 py-0.5 rounded-lg text-[11px] font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1 shadow-sm">
                      <Clock className="w-3 h-3" /> {post.readTime}m
                   </div>
                 </div>
-                <div className="p-5">
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {post.tags.slice(0, 2).map(tag => (
-                      <span key={tag} className="text-[10px] font-bold text-primary-600 bg-primary-50 dark:bg-primary-900/20 px-2 py-0.5 rounded-md">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                  <h3 className="font-bold text-base sm:text-lg text-gray-900 dark:text-white mb-2 line-clamp-2 group-hover:text-primary-600 transition-colors">
+                <div className="p-4 md:p-5">
+                  <h3 className="font-bold text-sm sm:text-base md:text-lg text-gray-900 dark:text-white mb-1.5 line-clamp-2 group-hover:text-primary-600 transition-colors">
                     {post.title}
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4 leading-relaxed">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-3 leading-relaxed">
                     {post.excerpt}
                   </p>
-                  <div className="flex justify-between items-center border-t border-gray-150 dark:border-gray-800 pt-3">
-                     <span className="text-xs text-gray-400">{post.date}</span>
-                     <span className="text-xs font-bold text-primary-600 flex items-center gap-1">
-                       مطالعه مقاله <ArrowLeft className="w-3 h-3" />
+                  <div className="flex justify-between items-center border-t border-gray-150 dark:border-gray-800 pt-2.5">
+                     <span className="text-[11px] text-gray-400">{post.date}</span>
+                     <span className="text-[11px] font-bold text-primary-600 flex items-center gap-1">
+                       مطالعه <ArrowLeft className="w-3 h-3" />
                      </span>
                   </div>
                 </div>
@@ -469,21 +470,21 @@ const ChatWidget = () => {
   };
 
   return (
-    <div className="fixed bottom-24 left-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-[4.5rem] left-3 right-3 sm:right-auto sm:left-5 md:bottom-20 z-50 flex flex-col items-end pointer-events-none">
       <AnimatePresence>
         {isOpen && (
           <motion.div 
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="w-80 md:w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col h-[500px]"
+            className="pointer-events-auto w-full sm:w-80 md:w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col h-[65vh] max-h-[480px]"
           >
             <div className="p-4 bg-primary-600 text-white flex justify-between items-center">
               <span className="font-bold flex items-center gap-2">
                 <MessageSquare className="h-5 w-5" />
                 پشتیبانی هوشمند
               </span>
-              <button onClick={() => setIsOpen(false)}><X className="h-5 w-5" /></button>
+              <button onClick={() => setIsOpen(false)} className="cursor-pointer"><X className="h-5 w-5" /></button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900" ref={scrollRef}>
@@ -498,7 +499,7 @@ const ChatWidget = () => {
                   </div>
                 </div>
               ))}
-              {loading && <div className="text-xs text-gray-400 text-center animate-pulse">در حال نوشتن...</div>}
+              {loading && <div className="text-xs text-gray-400 text-center">در حال نوشتن...</div>}
             </div>
 
             <div className="p-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex gap-2">
@@ -507,9 +508,9 @@ const ChatWidget = () => {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder="پیام خود را بنویسید..."
-                className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full px-4 py-2 text-sm outline-none focus:ring-1 focus:ring-primary-500"
+                className="flex-1 bg-gray-100 dark:bg-gray-700 rounded-full px-4 py-2 text-sm outline-none focus:ring-1 focus:ring-primary-500 text-gray-900 dark:text-white"
               />
-              <button onClick={handleSend} disabled={loading} className="bg-primary-600 text-white p-2 rounded-full hover:bg-primary-700 disabled:opacity-50">
+              <button onClick={handleSend} disabled={loading} className="bg-primary-600 text-white p-2 rounded-full hover:bg-primary-700 disabled:opacity-50 cursor-pointer">
                 <Send className="h-4 w-4 rotate-180" />
               </button>
             </div>
@@ -520,45 +521,69 @@ const ChatWidget = () => {
   );
 };
 
-// --- Contact Floaters Component ---
+// --- Contact Floaters Component (Bottom-Left Corner to prevent 3D Slider Dock overlap) ---
 const ContactFloaters = () => {
   const { siteContent } = useContent();
+  const [expanded, setExpanded] = useState(false);
   const phoneClean = siteContent.contactPhone.replace(/[^0-9]/g, '');
 
   return (
-    <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-[9990] flex items-center justify-center gap-1.5 sm:gap-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-gray-200/50 dark:border-gray-700/50 shadow-[0_8px_30px_rgb(0,0,0,0.15)] animate-in slide-in-from-bottom-8 duration-500">
-      <button 
-        onClick={() => window.dispatchEvent(new CustomEvent('toggle-chat'))}
-        title="پشتیبانی آنلاین"
-        className="h-10 w-10 sm:h-12 sm:w-12 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow-lg shadow-primary-500/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95 group"
+    <div className="fixed bottom-[4.5rem] left-3 md:bottom-5 md:left-5 z-40 flex items-center gap-2">
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, x: -12, scale: 0.92 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -12, scale: 0.92 }}
+            className="flex items-center gap-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl px-2.5 py-2 rounded-full border border-slate-200 dark:border-slate-700 shadow-2xl"
+          >
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('toggle-chat'));
+                setExpanded(false);
+              }}
+              title="چت پشتیبانی آنلاین"
+              className="h-11 w-11 bg-primary-600 hover:bg-primary-700 text-white rounded-full shadow flex items-center justify-center transition-transform hover:scale-105 cursor-pointer"
+            >
+              <MessageSquare className="h-4 w-4" />
+            </button>
+
+            <a
+              href={`tel:${phoneClean}`}
+              title="تماس تلفنی"
+              className="h-11 w-11 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow flex items-center justify-center transition-transform hover:scale-105"
+            >
+              <Phone className="h-4 w-4" />
+            </a>
+
+            <a
+              href={`https://wa.me/${phoneClean}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="واتساپ"
+              className="h-11 w-11 bg-[#25D366] hover:bg-[#128c7e] text-white rounded-full shadow flex items-center justify-center transition-transform hover:scale-105"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+              </svg>
+            </a>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <button
+        type="button"
+        onClick={() => setExpanded((e) => !e)}
+        aria-label={expanded ? 'بستن ابزار ارتباطی' : 'ارتباط و پشتیبانی سریع'}
+        title="ارتباط مستقیم با اشک قلم"
+        className="h-11 w-11 md:h-12 md:w-12 rounded-full bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 text-amber-400 border border-amber-500/40 shadow-2xl flex items-center justify-center transition-transform hover:scale-105 cursor-pointer"
       >
-        <MessageSquare className="h-4 w-4 sm:h-6 sm:w-6 transition-transform group-hover:scale-110" />
+        {expanded ? <X className="h-5 w-5" /> : <Phone className="h-5 w-5" />}
       </button>
-
-      <div className="w-px h-5 sm:h-6 bg-gray-300 dark:bg-gray-600 mx-0.5 sm:mx-1"></div>
-
-       <a 
-        href={`tel:${phoneClean}`}
-        title="تماس تلفنی"
-        className="h-10 w-10 sm:h-12 sm:w-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg shadow-blue-600/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95 group"
-      >
-        <Phone className="h-4 w-4 sm:h-6 sm:w-6 transition-transform group-hover:rotate-12" />
-      </a>
-
-      <a 
-        href={`https://wa.me/${phoneClean}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        title="واتساپ"
-        className="h-10 w-10 sm:h-12 sm:w-12 bg-[#25D366] hover:bg-[#128c7e] text-white rounded-full shadow-lg shadow-green-500/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95 group"
-      >
-        <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-7 sm:w-7 fill-current transition-transform group-hover:scale-110" xmlns="http://www.w3.org/2000/svg">
-           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
-        </svg>
-      </a>
     </div>
   );
-}
+};
 
 const StudioNavFloaters = () => {
   const { siteContent } = useContent();
@@ -596,34 +621,34 @@ const StudioNavFloaters = () => {
 const Footer = ({ setView }: { setView: (v: AppView) => void }) => {
   const { siteContent, globalSettings } = useContent();
   return (
-    <footer className="bg-gray-900 text-gray-300 py-12 mt-12 border-t border-gray-800">
-      <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-8">
+    <footer className="bg-gray-900 text-gray-300 py-8 md:py-12 mt-6 md:mt-12 border-t border-gray-800">
+      <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-8">
         <div className="col-span-1 md:col-span-2">
-          <div className="flex items-center gap-2 mb-4">
-            {globalSettings.logoUrl && <img src={globalSettings.logoUrl} className="h-8 w-auto" alt="Logo" />}
-            <h3 className="text-white text-xl font-bold">{globalSettings.siteName}</h3>
+          <div className="flex items-center gap-2 mb-3">
+            {globalSettings.logoUrl && <img src={globalSettings.logoUrl} className="h-7 md:h-8 w-auto" alt="Logo" />}
+            <h3 className="text-white text-lg md:text-xl font-bold">{globalSettings.siteName}</h3>
           </div>
-          <p className="text-sm opacity-80 leading-relaxed max-w-md">
+          <p className="text-xs sm:text-sm opacity-80 leading-relaxed max-w-md">
             {siteContent.footerAbout}
           </p>
         </div>
         <div>
-          <h4 className="text-white font-bold mb-4">دسترسی سریع</h4>
-          <ul className="space-y-2 text-sm">
-            <li><Link to="/services" className="hover:text-white transition-colors">خدمات صنعتی و مهندسی چاپ</Link></li>
-            <li><Link to="/products" className="hover:text-white transition-colors">محصولات و رده‌های بسته‌بندی</Link></li>
-            <li><Link to="/catalog" className="hover:text-white transition-colors">ژورنال و کاتالوگ ۳D</Link></li>
-            <li><Link to="/portfolio" className="hover:text-white transition-colors">گالری نمونه‌کارها</Link></li>
-            <li><Link to="/software" className="hover:text-white transition-colors">نرم‌افزارهای صنعتی و IT اشک قلم</Link></li>
-            <li><Link to="/tools/dieline" className="hover:text-white transition-colors">جعبه‌ساز و دایلاین ۳D</Link></li>
-            <li><Link to="/tools/design-studio" className="hover:text-white transition-colors">استودیو آنلاین گرافیک</Link></li>
+          <h4 className="text-white font-bold mb-3 text-sm md:text-base">دسترسی سریع</h4>
+          <ul className="grid grid-cols-2 md:grid-cols-1 gap-x-4 gap-y-2 text-xs sm:text-sm">
+            <li><Link to="/services" className="hover:text-white transition-colors">خدمات صنعتی</Link></li>
+            <li><Link to="/products" className="hover:text-white transition-colors">محصولات بسته‌بندی</Link></li>
+            <li><Link to="/catalog" className="hover:text-white transition-colors">کاتالوگ ۳D</Link></li>
+            <li><Link to="/portfolio" className="hover:text-white transition-colors">نمونه‌کارها</Link></li>
+            <li><Link to="/software" className="hover:text-white transition-colors">فروشگاه نرم‌افزار</Link></li>
+            <li><Link to="/tools/dieline" className="hover:text-white transition-colors">جعبه‌ساز ۳D</Link></li>
+            <li><Link to="/tools/design-studio" className="hover:text-white transition-colors">استودیو گرافیک</Link></li>
             <li><Link to="/about" className="hover:text-white transition-colors">درباره ما</Link></li>
-            <li><Link to="/blog" className="hover:text-white transition-colors">مجله تخصصی چاپ (وبلاگ)</Link></li>
-            <li><Link to="/inquiry" className="hover:text-white transition-colors">استعلام آنلاین قیمت</Link></li>
-            <li>
+            <li><Link to="/blog" className="hover:text-white transition-colors">مجله چاپ</Link></li>
+            <li><Link to="/inquiry" className="hover:text-white transition-colors">استعلام قیمت</Link></li>
+            <li className="col-span-2 md:col-span-1">
               <button 
                 type="button"
-                className="text-gray-500 hover:text-red-400 cursor-pointer transition-colors mt-2 text-xs flex items-center gap-1"
+                className="text-gray-500 hover:text-red-400 cursor-pointer transition-colors mt-1 text-xs flex items-center gap-1"
                 onClick={() => setView(AppView.ADMIN_PANEL)}
               >
                 <Lock className="h-3 w-3" />
@@ -633,10 +658,10 @@ const Footer = ({ setView }: { setView: (v: AppView) => void }) => {
           </ul>
         </div>
         <div>
-          <h4 className="text-white font-bold mb-4">ارتباط با ما</h4>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2"><Phone className="h-4 w-4" /> {siteContent.contactPhone}</div>
-            <div className="flex items-center gap-2"><Mail className="h-4 w-4" /> {siteContent.contactEmail}</div>
+          <h4 className="text-white font-bold mb-3 text-sm md:text-base">ارتباط با ما</h4>
+          <div className="space-y-2 text-xs sm:text-sm">
+            <div className="flex items-center gap-2"><Phone className="h-4 w-4 shrink-0" /> {siteContent.contactPhone}</div>
+            <div className="flex items-center gap-2"><Mail className="h-4 w-4 shrink-0" /> {siteContent.contactEmail}</div>
           </div>
         </div>
       </div>
@@ -822,12 +847,32 @@ const AppContent = () => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('theme');
       if (savedTheme) return savedTheme === 'dark';
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+      return true;
     }
-    return false;
+    return true;
   });
   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isToolsDropdownOpen, setIsToolsDropdownOpen] = useState(false);
+  const toolsDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (toolsDropdownRef.current && !toolsDropdownRef.current.contains(e.target as Node)) {
+        setIsToolsDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsToolsDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   const isImmersiveView = 
     location.pathname.startsWith('/tools/design-studio') || 
     location.pathname.startsWith('/design-studio') ||
@@ -859,18 +904,7 @@ const AppContent = () => {
     return portalId;
   };
 
-  // Auto show site switcher if never selected before
-  useEffect(() => {
-    if (typeof window !== 'undefined' && globalSettings.siteSwitcherEnabled !== false) {
-      const hasChosen = localStorage.getItem('hasChosenPortal');
-      const hidden = localStorage.getItem('hide_site_switcher');
-      if (!hasChosen && !hidden) {
-        // Delay slightly for onboarding feel
-        const timer = setTimeout(() => setIsSiteSwitcherOpen(true), 2000);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [globalSettings.siteSwitcherEnabled]);
+  // Portal switcher stays user-triggered from header / menu rather than interrupting first load
 
   const selectPortal = (portal: SitePortalId, targetView?: string) => {
     setActivePortal(portal);
@@ -930,57 +964,10 @@ const AppContent = () => {
     }
   }, [location.pathname, isAuthenticated, user?.role]);
 
-  // Welcome Notification Logic
-  useEffect(() => {
-    if (globalSettings.welcomeModalEnabled === false) return;
-    const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
-    if (!hasSeenWelcome) {
-      // Delay slightly for effect
-      const timer = setTimeout(() => setShowWelcome(true), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [globalSettings.welcomeModalEnabled]);
-
   const handleCloseWelcome = () => {
     setShowWelcome(false);
     localStorage.setItem('hasSeenWelcome', 'true');
   };
-
-  // Badikaran notification trigger: respect globalSettings and prevent multiple triggers
-  const hasTriggeredNotif = useRef(false);
-  useEffect(() => {
-    if (globalSettings.badikaranNotifEnabled === false) {
-      return;
-    }
-    if (hasTriggeredNotif.current) return;
-    hasTriggeredNotif.current = true;
-
-    const delaySec = globalSettings.badikaranNotifDelay !== undefined ? globalSettings.badikaranNotifDelay : 5;
-    const durationSec = globalSettings.badikaranNotifDuration !== undefined ? globalSettings.badikaranNotifDuration : 10;
-
-    const showTimer = setTimeout(() => {
-      setShowBadikaranNotification(true);
-      
-      const hideTimer = setTimeout(() => {
-        setShowBadikaranNotification(false);
-      }, durationSec * 1000);
-      
-      return () => clearTimeout(hideTimer);
-    }, delaySec * 1000);
-
-    return () => clearTimeout(showTimer);
-  }, [globalSettings.badikaranNotifEnabled, globalSettings.badikaranNotifDelay, globalSettings.badikaranNotifDuration]);
-
-  // Initial Ashk IT Division Notification trigger
-  const hasTriggeredItNotif = useRef(false);
-  useEffect(() => {
-    if (hasTriggeredItNotif.current) return;
-    hasTriggeredItNotif.current = true;
-    const itTimer = setTimeout(() => {
-      setShowItNotification(true);
-    }, 2500);
-    return () => clearTimeout(itTimer);
-  }, []);
 
   const toggleView = (view: AppView) => {
     // Check protections
@@ -1060,10 +1047,10 @@ const AppContent = () => {
       <Link 
         to={path}
         onClick={handleClick}
-        className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all duration-200 w-full text-right ${
+        className={`flex items-center gap-3 px-3.5 py-2.5 min-h-[44px] rounded-xl transition-all duration-200 w-full text-right ${
           active 
             ? 'bg-gradient-to-r from-primary-50 to-primary-100/50 dark:from-primary-900/40 dark:to-primary-800/20 text-primary-600 dark:text-primary-400 font-extrabold border border-primary-200 dark:border-primary-800/50' 
-            : 'text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800/80 border border-gray-100 dark:border-gray-750 hover:bg-gray-100 dark:hover:bg-gray-750'
+            : 'text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
         }`}
       >
         <Icon className={`h-5 w-5 shrink-0 ${active ? 'text-primary-500' : 'text-gray-400 dark:text-gray-500'}`} />
@@ -1092,7 +1079,9 @@ const AppContent = () => {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-300 font-sans">
         <SeoHead view={AppView.ADMIN_PANEL} canonicalPath="/admin" noIndex={true} />
-        <AdminPanel isDarkMode={isDarkMode} onBackToHome={() => navigate('/')} />
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm font-bold text-slate-400">در حال بارگذاری پنل مدیریت...</div>}>
+          <AdminPanel isDarkMode={isDarkMode} onBackToHome={() => navigate('/')} />
+        </Suspense>
       </div>
     );
   }
@@ -1108,10 +1097,15 @@ const AppContent = () => {
       {/* Sleek Top Navigation Bar */}
       {!isImmersiveView && (
         <div className="sticky top-0 z-40 w-full pointer-events-none flex justify-center">
-          <header className="w-full bg-white/90 dark:bg-gray-900/95 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800/80 shadow-md shadow-black/5 dark:shadow-black/20 pointer-events-auto h-14 sm:h-16 flex items-center justify-between px-3 sm:px-8 transition-all">
+          <header className="w-full bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800/80 shadow-md shadow-black/5 dark:shadow-black/20 pointer-events-auto h-12 md:h-16 flex items-center justify-between px-3 sm:px-8 transition-all">
             
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-              <button className="md:hidden p-1.5 text-gray-600 dark:text-gray-300 pointer-events-auto shrink-0" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+              <button
+                type="button"
+                aria-label="منوی اصلی"
+                className="lg:hidden min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 pointer-events-auto shrink-0 cursor-pointer"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              >
                 <Menu className="h-5 w-5" />
               </button>
               
@@ -1129,43 +1123,104 @@ const AppContent = () => {
               </div>
             </div>
 
-            <nav className="hidden lg:flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
+            <nav className="hidden lg:flex items-center gap-1 py-1">
               <NavItem view={AppView.HOME} icon={Home} label="خانه" isHeader />
               <NavItem view={AppView.SERVICES} icon={Layers} label="خدمات" isHeader />
               <NavItem view={AppView.PRODUCTS} icon={Package} label="محصولات" isHeader />
               <NavItem view={AppView.CATALOG} icon={ImageIcon} label="کاتالوگ" isHeader />
-              <NavItem view={AppView.DIELINE_GENERATOR} icon={Box} label="جعبه‌ساز ۳D" isHeader />
-              <NavItem view={AppView.SOFTWARE_STORE} icon={Laptop} label="نرم‌افزارها" isHeader />
-              <NavItem view={AppView.DESIGN_STUDIO} icon={Palette} label="استودیو آنلاین" isHeader />
-              <NavItem view={AppView.LIBRARY} icon={Download} label="کتابخانه" isHeader />
+
+              <div className="relative" ref={toolsDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsToolsDropdownOpen((o) => !o)}
+                  aria-expanded={isToolsDropdownOpen}
+                  className={`flex items-center gap-1.5 px-2.5 xl:px-3 py-1.5 rounded-xl transition-all duration-200 whitespace-nowrap text-xs xl:text-sm font-bold cursor-pointer border ${
+                    [AppView.DIELINE_GENERATOR, AppView.DESIGN_STUDIO, AppView.AUTOCAD_STUDIO, AppView.SOFTWARE_STORE, AppView.LIBRARY].includes(currentView)
+                      ? 'bg-primary-50 dark:bg-primary-900/40 text-primary-600 dark:text-primary-400 border-primary-200/80 dark:border-primary-800/60 shadow-sm'
+                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-primary-600 dark:hover:text-primary-400 border-transparent'
+                  }`}
+                >
+                  <Box className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span>ابزارهای مهندسی</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isToolsDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isToolsDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl p-2 z-50 space-y-1 text-right">
+                    <button
+                      type="button"
+                      onClick={() => { setIsToolsDropdownOpen(false); toggleView(AppView.DIELINE_GENERATOR); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-400 transition-colors cursor-pointer"
+                    >
+                      <Box className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>جعبه‌ساز ۳D و مهندسی دایلاین</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIsToolsDropdownOpen(false); toggleView(AppView.DESIGN_STUDIO); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer"
+                    >
+                      <Palette className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span>استودیو آنلاین گرافیک و چاپ</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIsToolsDropdownOpen(false); toggleView(AppView.AUTOCAD_STUDIO); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-sky-500/10 hover:text-sky-600 dark:hover:text-sky-400 transition-colors cursor-pointer"
+                    >
+                      <PenTool className="w-4 h-4 text-sky-500 shrink-0" />
+                      <span>کارگاه آنلاین اتوکد CAD</span>
+                    </button>
+                    <div className="h-px bg-slate-200 dark:bg-slate-800 my-1" />
+                    <button
+                      type="button"
+                      onClick={() => { setIsToolsDropdownOpen(false); toggleView(AppView.SOFTWARE_STORE); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-indigo-500/10 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                    >
+                      <Laptop className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <span>افزونه‌ها و اسکریپت‌های آفلاین</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setIsToolsDropdownOpen(false); toggleView(AppView.LIBRARY); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-amber-500/10 hover:text-amber-600 dark:hover:text-amber-400 transition-colors cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 text-amber-500 shrink-0" />
+                      <span>کتابخانه استانداردهای FEFCO</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <NavItem view={AppView.BLOG} icon={BookOpen} label="مجله فنی" isHeader />
               <NavItem view={AppView.ABOUT} icon={Users} label="درباره ما" isHeader />
             </nav>
 
-            <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                <button 
                  onClick={() => setIsSiteSwitcherOpen(true)}
-                 className="flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all font-bold text-[10px] sm:text-[11px]"
+                 className="hidden md:flex items-center gap-1 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40 px-2.5 py-1.5 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-all font-bold text-[11px]"
                  title="تغییر پورتال وب‌سایت"
                >
                  <Globe className="h-3.5 w-3.5 shrink-0" />
-                 <span className="hidden xs:inline truncate max-w-[80px] sm:max-w-none">{getPortalDisplayName(activePortal)}</span>
+                 <span className="truncate">{getPortalDisplayName(activePortal)}</span>
                </button>
 
                <button 
                  onClick={() => setIsDarkMode(!isDarkMode)}
-                 className="p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors"
+                 className="min-w-[40px] min-h-[40px] sm:min-w-0 sm:min-h-0 p-1.5 sm:p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors flex items-center justify-center cursor-pointer"
                  title="تم روز/شب"
                >
                  {isDarkMode ? <Sun className="h-4 w-4 sm:h-5 sm:w-5" /> : <Moon className="h-4 w-4 sm:h-5 sm:w-5" />}
                </button>
                
                {isAuthenticated ? (
-                 <div className="flex items-center gap-1 sm:gap-2 border-r border-gray-300 dark:border-gray-700 pr-1.5 sm:pr-3 mr-0.5 sm:mr-1">
+                 <div className="flex items-center gap-1 sm:gap-2 md:border-r border-gray-300 dark:border-gray-700 md:pr-3 md:mr-1">
                     <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200 hidden md:inline-block">{user?.name}</span>
                     {user?.role === UserRole.ADMIN ? (
                       <button 
                         onClick={() => toggleView(AppView.ADMIN_PANEL)}
-                        className="bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/25 px-1.5 sm:px-2 py-0.5 rounded text-[10px] font-black transition-colors"
+                        className="bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500/25 px-2 py-1 rounded-lg text-[10px] font-black transition-colors cursor-pointer"
                         title="پنل مدیریت"
                       >
                         ادمین
@@ -1173,90 +1228,40 @@ const AppContent = () => {
                     ) : (
                       <button 
                         onClick={() => toggleView(AppView.DASHBOARD)}
-                        className="bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 hover:bg-indigo-500/25 px-1.5 sm:px-2 py-0.5 rounded text-[10px] font-black transition-colors"
+                        className="bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 hover:bg-indigo-500/25 px-2 py-1 rounded-lg text-[10px] font-black transition-colors cursor-pointer"
                         title="داشبورد کاربر"
                       >
                         پنل
                       </button>
                     )}
                     {user?.avatar && <img src={user.avatar} className="w-8 h-8 rounded-full border border-gray-200 hidden sm:block" />}
-                    <button onClick={() => { logout(); navigate('/'); }} className="text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-1 sm:p-2 rounded-full" title="خروج">
-                       <LogOut className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <button onClick={() => { logout(); navigate('/'); }} className="hidden md:flex text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-full cursor-pointer" title="خروج">
+                       <LogOut className="h-4 w-4" />
                     </button>
                  </div>
                ) : (
-                 <div className="flex items-center gap-1 sm:gap-2 border-r border-gray-300 dark:border-gray-700 pr-1.5 sm:pr-3 mr-0.5 sm:mr-1">
+                 <div className="flex items-center gap-1 sm:gap-2 md:border-r border-gray-300 dark:border-gray-700 md:pr-3 md:mr-1">
                     <button 
                       onClick={openLoginModal}
-                      className="text-xs sm:text-sm font-black text-gray-700 dark:text-gray-300 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950/20 transition-all flex items-center justify-center bg-gray-100 dark:bg-gray-850 p-2 sm:px-2.5 sm:py-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50 gap-1"
+                      className="text-xs sm:text-sm font-black text-gray-700 dark:text-gray-300 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950/20 transition-all flex items-center justify-center bg-gray-100 dark:bg-slate-800 px-2.5 py-1.5 rounded-xl border border-gray-200/50 dark:border-gray-700/50 gap-1 cursor-pointer"
                       title="ورود / ثبت‌نام"
                     >
                       <LogIn className="h-4 w-4 text-primary-500" />
-                      <span className="hidden sm:inline text-xs">ورود</span>
+                      <span className="text-[11px] sm:text-xs">ورود</span>
                     </button>
                  </div>
                )}
 
                <button 
                  onClick={() => toggleView(AppView.INQUIRY)}
-                 className="bg-gradient-to-r from-secondary-500 to-secondary-600 hover:shadow-lg hover:shadow-secondary-500/40 text-white border-none h-9 w-9 sm:h-auto sm:w-auto p-2 sm:px-3 sm:py-1.5 rounded-xl flex items-center justify-center gap-1 font-bold transition-all text-xs"
+                 className="hidden md:flex bg-gradient-to-r from-secondary-500 to-secondary-600 hover:shadow-lg hover:shadow-secondary-500/40 text-white border-none px-3 py-1.5 rounded-xl items-center justify-center gap-1 font-bold transition-all text-xs cursor-pointer"
                  title="استعلام سریع قیمت"
                >
                  <HelpCircle className="h-4 w-4 shrink-0" />
-                 <span className="hidden sm:inline">استعلام سریع</span>
+                 <span>استعلام سریع</span>
                </button>
             </div>
           </header>
-        </div>
-      )}
-
-      {/* Mobile Quick Action Bar (Visible only on Mobile) */}
-      {!isImmersiveView && (
-        <div className="md:hidden flex items-center justify-start gap-1.5 px-3 py-1.5 bg-white/95 dark:bg-slate-900/95 border-b border-gray-200/80 dark:border-slate-800/80 sticky top-14 sm:top-16 z-30 shadow-sm backdrop-blur-md overflow-x-auto no-scrollbar">
-           <button 
-             onClick={() => toggleView(AppView.CATALOG)}
-             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-black shrink-0 transition-all border ${
-               currentView === AppView.CATALOG 
-                 ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20' 
-                 : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
-             }`}
-           >
-              <ImageIcon className="h-3 w-3" />
-              <span>ژورنال و کاتالوگ</span>
-           </button>
-           <button 
-             onClick={() => toggleView(AppView.DIELINE_GENERATOR)}
-             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-black shrink-0 transition-all border ${
-               (currentView as any) === AppView.DIELINE_GENERATOR 
-                 ? 'bg-blue-600 text-white border-blue-500 shadow-md' 
-                 : 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-900/30'
-             }`}
-           >
-              <Box className="h-3 w-3" />
-              <span>طراحی قالب</span>
-           </button>
-           <button 
-             onClick={() => toggleView(AppView.SOFTWARE_STORE)}
-             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-black shrink-0 transition-all border ${
-               currentView === AppView.SOFTWARE_STORE 
-                 ? 'bg-indigo-600 text-white border-indigo-500 shadow-md' 
-                 : 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30'
-             }`}
-           >
-              <Laptop className="h-3 w-3" />
-              <span>فروشگاه نرم‌افزار</span>
-           </button>
-           <button 
-             onClick={() => toggleView(AppView.DESIGN_STUDIO)}
-             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-black shrink-0 transition-all border ${
-               (currentView as any) === AppView.DESIGN_STUDIO 
-                 ? 'bg-emerald-600 text-white border-emerald-500 shadow-md' 
-                 : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30'
-             }`}
-           >
-              <Palette className="h-3 w-3" />
-              <span>استودیو آنلاین</span>
-           </button>
         </div>
       )}
 
@@ -1269,14 +1274,14 @@ const AppContent = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
-              className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              className="lg:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
             />
             <motion.div 
               initial={{ x: '100%' }} // RTL: Start from right off-screen (positive x)
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 250, mass: 0.8 }}
-              className="md:hidden fixed inset-y-0 right-0 z-50 w-80 bg-white dark:bg-slate-950/98 shadow-2xl p-5 flex flex-col gap-4 overflow-y-auto"
+              className="lg:hidden fixed inset-y-0 right-0 z-50 w-[85vw] max-w-xs bg-white dark:bg-slate-950/98 shadow-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] flex flex-col gap-4 overflow-y-auto"
             >
                <div className="flex justify-between items-center pb-2 border-b border-gray-100 dark:border-slate-800/80">
                   <div className="flex items-center gap-2">
@@ -1424,7 +1429,7 @@ const AppContent = () => {
                
                <div className="relative z-10 text-center">
                   <div className="w-16 h-16 bg-gradient-to-tr from-indigo-600 via-primary-600 to-purple-600 rounded-2xl mx-auto flex items-center justify-center text-white mb-4 shadow-xl shadow-indigo-500/30">
-                     <Cpu className="w-8 h-8 animate-pulse text-indigo-100" />
+                     <Cpu className="w-8 h-8 text-indigo-100" />
                   </div>
                   
                   <div className="flex items-center justify-center gap-2 mb-2">
@@ -1501,35 +1506,30 @@ const AppContent = () => {
 
 
       {/* Main Content */}
-      <main className={`flex-1 w-full ${(isImmersiveView || currentView === AppView.HOME || currentView === AppView.CATALOG) ? 'max-w-none px-0' 
+      <main className={`flex-1 w-full ${!isImmersiveView ? 'pb-16 md:pb-0' : ''} ${(isImmersiveView || currentView === AppView.HOME || currentView === AppView.CATALOG) ? 'max-w-none px-0' 
           : 'max-w-7xl mx-auto px-4 md:px-8'
       }`}>
+        <Suspense
+          fallback={
+            <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-slate-500 dark:text-slate-400">
+              <div className="w-10 h-10 rounded-full border-4 border-amber-500 border-t-transparent animate-spin" />
+              <span className="text-xs font-bold">در حال بارگذاری ماژول...</span>
+            </div>
+          }
+        >
         <Routes>
           <Route path="/" element={
             <>
               <SeoHead view={AppView.HOME} canonicalPath="/" />
               <ThreeDProductSlider onNavigate={toggleView} />
+              <InteractiveServicesSpace />
               
               <div id="catalog-section" className="w-full">
                  <CatalogSection />
               </div>
 
-              <div className="max-w-7xl mx-auto px-4 md:px-8 mt-12">
-                <SmartPortfolio isEmbedded={true} />
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 p-8">
-                  <Card className="text-center hover:-translate-y-1 transition-transform duration-300" iconName="Grid" iconColor="blue" title="کاتالوگ هوشمند">
-                    <p className="text-gray-500 text-sm">انتخاب محصول با کمک هوش مصنوعی و مشاهده سه بعدی</p>
-                  </Card>
-                  <Card className="text-center hover:-translate-y-1 transition-transform duration-300" iconName="Phone" iconColor="green" title="پشتیبانی ۲۴ ساعته">
-                    <p className="text-gray-500 text-sm">پاسخگویی سریع از طریق چت، واتس‌اپ و تماس تلفنی</p>
-                  </Card>
-                  <Card className="text-center hover:-translate-y-1 transition-transform duration-300" iconName="CheckCircle" iconColor="purple" title="تضمین کیفیت">
-                    <p className="text-gray-500 text-sm">کنترل کیفیت چند مرحله‌ای و گارانتی چاپ</p>
-                  </Card>
-                </div>
-                
-                <LatestBlogSection onViewAll={() => toggleView(AppView.BLOG)} />
-              </div>
+              <SmartPortfolio isEmbedded={true} />
+              <LatestBlogSection onViewAll={() => toggleView(AppView.BLOG)} />
             </>
           } />
           <Route path="/inquiry" element={<><SeoHead view={AppView.INQUIRY} canonicalPath="/inquiry" /><Inquiry /></>} />
@@ -1558,7 +1558,7 @@ const AppContent = () => {
           } />
           <Route path="/blog" element={<Blog />} />
           <Route path="/blog/:slug" element={<Blog />} />
-          <Route path="/about" element={<><SeoHead view={AppView.ABOUT} canonicalPath="/about" /><AboutUs /></>} />
+          <Route path="/about" element={<><SeoHead view={AppView.ABOUT} canonicalPath="/about" /><AboutUs onNavigate={toggleView} /></>} />
           <Route path="/library" element={<><SeoHead view={AppView.LIBRARY} canonicalPath="/library" /><Library /></>} />
           <Route path="/dashboard" element={
             isAuthenticated ? (
@@ -1569,7 +1569,7 @@ const AppContent = () => {
             ) : (
               <div className="py-24 text-center">
                 <SeoHead view={AppView.DASHBOARD} canonicalPath="/dashboard" noIndex={true} />
-                <div className="max-w-md mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-xl">
+                <div className="max-w-md mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-xl">
                   <h3 className="text-lg font-black text-gray-900 dark:text-white mb-2">داشبورد کاربری</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">جهت مشاهده سفارشات، پروژه‌ها و کارتابل خود وارد سیستم شوید.</p>
                   <button onClick={openLoginModal} className="w-full py-2.5 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer">
@@ -1585,7 +1585,7 @@ const AppContent = () => {
             ) : (
               <div className="py-24 text-center">
                 <SeoHead view={AppView.ADMIN_PANEL} canonicalPath="/admin" noIndex={true} />
-                <div className="max-w-md mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl border border-gray-150 dark:border-gray-700 shadow-xl">
+                <div className="max-w-md mx-auto p-8 bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-xl">
                   <h3 className="text-lg font-black text-red-600 dark:text-red-400 mb-2">ورود مدیران</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-6">این بخش دارای دسترسی امنیتی اختصاصی مدیران ارشد سیستم است.</p>
                   <button onClick={() => { setLoginTargetRole(UserRole.ADMIN); setIsLoginOpen(true); }} className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer">
@@ -1599,12 +1599,60 @@ const AppContent = () => {
           <Route path="/b2b" element={<Navigate to="/services" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
       </main>
       {!isImmersiveView && (
         <>
           <Footer setView={toggleView} />
           <ContactFloaters />
           <ChatWidget />
+
+          {/* Ergonomic Mobile Bottom Thumb Tab Bar (Visible < md) */}
+          <nav
+            aria-label="ناوبری سریع موبایل"
+            className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(0,0,0,0.08)] dark:shadow-[0_-8px_24px_rgba(0,0,0,0.45)]"
+            dir="rtl"
+          >
+            <div className="grid grid-cols-5 h-14 items-stretch">
+              {[
+                { id: 'home', label: 'خانه', icon: Home, view: AppView.HOME, active: currentView === AppView.HOME },
+                { id: 'dieline', label: 'جعبه‌ساز', icon: Box, view: AppView.DIELINE_GENERATOR, active: (currentView as any) === AppView.DIELINE_GENERATOR },
+                { id: 'catalog', label: 'کاتالوگ', icon: ImageIcon, view: AppView.CATALOG, active: currentView === AppView.CATALOG },
+                { id: 'inquiry', label: 'استعلام', icon: HelpCircle, view: AppView.INQUIRY, active: currentView === AppView.INQUIRY },
+              ].map((tab) => {
+                const TabIcon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => toggleView(tab.view)}
+                    className={`relative flex flex-col items-center justify-center gap-0.5 min-h-[44px] transition-colors cursor-pointer ${
+                      tab.active
+                        ? 'text-amber-600 dark:text-amber-400 font-black'
+                        : 'text-slate-500 dark:text-slate-400 font-semibold hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {tab.active && <span className="absolute top-0 w-7 h-0.5 bg-amber-500 rounded-full" />}
+                    <TabIcon className="w-5 h-5" />
+                    <span className="text-[10px] leading-none">{tab.label}</span>
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen(true)}
+                className={`relative flex flex-col items-center justify-center gap-0.5 min-h-[44px] transition-colors cursor-pointer ${
+                  isMobileMenuOpen
+                    ? 'text-amber-600 dark:text-amber-400 font-black'
+                    : 'text-slate-500 dark:text-slate-400 font-semibold hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+              >
+                <Menu className="w-5 h-5" />
+                <span className="text-[10px] leading-none">ابزار و منو</span>
+              </button>
+            </div>
+          </nav>
         </>
       )}
       {/* Ashk Software Division Notification Floating Window (Upgraded) */}
@@ -1618,12 +1666,11 @@ const AppContent = () => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.8, y: 20 }}
               onClick={() => setIsItNotifMinimized(false)}
-              className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 border border-indigo-500/40 text-white rounded-2xl px-3.5 py-2.5 shadow-2xl flex items-center gap-2.5 cursor-pointer backdrop-blur-xl hover:scale-105 transition-all group font-sans dir-rtl"
+              className="fixed bottom-[4.5rem] right-3 md:bottom-6 md:right-6 z-50 bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-900 border border-indigo-500/40 text-white rounded-2xl px-3.5 py-2.5 shadow-2xl flex items-center gap-2.5 cursor-pointer backdrop-blur-xl hover:scale-105 transition-all group font-sans dir-rtl"
               title="باز کردن ویترین نرم‌افزارها"
             >
               <div className="w-8 h-8 rounded-xl bg-indigo-600/30 text-indigo-400 flex items-center justify-center relative">
                 <Laptop className="w-4 h-4" />
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping"></span>
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full"></span>
               </div>
               <div className="text-right">
@@ -1638,7 +1685,7 @@ const AppContent = () => {
               initial={{ opacity: 0, x: 50, scale: 0.95 }}
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 50, scale: 0.95 }}
-              className="fixed bottom-6 right-6 z-50 max-w-sm w-full bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 text-white rounded-3xl p-5 shadow-2xl flex flex-col gap-3 font-sans dir-rtl text-right backdrop-blur-xl shadow-indigo-950/60"
+              className="fixed bottom-[4.5rem] left-3 right-3 sm:left-auto sm:right-6 md:bottom-6 z-50 sm:max-w-sm sm:w-full bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 text-white rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col gap-3 font-sans dir-rtl text-right backdrop-blur-xl shadow-indigo-950/60"
               id="ashk-it-toast"
             >
               {/* Header */}
@@ -1772,12 +1819,12 @@ const AppContent = () => {
             initial={{ opacity: 0, y: 50, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.9 }}
-            className="fixed bottom-6 left-6 z-50 max-w-sm w-full bg-gradient-to-tr from-emerald-950 via-slate-900 to-emerald-900 border border-emerald-500/30 text-white rounded-2xl p-4 shadow-2xl flex flex-col gap-3 font-sans dir-rtl text-right"
+            className="fixed bottom-[4.5rem] left-3 right-3 sm:right-auto sm:left-6 md:bottom-6 z-50 sm:max-w-sm sm:w-full bg-gradient-to-tr from-emerald-950 via-slate-900 to-emerald-900 border border-emerald-500/30 text-white rounded-2xl p-4 shadow-2xl flex flex-col gap-3 font-sans dir-rtl text-right"
             id="badikaran-news-toast"
           >
             <div className="flex justify-between items-start gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 flex items-center justify-center animate-pulse">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0">
                   <Globe className="w-5 h-5" />
                 </div>
                 <div>
@@ -1789,7 +1836,7 @@ const AppContent = () => {
               </div>
               <button
                 onClick={() => setShowBadikaranNotification(false)}
-                className="p-1 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1808,7 +1855,7 @@ const AppContent = () => {
                   localStorage.setItem('hasChosenPortal', 'true');
                 }
               }}
-              className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-emerald-600/25 flex items-center justify-center gap-1.5"
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-emerald-600/25 flex items-center justify-center gap-1.5"
             >
               <span>ورود به مجتمع چاپ بادیکاران</span>
               <ArrowLeft className="w-3.5 h-3.5" />
@@ -1824,18 +1871,15 @@ const AppContent = () => {
         onSelectPortal={selectPortal} 
       />
 
-      {/* Floating Smart Guide Button '؟' */}
-      <div className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-40">
-        <div className="relative">
-          <div className="absolute inset-0 bg-amber-500/30 rounded-full animate-ping pointer-events-none"></div>
-          <button 
-            onClick={() => setShowHelpModal(true)}
-            className="relative w-12 h-12 bg-gradient-to-tr from-amber-500 to-amber-600 dark:from-amber-400 dark:to-amber-500 text-slate-950 dark:text-slate-950 font-black text-xl rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 dark:shadow-amber-400/20 hover:shadow-xl hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer"
-            title="راهنمای هوشمند این بخش"
-          >
-            ؟
-          </button>
-        </div>
+      {/* Floating Smart Guide Button '؟' (Desktop-only; accessible via mobile drawer menu on phones to avoid screen clutter) */}
+      <div className="hidden md:block fixed bottom-8 right-8 z-40">
+        <button 
+          onClick={() => setShowHelpModal(true)}
+          className="w-12 h-12 bg-gradient-to-tr from-amber-500 to-amber-600 text-slate-950 font-black text-xl rounded-full flex items-center justify-center shadow-lg shadow-amber-500/30 hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
+          title="راهنمای هوشمند این بخش"
+        >
+          ؟
+        </button>
       </div>
 
       {/* Smart Guide Modal */}
@@ -1873,7 +1917,7 @@ const AppContent = () => {
                      {getHelpContent(currentView).desc}
                   </p>
 
-                  <div className="bg-amber-50/50 dark:bg-slate-850 p-4 rounded-2xl border border-amber-100/30 dark:border-slate-800">
+                  <div className="bg-amber-50/50 dark:bg-slate-800/80 p-4 rounded-2xl border border-amber-100/30 dark:border-slate-700">
                      <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 block mb-2 font-black">نکات کلیدی و کاربردی:</span>
                      <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-400 list-disc list-inside pr-1">
                         {getHelpContent(currentView).tips.map((tip, idx) => (

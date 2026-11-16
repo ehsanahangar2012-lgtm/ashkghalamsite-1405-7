@@ -1,0 +1,67 @@
+name: Ashk Ghalam Automated SEO & Content Worker
+
+on:
+  schedule:
+    # Daily technical SEO audit & IndexNow sync at 22:45 UTC (~02:15 Tehran)
+    - cron: "45 22 * * *"
+    # Tri-weekly E-E-A-T article draft generation (Sat, Mon, Wed at 00:00 UTC / ~03:30 Tehran)
+    - cron: "0 0 * * 1,3,6"
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Worker task to run"
+        required: true
+        default: "audit"
+        type: choice
+        options:
+          - audit
+          - generate
+          - sitemap
+
+jobs:
+  run-seo-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run SEO Audit & IndexNow Sync
+        if: ${{ github.event.inputs.task == 'audit' || github.event.schedule == '45 22 * * *' }}
+        env:
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          REMOTE_INGEST_URL: ${{ secrets.REMOTE_INGEST_URL }}
+          AGENT_INGEST_SECRET: ${{ secrets.AGENT_INGEST_SECRET }}
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
+          GSC_ACCESS_TOKEN: ${{ secrets.GSC_ACCESS_TOKEN }}
+          GSC_SITE_URL: ${{ secrets.GSC_SITE_URL }}
+        run: npx tsx agent/worker.ts --task=audit
+
+      - name: Generate E-E-A-T Article Draft via Free AI Router
+        if: ${{ github.event.inputs.task == 'generate' || github.event.schedule == '0 0 * * 1,3,6' }}
+        env:
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          REMOTE_INGEST_URL: ${{ secrets.REMOTE_INGEST_URL }}
+          AGENT_INGEST_SECRET: ${{ secrets.AGENT_INGEST_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          AGENT_AUTO_PUBLISH: ${{ vars.AGENT_AUTO_PUBLISH || 'false' }}
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
+        run: npx tsx agent/worker.ts --task=generate
+
+      - name: Rebuild Sitemap & Notify Search Engines
+        if: ${{ github.event.inputs.task == 'sitemap' }}
+        env:
+          SITE_BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          INDEXNOW_KEY: ${{ secrets.INDEXNOW_KEY }}
+          GSC_ACCESS_TOKEN: ${{ secrets.GSC_ACCESS_TOKEN }}
+        run: npx tsx agent/worker.ts --task=sitemap

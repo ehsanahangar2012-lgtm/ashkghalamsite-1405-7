@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppView } from '../types';
+import { useContent } from '../contexts/ContentContext';
 import { AlertTriangle, X, ArrowLeft } from 'lucide-react';
 
 interface EmergencyNotificationBarProps {
@@ -8,21 +9,21 @@ interface EmergencyNotificationBarProps {
 }
 
 export const EmergencyNotificationBar: React.FC<EmergencyNotificationBarProps> = ({
-  currentView,
   onNavigate,
 }) => {
+  const { emergencyConfig } = useContent();
   const [dismissed, setDismissed] = useState(false);
 
-  if (dismissed) return null;
+  if (dismissed || !emergencyConfig?.enabled || !emergencyConfig?.message?.trim()) {
+    return null;
+  }
 
   return (
     <div className="bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-amber-500/20 border-b border-amber-500/30 px-4 py-2.5 text-xs text-amber-200">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>
-            نسخه ۳.۹.۱ استودیو هوشمند اشک قلم فعال است — موتور خروجی DXF و محاسبات استانداردهای FEFCO با حداکثر دقت صنعتی کالیبره شده است.
-          </span>
+          <span>{emergencyConfig.message}</span>
         </div>
 
         <div className="flex items-center gap-3">

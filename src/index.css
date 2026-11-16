@@ -31,10 +31,12 @@
 }
 
 /* Custom scrollbar hiding utility */
+.no-scrollbar::-webkit-scrollbar,
 .scrollbar-none::-webkit-scrollbar,
 .custom-scrollbar-none::-webkit-scrollbar {
   display: none !important;
 }
+.no-scrollbar,
 .scrollbar-none,
 .custom-scrollbar-none {
   -ms-overflow-style: none !important;  /* IE and Edge */

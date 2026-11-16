@@ -6,6 +6,7 @@ import {
   Download, ExternalLink, Scissors, ShieldCheck, HelpCircle, Sparkles, AlertCircle,
   Upload, Image as ImageIcon, Trash2, Sliders, Play, RotateCw, Move, RefreshCw
 } from 'lucide-react';
+import { SmartHelpButton } from './SmartHelpModal';
 
 interface DielineTemplatesCatalogProps {
   isDarkMode?: boolean;
@@ -50,27 +51,14 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
     if (saved) {
       try {
         return JSON.parse(saved);
-      } catch (e) {}
+      } catch {}
     }
-    return {
-      'snap-lock-123': 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80',
-      'fefco-0215': 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=600&q=80',
-      'fefco-0427': 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80'
-    };
+    return {};
   });
 
-  const [calibrationStates, setCalibrationStates] = useState<Record<string, { isCalibrated: boolean; matchRate: number }>>(() => {
-    return {
-      'snap-lock-123': { isCalibrated: false, matchRate: 74.2 },
-      'fefco-0215': { isCalibrated: false, matchRate: 68.5 },
-      'fefco-0427': { isCalibrated: false, matchRate: 81.0 },
-      'ecma-a2020': { isCalibrated: false, matchRate: 79.5 }
-    };
-  });
-
-  const [isCalibrating, setIsCalibrating] = useState(false);
-  const [calibrationProgress, setCalibrationProgress] = useState(0);
-  const [calibrationLogs, setCalibrationLogs] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [calibratedStandardIds, setCalibratedStandardIds] = useState<Record<string, boolean>>({});
+  const [calibrationReport, setCalibrationReport] = useState<string[]>([]);
 
   const updateStandardRefImage = (id: string, url: string | null) => {
     const updated = { ...standardReferenceImages };
@@ -88,38 +76,43 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
     }
   };
 
-  const startCalibrationSequence = (id: string) => {
-    setIsCalibrating(true);
-    setCalibrationProgress(5);
-    setCalibrationLogs(['[سیستم] شروع کالیبراسیون و انطباق بر خطوط تا خوردن...']);
+  // Real deterministic geometric validation against active standard bounds
+  const activeRuleMeta = STANDARDS_METADATA[activeStandard] || Object.values(STANDARDS_METADATA)[0];
+  const geometricValidation = useMemo(() => {
+    if (!activeRuleMeta) {
+      return { valid: true, issues: [] as string[], score: 100 };
+    }
+    const issues: string[] = [];
+    if (dimensions.L < activeRuleMeta.minL || dimensions.L > activeRuleMeta.maxL) {
+      issues.push(`طول (${dimensions.L}mm) خارج از بازه مجاز ${activeRuleMeta.minL} تا ${activeRuleMeta.maxL} میلی‌متر است.`);
+    }
+    if (dimensions.W < activeRuleMeta.minW || dimensions.W > activeRuleMeta.maxW) {
+      issues.push(`عرض (${dimensions.W}mm) خارج از بازه مجاز ${activeRuleMeta.minW} تا ${activeRuleMeta.maxW} میلی‌متر است.`);
+    }
+    if (dimensions.H < activeRuleMeta.minH || dimensions.H > activeRuleMeta.maxH) {
+      issues.push(`ارتفاع (${dimensions.H}mm) خارج از بازه مجاز ${activeRuleMeta.minH} تا ${activeRuleMeta.maxH} میلی‌متر است.`);
+    }
+    const ratio = dimensions.W > 0 ? dimensions.H / dimensions.W : 99;
+    if (ratio > activeRuleMeta.aspectRatioMaxH_to_W) {
+      issues.push(`نسبت ارتفاع به عرض (${ratio.toFixed(2)}x) از حد پایداری (${activeRuleMeta.aspectRatioMaxH_to_W}x) بیشتر است.`);
+    }
+    const score = Math.max(40, 100 - issues.length * 15);
+    return { valid: issues.length === 0, issues, score };
+  }, [activeRuleMeta, dimensions]);
 
-    const steps = [
-      { prg: 20, log: '🔍 در حال اسکن لبه‌های قالب و تصویر الگو...' },
-      { prg: 45, log: '⚙️ شناسایی خطاهای هم‌پوشانی و انحراف زوایا در لولاهای کف...' },
-      { prg: 70, log: '📐 تصحیح خودکار زوایای بحرانی (کالیبره کردن لبه‌ها به زاویه استاندارد ۹۰ و ۴۵ درجه)...' },
-      { prg: 90, log: '🛡️ محاسبه رواداری خمش بر اساس ضخامت ورق و پرزهای دورریز...' },
-      { prg: 100, log: '🎉 کالیبراسیون کامل شد! انطباق هندسی دایلاین با تصویر مرجع به ۹۹.۸٪ ارتقا یافت.' }
-    ];
-
-    steps.forEach((step, index) => {
-      setTimeout(() => {
-        setCalibrationProgress(step.prg);
-        setCalibrationLogs(prev => [...prev, step.log]);
-        if (step.prg === 100) {
-          setIsCalibrating(false);
-          setCalibrationStates(prev => ({
-            ...prev,
-            [id]: { isCalibrated: true, matchRate: 99.8 }
-          }));
-          // Automatically set optimized dimensions to verify fit
-          setDimensions({ L: 140, W: 90, H: 110 });
-        }
-      }, (index + 1) * 800);
-    });
-  };
-
-  const handleBlueprintAutoCalibrate = () => {
-    startCalibrationSequence(activeStandard);
+  const handleApplyOptimalDimensions = () => {
+    if (!activeRuleMeta) return;
+    const optL = Math.round(Math.min(activeRuleMeta.maxL, Math.max(activeRuleMeta.minL, (activeRuleMeta.minL + activeRuleMeta.maxL) * 0.38)));
+    const optW = Math.round(Math.min(activeRuleMeta.maxW, Math.max(activeRuleMeta.minW, optL * 0.68)));
+    const maxHByRatio = Math.floor(optW * activeRuleMeta.aspectRatioMaxH_to_W);
+    const optH = Math.round(Math.min(activeRuleMeta.maxH, maxHByRatio, Math.max(activeRuleMeta.minH, optL * 0.85)));
+    setDimensions({ L: optL, W: optW, H: optH });
+    setCalibratedStandardIds(prev => ({ ...prev, [activeStandard]: true }));
+    setCalibrationReport([
+      `ابعاد بهینه استاندارد ${activeRuleMeta.code}: طول ${optL} × عرض ${optW} × ارتفاع ${optH} میلی‌متر اعمال شد.`,
+      `لبه چسب استاندارد ${activeRuleMeta.defGlueTab}mm و زبانه ${activeRuleMeta.defTuck}mm تایید گردید.`,
+      `نسبت پایداری ستونی (H/W): ${(optH / Math.max(1, optW)).toFixed(2)}x در محدوده ایمن قرار دارد.`
+    ]);
   };
 
   // List all available standards
@@ -172,9 +165,10 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
   // Process reference image upload
   const processImageFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('لطفاً فقط فایل تصویر بارگذاری کنید.');
+      setUploadError('لطفاً فقط فایل تصویر معتبر (PNG/JPG/SVG) بارگذاری کنید.');
       return;
     }
+    setUploadError(null);
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -315,21 +309,38 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs">پایگاه داده CAD استاندارد</span>
-            <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
           </div>
           <h2 className="text-xl font-black text-slate-100 flex items-center gap-2">
             الگوها و نمونه‌های استاندارد دایلاین <span className="text-indigo-400 font-mono">(Blueprint Standards Catalog)</span>
           </h2>
-          <p className="text-xs text-slate-400">سامانه پیشرفته کالیبراسیون و انطباق بر خطوط تا، مهار تداخل‌ها و عیب‌یابی انحراف زوایا به صورت الگو به الگو.</p>
+          <p className="text-xs text-slate-400">سامانه مهندسی بررسی تلورانس، ابعاد مجاز ورق و انطباق الگوهای استاندارد FEFCO و ECMA.</p>
         </div>
-        <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex items-center gap-3">
-          <Ruler className="w-5 h-5 text-indigo-400" />
-          <div className="text-xs">
-            <span className="text-slate-400 block text-[10px]">الگوی فعال جاری در کارگاه:</span>
-            <strong className="text-indigo-300 font-mono text-sm">{activeStandard.toUpperCase()}</strong>
+        <div className="flex items-center gap-3">
+          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex items-center gap-3">
+            <Ruler className="w-5 h-5 text-indigo-400" />
+            <div className="text-xs">
+              <span className="text-slate-400 block text-[10px]">الگوی فعال جاری در کارگاه:</span>
+              <strong className="text-indigo-300 font-mono text-sm">{activeStandard.toUpperCase()}</strong>
+            </div>
           </div>
+          <SmartHelpButton
+            title="کاتالوگ الگوهای استاندارد دایکات"
+            description="در این بخش می‌توانید استانداردهای FEFCO و ECMA را بررسی کرده، تصویر الگوی مرجع اختصاصی خود را بارگذاری کنید و ابعاد جعبه را با محدودیت‌های فیزیکی قالب تطبیق دهید."
+            steps={[
+              'استاندارد مورد نظر (FEFCO یا ECMA) را از فهرست سمت چپ انتخاب کنید.',
+              'در صورت داشتن نقشه یا عکس مرجع، آن را برای مقایسه روی خطوط CAD بارگذاری نمایید.',
+              'با دکمه «اعمال ابعاد بهینه استاندارد» مقدار طول، عرض و ارتفاع را در محدوده ایمن تنظیم کنید.'
+            ]}
+          />
         </div>
       </div>
+
+      {uploadError && (
+        <div className="bg-rose-950/80 border border-rose-500/40 text-rose-300 p-4 rounded-xl flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+          <span className="text-xs font-bold">{uploadError}</span>
+        </div>
+      )}
 
       {applySuccess && (
         <div className="bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 p-4 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
@@ -353,7 +364,7 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
             </div>
           </div>
           {standardReferenceImages[activeStandard] && (
-            <span className="px-3 py-1 rounded-full text-[10.5px] font-bold bg-indigo-950/60 border border-indigo-800/40 text-indigo-300 flex items-center gap-1.5 animate-pulse">
+            <span className="px-3 py-1 rounded-full text-[10.5px] font-bold bg-indigo-950/60 border border-indigo-800/40 text-indigo-300 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
               تصویر مرجع بارگذاری شد
             </span>
@@ -376,7 +387,6 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
             <div className="flex-1 flex items-center justify-center relative min-h-[220px]">
               {standardReferenceImages[activeStandard] ? (
                 <div className="relative w-full h-full max-w-[280px] max-h-[190px] rounded-xl overflow-hidden border border-slate-800/80 bg-slate-900/60 flex items-center justify-center">
-                  {/* Reference Image Background */}
                   <img 
                     src={standardReferenceImages[activeStandard]} 
                     alt="Active standard reference blueprint" 
@@ -387,18 +397,17 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
                     }}
                     referrerPolicy="no-referrer"
                   />
-                  {/* Pulsing Mathematical Overlay SVG wireframe */}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-4">
-                    <svg className="w-full h-full text-indigo-400 opacity-80 animate-pulse" viewBox="0 0 100 100">
+                    <svg className="w-full h-full text-indigo-400 opacity-85" viewBox="0 0 100 100">
                       {getStylizedSvgDieline(activeStandard)}
                     </svg>
                   </div>
                 </div>
               ) : (
                 <div className="text-center p-6 space-y-3">
-                  <ImageIcon className="w-10 h-10 text-slate-600 mx-auto animate-bounce" />
-                  <p className="text-xs text-slate-400 max-w-[220px] mx-auto leading-relaxed">
-                    هیچ تصویر مرجعی برای الگوی <strong className="font-mono text-indigo-400">{activeStandard.toUpperCase()}</strong> بارگذاری نشده است. برای کالیبراسیون، از بخش زیر دکمه بارگذاری تصویر مرجع را بزنید.
+                  <ImageIcon className="w-10 h-10 text-slate-600 mx-auto" />
+                  <p className="text-xs text-slate-400 max-w-[240px] mx-auto leading-relaxed">
+                    تصویر مرجعی برای الگوی <strong className="font-mono text-indigo-400">{activeStandard.toUpperCase()}</strong> بارگذاری نشده است. می‌توانید تصویر الگو را از کارت‌های پایین آپلود کنید.
                   </p>
                 </div>
               )}
@@ -470,115 +479,81 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
                     <svg className="w-16 h-16 transform -rotate-90">
                       <circle cx="32" cy="32" r="28" fill="transparent" stroke="#1e293b" strokeWidth="4" />
                       <circle cx="32" cy="32" r="28" fill="transparent" 
-                        stroke={calibrationStates[activeStandard]?.isCalibrated ? '#10b981' : '#6366f1'} 
+                        stroke={geometricValidation.valid ? '#10b981' : '#f59e0b'} 
                         strokeWidth="4" 
                         strokeDasharray={175} 
-                        strokeDashoffset={175 - (175 * (calibrationStates[activeStandard]?.matchRate || 72)) / 100}
-                        className="transition-all duration-1000"
+                        strokeDashoffset={175 - (175 * geometricValidation.score) / 100}
+                        className="transition-all duration-500"
                       />
                     </svg>
                     <span className="absolute text-xs font-black font-mono text-slate-100">
-                      {calibrationStates[activeStandard]?.matchRate || 72}%
+                      {geometricValidation.score}%
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 block">درصد انطباق با الگو فیزیکی:</span>
-                    <strong className={`text-sm ${calibrationStates[activeStandard]?.isCalibrated ? 'text-emerald-400' : 'text-indigo-400'} block font-mono mt-0.5`}>
-                      {calibrationStates[activeStandard]?.isCalibrated ? '۹۹.۸٪ (منطبق و فیکس شده)' : 'نیاز به کالیبراسیون خطوط تا'}
+                    <span className="text-[10px] text-slate-400 block">تطابق هندسی با استاندارد فعال:</span>
+                    <strong className={`text-sm ${geometricValidation.valid ? 'text-emerald-400' : 'text-amber-400'} block font-mono mt-0.5`}>
+                      {geometricValidation.valid ? 'در محدوده استاندارد مجاز' : `${geometricValidation.issues.length} مغایرت ابعادی`}
                     </strong>
-                    <span className="text-[9px] text-slate-500 block">انحراف مجاز خمش: ±0.15mm</span>
+                    <span className="text-[9px] text-slate-500 block font-mono">
+                      L:{dimensions.L} × W:{dimensions.W} × H:{dimensions.H} mm
+                    </span>
                   </div>
                 </div>
 
-                {/* Status Badges */}
                 <div className="bg-slate-900/30 border border-slate-850 p-4 rounded-xl flex flex-col justify-center space-y-1 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-slate-400">عیب‌یاب خط‌های تا:</span>
-                    <strong className={calibrationStates[activeStandard]?.isCalibrated ? 'text-emerald-400' : 'text-amber-400'}>
-                      {calibrationStates[activeStandard]?.isCalibrated ? '✅ بدون نقص' : '⚠️ ۳ مورد انحراف زاویه'}
+                    <span className="text-slate-400">کنترل محدودیت ابعادی:</span>
+                    <strong className={geometricValidation.valid ? 'text-emerald-400' : 'text-amber-400'}>
+                      {geometricValidation.valid ? 'تایید مهندسی' : 'نیاز به اصلاح ابعاد'}
                     </strong>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">انطباق زبانه درب:</span>
-                    <strong className="text-slate-300 font-mono">100% Calibrated</strong>
+                    <span className="text-slate-400">نسبت ارتفاع به عرض فعلی:</span>
+                    <strong className="text-slate-300 font-mono">
+                      {dimensions.W > 0 ? (dimensions.H / dimensions.W).toFixed(2) : '0'}x / مجاز {activeRuleMeta?.aspectRatioMaxH_to_W || 4}x
+                    </strong>
                   </div>
                 </div>
               </div>
 
-              {/* Dynamic Error Logs */}
-              <div className="bg-slate-950 border border-slate-850 rounded-xl p-4 space-y-2 min-h-[110px] max-h-[140px] overflow-y-auto custom-scrollbar">
-                <span className="text-[10px] text-slate-500 block font-bold">لاگ مانیتور زوایا و تداخل ساخت فیزیکی:</span>
-                
-                {isCalibrating ? (
+              <div className="bg-slate-950 border border-slate-850 rounded-xl p-4 space-y-2 min-h-[110px] max-h-[150px] overflow-y-auto custom-scrollbar">
+                <span className="text-[10px] text-slate-500 block font-bold">نتیجه کنترل واقعی قوانین استاندارد ({activeRuleMeta?.code || activeStandard}):</span>
+                {geometricValidation.valid ? (
                   <div className="space-y-1.5">
-                    {calibrationLogs.map((log, index) => (
-                      <div key={index} className="text-[10.5px] font-mono text-indigo-300 flex items-center gap-1.5 animate-pulse">
-                        <span className="w-1 h-1 rounded-full bg-indigo-400"></span>
-                        {log}
+                    <div className="text-[10.5px] text-emerald-400 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 shrink-0" />
+                      <span>تمامی ابعاد ورودی در بازه ایمن تیغ دایکات و ماشین‌آلات خط تا قرار دارند.</span>
+                    </div>
+                    {calibrationReport.map((line, i) => (
+                      <div key={i} className="text-[10.5px] text-slate-300 flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>{line}</span>
                       </div>
                     ))}
-                    <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden mt-3">
-                      <div className="bg-indigo-500 h-full transition-all duration-300" style={{ width: `${calibrationProgress}%` }}></div>
-                    </div>
-                  </div>
-                ) : calibrationStates[activeStandard]?.isCalibrated ? (
-                  <div className="space-y-1">
-                    <div className="text-[10.5px] text-emerald-400 flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5" />
-                      <span>اصلاح خطای لولا و زوایه تاشدگی ۴۵ درجه کفی (آلترناتیو تداخل ۰.۲ میلی‌متر)</span>
-                    </div>
-                    <div className="text-[10.5px] text-emerald-400 flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5" />
-                      <span>کالیبره شدن لبه چسب کاری سرد به پهنای بهینه ۱۵ میلی‌متر جهت مهار تنش فشاری</span>
-                    </div>
-                    <div className="text-[10.5px] text-emerald-400 flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5" />
-                      <span>اصلاح کشیدگی فیبر مقوا و هم‌ترازی با نقشه CAD مرجع</span>
-                    </div>
                   </div>
                 ) : (
-                  <div className="text-[10.5px] text-slate-400 leading-relaxed space-y-1">
-                    {activeStandard === 'fefco-0215' || activeStandard === 'snap-lock-123' ? (
-                      <>
-                        <div className="text-amber-400 flex items-center gap-1">
-                          <AlertCircle className="w-3 h-3 text-amber-400" />
-                          <span>انحراف زاویه ۴۵ درجه در لوله‌های کفی (تداخل مهار قفل زبانه)</span>
-                        </div>
-                        <div className="text-slate-500 font-mono text-[9px]">
-                          [خطا] انحراف ۷.۸ درصدی خط خمش از عکس مرجع الگو. کف جعبه منطبق نیست.
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-slate-500">
-                        برای شروع آنالیز، از دکمه زیر کالیبراسیون هوشمند زوایا را اجرا کنید.
+                  <div className="space-y-1.5">
+                    {geometricValidation.issues.map((issue, idx) => (
+                      <div key={idx} className="text-[10.5px] text-amber-400 flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>{issue}</span>
                       </div>
-                    )}
+                    ))}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Calibration Action Button */}
-            {standardReferenceImages[activeStandard] && (
-              <button
-                onClick={handleBlueprintAutoCalibrate}
-                disabled={isCalibrating || calibrationStates[activeStandard]?.isCalibrated}
-                className={`w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                  calibrationStates[activeStandard]?.isCalibrated
-                    ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-800/40'
-                    : isCalibrating
-                    ? 'bg-indigo-900/20 text-indigo-400 border border-indigo-800/20'
-                    : 'bg-indigo-600 hover:bg-indigo-550 text-white shadow-lg shadow-indigo-950/40'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                {calibrationStates[activeStandard]?.isCalibrated 
-                  ? 'این الگو با موفقیت کالیبره و بر الگو اصلی منطبق شد (۹۹.۸٪ Match)' 
-                  : isCalibrating 
-                  ? `در حال آنالیز و انطباق بر خطوط تا (${calibrationProgress}%)` 
-                  : 'شروع شبیه‌سازی کالیبراسیون و انطباق هوشمند دایلاین'}
-              </button>
-            )}
+            <button
+              onClick={handleApplyOptimalDimensions}
+              className="w-full py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer transition-all bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/40"
+            >
+              <Sparkles className="w-4 h-4" />
+              {calibratedStandardIds[activeStandard]
+                ? 'اعمال مجدد ابعاد بهینه استاندارد'
+                : 'تنظیم و اعمال خودکار ابعاد بهینه این استاندارد'}
+            </button>
           </div>
         </div>
       </div>
@@ -800,8 +775,8 @@ export const DielineTemplatesCatalog: React.FC<DielineTemplatesCatalogProps> = (
                         {refImgUrl ? (
                           <div className="flex items-center justify-between w-full">
                             <span className="text-[9px] text-emerald-400 flex items-center gap-1 font-bold">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                              الگو کالیبره
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                              الگو بارگذاری شده
                             </span>
                             <button
                               onClick={() => updateStandardRefImage(std.id, null)}
