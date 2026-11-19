@@ -1,7 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { CatalogItem } from '../../services/catalogService';
 import { resolveCatalogCoverImage } from '../../utils/catalogAssets';
-import { BookOpen, ChevronLeft, ChevronRight, X, Download, Box, ArrowUpRight, Layers, Printer, Ruler } from 'lucide-react';
+import { useCatalog } from '../../contexts/CatalogContext';
+import { CatalogProject } from '../../types/flipbook';
+import { BookOpen, ChevronLeft, ChevronRight, Download, Box, ArrowUpRight, Layers, Printer, Ruler, Loader2, AlertCircle } from 'lucide-react';
+import { BackButton } from '../UIComponents';
+
+const FlipbookViewer = lazy(() =>
+  import('../studio/FlipbookViewer').then((m) => ({ default: m.FlipbookViewer }))
+);
 
 export interface CatalogTechnicalDossier {
   code: string;
@@ -264,20 +271,53 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
   onRequestInquiry,
   onOpenDielineStudio,
 }) => {
+  const { getFlipbookProject } = useCatalog();
   const [spreadIndex, setSpreadIndex] = useState(0);
   const [imgFailed, setImgFailed] = useState(false);
+  const [flipbookProject, setFlipbookProject] = useState<CatalogProject | null>(null);
+  const [loadingFlipbook, setLoadingFlipbook] = useState(Boolean(catalog.flipbookId));
+  const [flipbookError, setFlipbookError] = useState<string | null>(null);
+
   const dossier = getCatalogDossier(catalog);
   const coverSrc = resolveCatalogCoverImage(catalog.coverImage, catalog.id);
 
   useEffect(() => {
+    if (!catalog.flipbookId) {
+      setLoadingFlipbook(false);
+      setFlipbookProject(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingFlipbook(true);
+    setFlipbookError(null);
+    getFlipbookProject(catalog.flipbookId)
+      .then((proj) => {
+        if (!cancelled) setFlipbookProject(proj);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setFlipbookError(err instanceof Error ? err.message : 'خطا در بارگذاری فلیپ‌بوک سه‌بعدی');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingFlipbook(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [catalog.flipbookId, getFlipbookProject]);
+
+  useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft') setSpreadIndex((i) => Math.min(2, i + 1));
-      if (e.key === 'ArrowRight') setSpreadIndex((i) => Math.max(0, i - 1));
+      if (!catalog.flipbookId) {
+        if (e.key === 'ArrowLeft') setSpreadIndex((i) => Math.min(2, i + 1));
+        if (e.key === 'ArrowRight') setSpreadIndex((i) => Math.max(0, i - 1));
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, [onClose, catalog.flipbookId]);
 
   const spreads = [
     { id: 0, title: 'نمای استودیویی و معرفی' },
@@ -287,16 +327,20 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[120] bg-black/80 flex items-center justify-center p-4 md:p-8"
+      className="fixed inset-0 z-[120] bg-black/85 flex items-center justify-center p-2 sm:p-4"
       dir="rtl"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-5xl bg-white dark:bg-[#0c111d] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className={`w-full ${
+          catalog.flipbookId
+            ? 'max-w-[96vw] xl:max-w-[1440px] h-[94vh]'
+            : 'max-w-5xl max-h-[90vh]'
+        } bg-white dark:bg-[#0c111d] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Spread Bar */}
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+        <div className="px-4 sm:px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shrink-0">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
               <span>{catalog.category}</span>
@@ -314,62 +358,85 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
             </h3>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-            aria-label="بستن پیش‌نمایش کاتالوگ"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <BackButton label="بستن و بازگشت" onClick={onClose} variant="auto" />
         </div>
 
-        {/* Interactive Spread Tabs */}
-        <div className="px-5 py-2.5 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 overflow-x-auto scrollbar-none">
-          <div className="flex items-center gap-1.5">
-            {spreads.map((sp) => (
+        {/* Interactive Spread Tabs (for legacy non-flipbook technical catalogs) */}
+        {!catalog.flipbookId && (
+          <div className="px-5 py-2.5 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-1.5">
+              {spreads.map((sp) => (
+                <button
+                  key={sp.id}
+                  type="button"
+                  onClick={() => setSpreadIndex(sp.id)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                    spreadIndex === sp.id
+                      ? 'bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {sp.title}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
-                key={sp.id}
                 type="button"
-                onClick={() => setSpreadIndex(sp.id)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-                  spreadIndex === sp.id
-                    ? 'bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
+                disabled={spreadIndex === 0}
+                onClick={() => setSpreadIndex((i) => Math.max(0, i - 1))}
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-35 cursor-pointer"
+                aria-label="صفحه قبلی"
               >
-                {sp.title}
+                <ChevronRight className="w-4 h-4" />
               </button>
-            ))}
+              <span className="text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums px-1">
+                0{spreadIndex + 1} / 03
+              </span>
+              <button
+                type="button"
+                disabled={spreadIndex === 2}
+                onClick={() => setSpreadIndex((i) => Math.min(2, i + 1))}
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-35 cursor-pointer"
+                aria-label="صفحه بعدی"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              disabled={spreadIndex === 0}
-              onClick={() => setSpreadIndex((i) => Math.max(0, i - 1))}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-35 cursor-pointer"
-              aria-label="صفحه قبلی"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            <span className="text-xs font-mono text-slate-500 dark:text-slate-400 tabular-nums px-1">
-              0{spreadIndex + 1} / 03
-            </span>
-            <button
-              type="button"
-              disabled={spreadIndex === 2}
-              onClick={() => setSpreadIndex((i) => Math.min(2, i + 1))}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 disabled:opacity-35 cursor-pointer"
-              aria-label="صفحه بعدی"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Spread Canvas Content */}
-        <div className="flex-1 overflow-y-auto p-5 md:p-8">
+        {catalog.flipbookId ? (
+          <div className="flex-1 min-h-0 p-2 sm:p-3 bg-[#0d1017] flex flex-col">
+            {loadingFlipbook ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-3 text-sm">
+                <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+                <span>در حال آماده‌سازی کاتالوگ سه‌بعدی...</span>
+              </div>
+            ) : flipbookError ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-rose-300 gap-2 text-xs text-center p-6">
+                <AlertCircle className="w-8 h-8 text-rose-400" />
+                <span>{flipbookError}</span>
+              </div>
+            ) : flipbookProject ? (
+              <div className="flex-1 min-h-0 flex flex-col">
+                <Suspense
+                  fallback={
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-3 text-sm">
+                      <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+                      <span>در حال بارگذاری نمایشگر سه‌بعدی...</span>
+                    </div>
+                  }
+                >
+                  <FlipbookViewer project={flipbookProject} compact />
+                </Suspense>
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto p-5 md:p-8">
           {spreadIndex === 0 && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
               <div className="lg:col-span-7 aspect-[4/3] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
@@ -475,7 +542,8 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
               </p>
             </div>
           )}
-        </div>
+          </div>
+        )}
 
         {/* Sticky Bottom Action Footer */}
         <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-[#090d17] flex flex-wrap items-center justify-between gap-3">

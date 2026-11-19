@@ -1,33 +1,65 @@
 @import "tailwindcss";
 
-@variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-sans: 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
   --color-primary-50: #f0f9ff;
   --color-primary-100: #e0f2fe;
   --color-primary-500: #0ea5e9;
   --color-primary-600: #0284c7;
   --color-primary-700: #0369a1;
   --color-primary-900: #0c4a6e;
-  
+
   --color-secondary-500: #f59e0b;
   --color-secondary-600: #d97706;
 }
 
 @layer base {
+  html, body {
+    font-family: 'Vazirmatn', ui-sans-serif, system-ui, sans-serif;
+  }
+
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: #f1f1f1; }
-  
+
   @media (prefers-color-scheme: dark) {
     ::-webkit-scrollbar-track { background: #1f2937; }
   }
-  
+
   ::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #555; }
-  
-  #root { height: 100vh; display: flex; flex-direction: column; }
+
+  #root { min-height: 100vh; display: flex; flex-direction: column; }
+}
+
+/* Realistic Flipbook Spine & Depth Shadows */
+.flipbook-stage {
+  perspective: 2200px;
+}
+
+.stf__parent {
+  margin: 0 auto;
+}
+
+.stf__block {
+  box-shadow: 0 28px 60px -15px rgba(0, 0, 0, 0.55), 0 10px 25px -8px rgba(0, 0, 0, 0.35);
+}
+
+.flip-page-sheet {
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.flip-page-left-shadow {
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.14) 0%, rgba(0, 0, 0, 0.03) 7%, transparent 18%);
+}
+
+.flip-page-right-shadow {
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.14) 0%, rgba(0, 0, 0, 0.03) 7%, transparent 18%);
 }
 
 /* Custom scrollbar hiding utility */
@@ -39,6 +71,6 @@
 .no-scrollbar,
 .scrollbar-none,
 .custom-scrollbar-none {
-  -ms-overflow-style: none !important;  /* IE and Edge */
-  scrollbar-width: none !important;  /* Firefox */
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
 }

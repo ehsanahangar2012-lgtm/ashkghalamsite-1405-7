@@ -1,70 +1,29 @@
 import React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { SeoHead } from './SeoHead';
-import { AppView } from '../types';
-import { Card, Button } from './UIComponents';
+import { AppView, ManagedProductItem } from '../types';
+import { Card, Button, BackButton } from './UIComponents';
 import { Package, ArrowLeft, Eye, ShieldCheck, Box } from 'lucide-react';
 import { SmartHelpButton } from './SmartHelpModal';
 import { createPackageSvgDataUrl } from '../utils/packagePreviewSvg';
 import { saveInquiryPrefill } from '../utils/inquiryPrefill';
-
-const products = [
-  {
-    slug: 'fefco-0201-standard-box',
-    code: 'FEFCO 0201',
-    title: 'کارتن مادر چهار درب استاندارد (FEFCO 0201)',
-    category: 'کارتن‌های صنعتی',
-    inquiryBoxType: 'کارتن چهار درب (FEFCO 0201)',
-    inquiryFlute: 'فلوت B (سه لایه استاندارد)',
-    defaultDims: '40x30x25',
-    specs: ['فلوت B / C / پنج لایه BC', 'تحمل ستونی BCT بالا', 'چاپ فلکسو یا لمینت افست'],
-    tone: '#b45309',
-    description: 'کارتن‌های حمل بار عمومی با ورق‌های ۳ لایه و ۵ لایه، مناسب انبارداری، صادرات، صنایع غذایی و لوازم خانگی.',
-  },
-  {
-    slug: 'fefco-0427-mailer-box',
-    code: 'FEFCO 0427',
-    title: 'جعبه کیبوردی خودبست پستی (FEFCO 0427)',
-    category: 'جعبه‌های ای‌کامرس',
-    inquiryBoxType: 'جعبه کیبوردی قفل‌دار (FEFCO 0427)',
-    inquiryFlute: 'فلوت E (ظریف و لمینتی)',
-    defaultDims: '25x18x8',
-    specs: ['فلوت E ظریف یا ایندربرد', 'دیواره جانبی دوبل بدون چسب', 'ایده‌آل فروشگاه‌های آنلاین'],
-    tone: '#1d4ed8',
-    description: 'طراحی مقاوم دولایه با زبانه قفل شونده بدون نیاز به چسب، مناسب پوشاک، لوازم الکترونیکی، هدایا و آرایشی.',
-  },
-  {
-    slug: 'diecut-tray-boxes',
-    code: 'DIE-TRAY',
-    title: 'سینی کارتن و استند میوه صادراتی (Tray)',
-    category: 'صادرات و تره‌بار',
-    inquiryBoxType: 'کارتن چهار درب (FEFCO 0201)',
-    inquiryFlute: 'فلوت BC (پنج لایه سنگین صادراتی)',
-    defaultDims: '50x35x14',
-    specs: ['مقاوم در برابر رطوبت سردخانه', 'قفل گوشه چیدمان کانتینری', 'دریچه تهویه لیزری'],
-    tone: '#047857',
-    description: 'مقاومت بالا در سردخانه با کاغذهای لاینر مقاوم به رطوبت و قابلیت چیدمان ستونی روی پالت‌های کانتینری.',
-  },
-  {
-    slug: 'magnetic-luxury-hardbox',
-    code: 'HARDBOX',
-    title: 'هاردباکس مگنتی و جعبه لوکس صادراتی',
-    category: 'بسته‌بندی لوکس و زعفران',
-    inquiryBoxType: 'هاردباکس مگنتی و لوکس',
-    inquiryFlute: 'مقوای ایندربرد / گلاسه',
-    defaultDims: '22x16x9',
-    specs: ['مقوای سخت ۲ تا ۳ میلی‌متر', 'روکش مخملی یا گلاسه + طلاکوب', 'درب مگنتی + فوم برش‌خورده'],
-    tone: '#7c3aed',
-    description: 'جعبه سخت لوکس برای زعفران، عطر، جواهرات و پکیج‌های هدیه مدیریتی با جزئیات چاپ ویژه.',
-  },
-];
+import { useContent } from '../contexts/ContentContext';
+import { NotFound } from './NotFound';
+import { findBySlugOrId } from '../utils/slugUtils';
 
 export const ProductsHub: React.FC = () => {
   const { slug } = useParams<{ slug?: string }>();
   const navigate = useNavigate();
-  const activeProduct = slug ? products.find(p => p.slug === slug) : null;
+  const { managedProducts } = useContent();
 
-  const handleInquiry = (prod: typeof products[0]) => {
+  const publishedProducts = managedProducts.filter(p => p.isPublished !== false);
+  const activeProduct = slug ? findBySlugOrId(publishedProducts, slug) : null;
+
+  if (slug && !activeProduct) {
+    return <NotFound />;
+  }
+
+  const handleInquiry = (prod: ManagedProductItem) => {
     saveInquiryPrefill({
       sourceLabel: `بخش محصولات: ${prod.title}`,
       boxType: prod.inquiryBoxType,
@@ -87,11 +46,19 @@ export const ProductsHub: React.FC = () => {
 
       <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-l from-slate-900 via-slate-900 to-indigo-950/80 border border-slate-800 p-6 rounded-3xl shadow-2xl text-white">
         <div>
-          <span className="text-xs font-black text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20 inline-flex items-center gap-1.5">
-            <Box className="w-3.5 h-3.5" />
-            خطوط محصولات مهندسی اشک قلم
-          </span>
-          <h1 className="text-2xl md:text-3xl font-black text-white mt-3">
+          <div className="flex flex-wrap items-center gap-2.5 mb-3">
+            <BackButton
+              label={activeProduct ? 'بازگشت به همه محصولات' : 'بازگشت'}
+              to={activeProduct ? '/products' : undefined}
+              fallbackPath="/"
+              variant="dark"
+            />
+            <span className="text-xs font-black text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20 inline-flex items-center gap-1.5">
+              <Box className="w-3.5 h-3.5" />
+              خطوط محصولات مهندسی اشک قلم
+            </span>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-black text-white mt-1">
             {activeProduct ? activeProduct.title : 'انواع جعبه و کارتن‌های مهندسی و صادراتی'}
           </h1>
           <p className="text-slate-300 text-sm mt-1.5">تولید مطابق استانداردهای FEFCO و ECMA با برش دایکات لیزری و پیش‌نمایش سه‌بعدی در استودیو CAD.</p>
@@ -115,7 +82,7 @@ export const ProductsHub: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-        {products.map((prod) => {
+        {publishedProducts.map((prod) => {
           const isCurrent = activeProduct?.slug === prod.slug;
           const styleKey =
             prod.code === 'FEFCO 0201'
@@ -125,10 +92,10 @@ export const ProductsHub: React.FC = () => {
               : prod.code === 'HARDBOX'
               ? 'hardbox'
               : 'stand';
-          const previewSvg = createPackageSvgDataUrl(prod.title, prod.category, styleKey, prod.tone);
+          const previewUrl = prod.imageUrl || createPackageSvgDataUrl(prod.title, prod.category, styleKey, prod.tone);
           return (
             <Card
-              key={prod.slug}
+              key={prod.id || prod.slug}
               className={`group flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 ${
                 isCurrent
                   ? 'border-amber-500/60 bg-amber-500/5'
@@ -138,9 +105,10 @@ export const ProductsHub: React.FC = () => {
               <div>
                 <div className="aspect-[16/9] rounded-2xl bg-slate-950 border border-slate-200 dark:border-slate-800/80 overflow-hidden mb-4 flex items-center justify-center relative">
                   <img
-                    src={previewSvg}
+                    src={previewUrl}
                     alt={prod.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    referrerPolicy="no-referrer"
                   />
                   <span className="absolute top-3 right-3 text-[10px] font-mono font-bold text-amber-300 bg-slate-950/90 px-2.5 py-1 rounded-lg border border-amber-500/30">
                     {prod.code}
@@ -186,3 +154,4 @@ export const ProductsHub: React.FC = () => {
     </div>
   );
 };
+

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button, Card, Badge } from './UIComponents';
+import { Button, Card, Badge, BackButton } from './UIComponents';
 import { ThreeDPreview, FlapDirections, InnerBoardStyle, StudioEnvPreset } from './ThreeDPreview';
 import { PACKAGING_SURFACE_PRESETS, SurfacePresetId } from './three/packagingTextures';
 import { Project } from '../types';
@@ -751,7 +751,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   // Floating draggable panels states (Pattern selection & Box dimensions accessible via top dock / sidebar)
   const [showFloatingDims, setShowFloatingDims] = useState(false);
   const [showFloatingPatterns, setShowFloatingPatterns] = useState(false);
-  const [showSecondaryToolsMenu, setShowSecondaryToolsMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showExportHelp, setShowExportHelp] = useState(false);
   const [useStandardMathEngine, setUseStandardMathEngine] = useState<boolean>(true);
   const clearAllCache = () => {
     Object.keys(localStorage).forEach(key => {
@@ -1801,26 +1802,26 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [cmsSubTab, setCmsSubTab] = useState<'templates' | 'dimensioning'>('templates');
 
-  // --- Constraint Checking ---
-  const [hasWarnedStructural, setHasWarnedStructural] = useState(false);
-  useEffect(() => {
-    if (dims.L > dims.W * 3 && !hasWarnedStructural) {
-      showCustomAlert(
-        'هشدار محدودیت ساختاری',
-        'طول جعبه نسبت به عرض آن بیش از حد بزرگ است (L > 3W). این تناسب غیر استاندارد است و می‌تواند باعث دفرمگی در مرکز پنل‌ها و کاهش مقاومت جعبه شود.\nبرای جلوگیری از این مشکل، می‌توانید از پرفراژ تقویتی یا تغییر ابعاد استفاده کنید.',
-        'alert'
-      );
-      setHasWarnedStructural(true);
-    } else if (dims.H < dims.W / 3 && !hasWarnedStructural) {
-      showCustomAlert(
-        'هشدار تداخل قطعات درب و کف',
-        'ارتفاع جعبه بسیار کم است. در این حالت ممکن است زبانه‌ها یا گوشواره‌ها در درب و کف جعبه روی یکدیگر تداخل داشته باشند و تولید دایلاین با خطای هندسی مواجه شود.',
-        'alert'
-      );
-      setHasWarnedStructural(true);
-    } else if (dims.L <= dims.W * 3 && dims.H >= dims.W / 3) {
-      setHasWarnedStructural(false);
+  // --- Non-blocking Dimension & Structural Warning Banner ---
+  const [dimInputWarning, setDimInputWarning] = useState<string | null>(null);
+  const [dismissedStructuralKey, setDismissedStructuralKey] = useState<string | null>(null);
+
+  const structuralDimWarning = useMemo(() => {
+    if (dims.L > dims.W * 3) {
+      return {
+        key: `L3W-${dims.L}-${dims.W}`,
+        title: 'هشدار محدودیت ساختاری',
+        message: `طول جعبه (${dims.L}mm) بیش از ۳ برابر عرض (${dims.W}mm) است؛ این تناسب می‌تواند باعث دفرمگی پنل‌ها شود.`,
+      };
     }
+    if (dims.H < dims.W / 3) {
+      return {
+        key: `HW3-${dims.H}-${dims.W}`,
+        title: 'هشدار ارتفاع کم و تداخل زبانه‌ها',
+        message: `ارتفاع (${dims.H}mm) از یک‌سوم عرض (${dims.W}mm) کمتر است و ممکن است زبانه‌های درب و کف با هم تداخل کنند.`,
+      };
+    }
+    return null;
   }, [dims.L, dims.W, dims.H]);
 
   // Synchronize default dimensions on model change
@@ -4593,6 +4594,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                     label=""
                     value={creaseCompensation}
                     unit="mm"
+                    minMm={0}
+                    maxMm={20}
                     onChange={(val) => setCreaseCompensation(val)}
                     convertMmToUnit={convertMmToUnit}
                     convertUnitToMm={convertUnitToMm}
@@ -4607,6 +4610,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                     label=""
                     value={bleedOffset}
                     unit="mm"
+                    minMm={0}
+                    maxMm={30}
                     onChange={(val) => setBleedOffset(val)}
                     convertMmToUnit={convertMmToUnit}
                     convertUnitToMm={convertUnitToMm}
@@ -4620,6 +4625,8 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                     label=""
                     value={diecutTolerance}
                     unit="mm"
+                    minMm={0}
+                    maxMm={15}
                     onChange={(val) => setDiecutTolerance(val)}
                     convertMmToUnit={convertMmToUnit}
                     convertUnitToMm={convertUnitToMm}
@@ -5502,146 +5509,377 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
         }
       `}</style>
 
-      {/* 1. SUITE HEADER BAR */}
-      <header className="h-14 bg-[#0c0f14]/90 backdrop-blur-md border-b border-slate-800/80 flex items-center justify-between px-4 md:px-6 shrink-0 shadow-lg z-30 animate-in fade-in slide-in-from-top-4 duration-300">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="bg-gradient-to-tr from-sky-600 to-indigo-750 p-2 rounded-xl text-white shadow-md shrink-0 border border-sky-500/10">
-            <Cpu className="h-4 w-4 md:h-5 md:w-5 animate-pulse" />
-          </div>
-          <div className="truncate">
-            <div className="flex items-center gap-1.5">
-              <h1 className="text-white font-black text-[11px] md:text-[13px] tracking-tight uppercase truncate font-sans">اشک‌قلم CAD (بی‌کران)</h1>
-              <Badge color="blue" className="text-[8px] md:text-[9px] px-1.5 py-0 font-mono bg-sky-950 text-sky-450 border border-sky-800 shrink-0">v3.5.3</Badge>
+      {/* 1. COMPACT SUITE HEADER BAR (Always-visible BackButton + Export Dropdown + ? Guide) */}
+      <header className="relative bg-[#0c0f14]/95 backdrop-blur-md border-b border-slate-800/80 px-2.5 md:px-4 py-1.5 flex items-center justify-between gap-2 shrink-0 shadow-lg z-40">
+        {/* Right anchor in RTL: Always-pinned Prominent Back Button + Compact Brand */}
+        <div className="flex items-center gap-2 min-w-0">
+          <BackButton
+            label="بازگشت به سایت"
+            variant="danger"
+            onClick={() => window.dispatchEvent(new CustomEvent('exit-cad-view'))}
+            className="min-h-[32px] px-2.5 sm:px-3 py-1 text-[10.5px] md:text-xs shadow shrink-0"
+          />
+          <div className="hidden sm:flex items-center gap-1.5 min-w-0">
+            <div className="bg-gradient-to-tr from-sky-600 to-indigo-750 p-1.5 rounded-lg text-white shadow-sm shrink-0 border border-sky-500/10">
+              <Cpu className="h-3.5 w-3.5 animate-pulse" />
             </div>
-            <p className="hidden md:block text-[9px] text-slate-500 font-mono tracking-wider">سیستم پیشرفته تولید قالب</p>
+            <h1 className="text-white font-black text-xs tracking-tight truncate font-sans">اشک‌قلم CAD</h1>
+            <Badge color="blue" className="hidden md:inline-flex text-[8px] px-1.5 py-0 font-mono bg-sky-950 text-sky-450 border border-sky-800 shrink-0">v3.5.3</Badge>
           </div>
         </div>
 
-        {/* Dynamic Status Ticker for Geometry Errors & Score */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-[#090c12]/90 border border-slate-800/80 rounded-xl max-w-md xl:max-w-xl truncate shadow-inner">
+        {/* Dynamic Status Ticker (Desktop xl) */}
+        <div className="hidden xl:flex items-center gap-2 px-3 py-1 bg-[#090c12]/90 border border-slate-800/80 rounded-lg max-w-md truncate shadow-inner">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-          <span className="text-[9px] font-black text-sky-400 shrink-0">پایش نقشه CAD:</span>
-          <span className="text-[9.5px] text-slate-300 font-medium truncate" dir="rtl">
-            {validatorIssues.length > 0 
-              ? `⚠️ وب دیلاین دارای ${validatorIssues.length} مورد خطای فنی است`
-              : `🏆 بالاترین کیفیت هندسه: ممتاز ${geometryReport.score}٪ | مدل استاندارد: ${selectedModel.name}`
-            }
+          <span className="text-[10px] text-slate-300 font-medium truncate" dir="rtl">
+            {validatorIssues.length > 0
+              ? `⚠️ ${validatorIssues.length} مورد خطای فنی`
+              : `🏆 کیفیت ${geometryReport.score}٪ | ${selectedModel.name}`}
           </span>
         </div>
 
-        {/* Actions Menu */}
-        <div className="flex items-center gap-1.5 md:gap-3 shrink-0">
-          
-          {/* Library Button */}
-          <button 
-            onClick={() => setIsLibraryOpen(true)}
-            className="bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 font-black text-[9.5px] md:text-[10px] px-2.5 py-1.5 md:py-2 rounded-lg flex items-center gap-1 md:gap-1.5 transition-all shadow-sm cursor-pointer"
-            title="مخزن الگوهای استاندارد"
+        {/* Left Actions: Export Dropdown + ? Explanation Toggle + Compact Utilities */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Export / Download Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowExportMenu((prev) => !prev);
+                setShowExportHelp(false);
+              }}
+              className={`min-h-[32px] px-2.5 py-1 rounded-lg text-[10.5px] md:text-[11px] font-black flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shadow border ${
+                showExportMenu
+                  ? 'bg-sky-500 text-slate-950 border-sky-300'
+                  : 'bg-sky-600 hover:bg-sky-500 text-white border-sky-400/40'
+              }`}
+              aria-expanded={showExportMenu}
+              title="منوی دانلود فایل‌های خروجی و چاپ"
+            >
+              <Download className="w-3.5 h-3.5 shrink-0" />
+              <span>دانلود و خروجی</span>
+              <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showExportMenu && (
+              <div
+                className="fixed sm:absolute left-2 sm:left-0 top-12 sm:top-full sm:mt-1.5 w-[calc(100vw-16px)] sm:w-72 bg-[#0d1422]/98 backdrop-blur-xl border border-slate-700/90 rounded-2xl shadow-2xl p-2 z-50 text-right space-y-1"
+                dir="rtl"
+              >
+                <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-800 text-[10px] font-black text-sky-400">
+                  <span>انتخاب فرمت دانلود و خروجی</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      setShowExportHelp(true);
+                    }}
+                    className="text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
+                  >
+                    <HelpCircle className="w-3 h-3" />
+                    <span>توضیح کامل</span>
+                  </button>
+                </div>
+
+                {[
+                  {
+                    badge: 'DXF',
+                    title: 'نقشه لیزر و اتوکد',
+                    desc: 'مخصوص دستگاه برش لیزر چوب قالب و AutoCAD',
+                    color: 'bg-indigo-600 text-white',
+                    onClick: handleExportDXF,
+                  },
+                  {
+                    badge: 'CF2',
+                    title: 'فایل صنعتی قالب‌سازی (CFF2)',
+                    desc: 'استاندارد پلاتر و خم‌کن تیغ برش/خط تا',
+                    color: 'bg-orange-600 text-white',
+                    onClick: handleExportCF2,
+                  },
+                  {
+                    badge: 'PDF',
+                    title: 'خروجی برداری ۱:۱ لیتوگرافی',
+                    desc: 'مقیاس دقیق میلی‌متری جهت چاپ و گرافیک',
+                    color: 'bg-sky-600 text-white',
+                    onClick: handleExportPDF,
+                  },
+                  {
+                    badge: 'SVG',
+                    title: 'فایل لایه‌باز گرافیکی',
+                    desc: 'قابل بازشدن در Illustrator و CorelDRAW',
+                    color: 'bg-emerald-600 text-white',
+                    onClick: handleExportSVG,
+                  },
+                ].map((item) => (
+                  <button
+                    key={item.badge}
+                    type="button"
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      item.onClick();
+                    }}
+                    className="w-full p-2 rounded-xl hover:bg-slate-800/80 transition-colors flex items-center gap-2.5 text-right cursor-pointer"
+                  >
+                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black font-mono shrink-0 ${item.color}`}>
+                      {item.badge}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-bold text-slate-100 truncate">{item.title}</div>
+                      <div className="text-[9.5px] text-slate-400 truncate">{item.desc}</div>
+                    </div>
+                    <Download className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  </button>
+                ))}
+
+                <div className="border-t border-slate-800 pt-1 mt-1 grid grid-cols-2 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      window.print();
+                    }}
+                    className="p-2 rounded-xl bg-amber-600/15 hover:bg-amber-600/25 border border-amber-500/30 text-amber-300 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>پیش‌نمایش چاپ</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      handleOpenAssemblyGuide();
+                    }}
+                    className="p-2 rounded-xl bg-purple-600/15 hover:bg-purple-600/25 border border-purple-500/30 text-purple-300 text-[10.5px] font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>راهنمای مونتاژ</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Dedicated ? Explanation Button for Download Formats */}
+          <button
+            type="button"
+            onClick={() => {
+              setShowExportHelp((prev) => !prev);
+              setShowExportMenu(false);
+            }}
+            className={`min-h-[32px] px-2 py-1 rounded-lg border text-[10.5px] font-black flex items-center gap-1 transition-all cursor-pointer whitespace-nowrap ${
+              showExportHelp
+                ? 'bg-amber-500 text-slate-950 border-amber-400 shadow'
+                : 'bg-slate-800/90 hover:bg-slate-700 text-amber-300 border-slate-600'
+            }`}
+            title="توضیح کاربرد دکمه‌های دانلود و فرمت‌ها"
+            aria-expanded={showExportHelp}
           >
-            <BookOpen className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden lg:inline">مخزن الگوها</span>
+            <HelpCircle className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden md:inline">؟ راهنما</span>
           </button>
 
-          {/* Fullscreen Mode Toggle Button */}
-          <button 
+          {/* Compact Fullscreen Toggle */}
+          <button
+            type="button"
             onClick={toggleFullscreen}
-            className={`font-black text-[9.5px] md:text-[10px] px-2.5 py-1.5 md:py-2 rounded-lg flex items-center gap-1 md:gap-1.5 transition-all shadow cursor-pointer border ${
-              isFullScreen 
-                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40' 
+            className={`min-h-[32px] font-black text-[10px] px-2 py-1 rounded-lg flex items-center gap-1 transition-all cursor-pointer border whitespace-nowrap ${
+              isFullScreen
+                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40'
                 : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
             }`}
-            title={isFullScreen ? "خروج از حالت تمام‌صفحه (کلید F یا Esc)" : "حالت تمام‌صفحه و فضای کاری باز (کلید F)"}
+            title={isFullScreen ? 'خروج از تمام‌صفحه (F)' : 'تمام‌صفحه (F)'}
           >
             {isFullScreen ? <Minimize className="w-3.5 h-3.5 shrink-0 text-amber-400" /> : <Maximize className="w-3.5 h-3.5 shrink-0" />}
-            <span className="hidden sm:inline">{isFullScreen ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه'}</span>
+            <span className="hidden lg:inline">{isFullScreen ? 'خروج تمام‌صفحه' : 'تمام‌صفحه'}</span>
           </button>
 
-          {/* Smart Help Button */}
+          {/* General Smart Help Button */}
           <SmartHelpButton
             sectionTitle="طراح دایلاین و مهندسی کارتن ۳D"
             sectionKey="dieline_generator"
             description="سامانه مهندسی CAD و سه‌بعدی بسته‌بندی اشک قلم. مجهز به محاسبات مقاومت فشاری BCT، چیدمان بهینه شیت، خطایابی هندسی و لایه‌بندی صنعتی."
             tips={[
-              "برای ایجاد محیط کاری بدون حاشیه و غوطه‌وری کامل، روی دکمه 'تمام‌صفحه' یا کلید F کیبورد کلیک فرمایید.",
-              "از منوی 'مخزن الگوها' می‌توانید انواع استانداردهای FEFCO و ECMA را بارگذاری کنید.",
-              "خروجی‌های DXF (مخصوص لیزر و لچکی) و PDF برداری (مخصوص لیتوگرافی) کاملاً کالیبره شده هستند."
+              "برای دانلود فایل‌های DXF، CF2، PDF و SVG روی دکمه «دانلود و خروجی» کلیک کنید.",
+              "از نوار بالای صفحه می‌توانید نوع جعبه و ابعاد طول، عرض و ارتفاع را در یک ردیف تغییر دهید.",
+              "از منوی آبشاری «ابزار و نما» به تم بوم، تحلیل پایداری سازه و تنظیمات تکمیلی دسترسی دارید."
             ]}
-            className="w-8 h-8 md:w-9 md:h-9 bg-indigo-600/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-600/40"
+            className="w-8 h-8 bg-indigo-600/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-600/40"
           />
-          
-          {/* Print Preview button */}
-          <button 
-            onClick={() => window.print()} 
-            className="bg-amber-600 hover:bg-amber-500 text-white font-black text-[9.5px] md:text-[10px] px-2.5 py-1.5 md:py-2 rounded-lg flex items-center gap-1 md:gap-1.5 transition-all shadow border-none cursor-pointer"
-            title="حالت نمایشی (Print Preview) برای طرح نهایی"
-          >
-            <Printer className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden md:inline">پیش‌نمایش چاپ</span>
-          </button>
-
-          {/* Download DXF button */}
-          <button 
-            onClick={handleExportDXF} 
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[9.5px] md:text-[10px] px-2.5 py-1.5 md:py-2 rounded-lg flex items-center gap-1 md:gap-1.5 transition-all shadow border-none cursor-pointer"
-            title="دانلود نقشه صنعتی قالب DXF"
-          >
-            <Download className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden md:inline">دانلود DXF (لیزر)</span>
-          </button>
-
-          {/* Download CFF2 button */}
-          <button 
-            onClick={handleExportCF2} 
-            className="bg-amber-600 hover:bg-amber-500 text-white font-black text-[9.5px] md:text-[10px] px-2.5 py-1.5 md:py-2 rounded-lg flex items-center gap-1 md:gap-1.5 transition-all shadow border-none cursor-pointer"
-            title="دانلود فایل صنعتی CFF2 (.cf2) مخصوص پلاتر و دستگاه قالب‌سازی"
-          >
-            <Download className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden lg:inline">دانلود CFF2</span>
-          </button>
-
-          {/* Download PDF button */}
-          <button 
-            onClick={handleExportPDF} 
-            className="bg-sky-600 hover:bg-sky-500 text-white font-black text-[9.5px] md:text-[10px] px-2.5 py-1.5 md:py-2 rounded-lg flex items-center gap-1 md:gap-1.5 transition-all shadow border-none cursor-pointer"
-            title="دانلود نقشه با فرمت PDF برداری جهت لیتوگرافی"
-          >
-            <Download className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden md:inline">دانلود PDF برداری</span>
-          </button>
-
-          {/* Download SVG button */}
-          <button 
-            onClick={handleExportSVG} 
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9.5px] md:text-[10px] px-2.5 py-1.5 md:py-2 rounded-lg flex items-center gap-1 md:gap-1.5 transition-all shadow border-none cursor-pointer"
-            title="دانلود نقشه با فرمت SVG جهت ایلاستریتور و کورل"
-          >
-            <Download className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden md:inline">دانلود SVG دایلاین</span>
-          </button>
-
-          {/* Export as Assembly / Assembly Guide */}
-          <button 
-            onClick={handleOpenAssemblyGuide} 
-            className="bg-purple-600 hover:bg-purple-500 text-white font-black text-[9.5px] md:text-[10px] px-2.5 py-1.5 md:py-2 rounded-lg flex items-center gap-1.5 transition-all shadow border-none cursor-pointer"
-            title="تولید راهنمای مونتاژ گام‌به‌گام تعاملی جعبه"
-          >
-            <BookOpen className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden md:inline">راهنمای مونتاژ</span>
-          </button>
-
-          {/* Exit Button */}
-          <button 
-            onClick={() => window.dispatchEvent(new CustomEvent('exit-cad-view'))}
-            className="bg-rose-600/90 hover:bg-rose-600 text-white font-bold text-[10px] md:text-xs px-2.5 py-1.5 md:py-2 rounded-lg flex items-center gap-1 transition-all shadow cursor-pointer shrink-0 border-none"
-            title="بازگشت به صفحه اصلی سایت"
-          >
-            <ArrowRight className="w-3.5 h-3.5 shrink-0" />
-            <span className="inline">بازگشت به سایت</span>
-          </button>
         </div>
+
+        {/* Export Formats ? Explanation Popover */}
+        {showExportHelp && (
+          <div
+            className="absolute left-2.5 right-2.5 top-full mt-1 bg-[#0f1624] border border-amber-500/40 rounded-xl p-3 shadow-2xl text-right z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+            dir="rtl"
+          >
+            <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-800">
+              <div className="flex items-center gap-1.5 text-amber-400 text-xs font-black">
+                <HelpCircle className="w-4 h-4 shrink-0" />
+                <span>راهنمای دکمه‌های دانلود و خروجی نقشه قالب:</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowExportHelp(false)}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-bold cursor-pointer"
+              >
+                بستن
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[11px]">
+              <div className="bg-slate-900/80 border border-indigo-500/30 rounded-lg p-2">
+                <span className="font-black text-indigo-300">DXF (برش لیزر و اتوکد):</span>
+                <p className="text-slate-300 mt-0.5 leading-relaxed">فایل وکتور صنعتی برای دستگاه برش لیزر چوب قالب، لچکی و ویرایش در AutoCAD.</p>
+              </div>
+              <div className="bg-slate-900/80 border border-orange-500/30 rounded-lg p-2">
+                <span className="font-black text-orange-300">CF2 (فرمت CFF2 قالب‌سازی):</span>
+                <p className="text-slate-300 mt-0.5 leading-relaxed">فایل استاندارد کارگاهی مخصوص پلاتر و دستگاه خم‌کن تیغه برش و خط تا.</p>
+              </div>
+              <div className="bg-slate-900/80 border border-sky-500/30 rounded-lg p-2">
+                <span className="font-black text-sky-300">PDF (برداری لیتوگرافی):</span>
+                <p className="text-slate-300 mt-0.5 leading-relaxed">خروجی برداری ۱:۱ بر حسب میلی‌متر آماده شیت‌بندی چاپ و طراحی گرافیک.</p>
+              </div>
+              <div className="bg-slate-900/80 border border-emerald-500/30 rounded-lg p-2">
+                <span className="font-black text-emerald-300">SVG (طراحی گرافیک):</span>
+                <p className="text-slate-300 mt-0.5 leading-relaxed">فایل لایه‌باز سبک برای باز کردن مستقیم در Adobe Illustrator و CorelDRAW.</p>
+              </div>
+              <div className="bg-slate-900/80 border border-amber-500/30 rounded-lg p-2">
+                <span className="font-black text-amber-300">چاپ (پیش‌نمایش پرینت):</span>
+                <p className="text-slate-300 mt-0.5 leading-relaxed">نمایش تمیز و سیاه‌وسفید نقشه برای پرینت فوری روی کاغذ یا ذخیره سریع.</p>
+              </div>
+              <div className="bg-slate-900/80 border border-purple-500/30 rounded-lg p-2">
+                <span className="font-black text-purple-300">مونتاژ (راهنمای تاخوردگی):</span>
+                <p className="text-slate-300 mt-0.5 leading-relaxed">نمایش مراحل گام‌به‌گام تا کردن دیواره‌ها، لب‌چسب و قفل شدن درب جعبه.</p>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* SECONDARY CAD TOOLBOX RIBBON BAR REMOVED -> REPLACED BY FLOATING ACTION BUTTONS */}
+      {/* QUICK ACCESS BOX TYPE & SINGLE-ROW DIMENSIONS BAR (Ultra-Compact Space-Maximized) */}
+      <div
+        className="bg-[#090d16]/95 border-b border-slate-800/90 px-2.5 md:px-4 py-1 flex flex-col md:flex-row md:items-center md:justify-between gap-1 md:gap-2 shrink-0 z-30 shadow-sm"
+        dir="rtl"
+      >
+        {/* Box Type Selector + Gallery/Material triggers */}
+        <div className="flex items-center gap-1 min-w-0 md:flex-1 md:max-w-md">
+          <div className="flex-1 min-w-0 flex items-center gap-1 bg-[#0e1422] border border-slate-700/80 rounded-lg px-2 py-0.5 min-h-[30px]">
+            <Box className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <select
+              id="quick-box-type"
+              aria-label="انتخاب نوع جعبه"
+              value={selectedModel.id}
+              onChange={(e) => {
+                const found = allModels.find((m) => m.id === e.target.value);
+                if (found) handleModelSelect(found);
+              }}
+              className="flex-1 min-w-0 bg-transparent text-[11px] font-bold text-white outline-none cursor-pointer truncate"
+            >
+              {allModels.map((m) => (
+                <option key={m.id} value={m.id} className="bg-[#0b0f17] text-slate-100">
+                  {m.name} ({m.code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsLibraryOpen(true)}
+            className="inline-flex items-center gap-1 min-h-[30px] px-2 py-0.5 rounded-lg bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-200 border border-indigo-500/40 text-[10px] font-bold whitespace-nowrap cursor-pointer transition-colors shrink-0"
+            title="گالری مدل‌های آماده جعبه"
+          >
+            <BookOpen className="w-3 h-3 shrink-0" />
+            <span>گالری مدل‌ها</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (isMobile) {
+                setIsSidebarCollapsed(false);
+                setActiveTab('cad');
+              } else {
+                setActiveTab('cad');
+                setShowFloatingDims(true);
+                setIsFloatingDimsCollapsed(false);
+              }
+            }}
+            className="inline-flex items-center gap-1 min-h-[30px] px-2 py-0.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-[10px] font-bold whitespace-nowrap cursor-pointer transition-colors shrink-0"
+            title="تنظیمات زبانه‌ها و جنس مقوا"
+          >
+            <Sliders className="w-3 h-3 shrink-0" />
+            <span className="hidden sm:inline">متریال</span>
+          </button>
+        </div>
+
+        {/* Strictly Single-Row Compact L x W x H Inputs */}
+        <div className="grid grid-cols-3 gap-1 md:flex md:items-center md:gap-1.5 shrink-0">
+          {(
+            [
+              { key: 'L', shortLabel: 'طول', code: 'L', color: 'text-sky-400 border-sky-500/30 focus-within:border-sky-400' },
+              { key: 'W', shortLabel: 'عرض', code: 'W', color: 'text-emerald-400 border-emerald-500/30 focus-within:border-emerald-400' },
+              { key: 'H', shortLabel: 'ارتفاع', code: 'H', color: 'text-amber-400 border-amber-500/30 focus-within:border-amber-400' },
+            ] as const
+          ).map((field) => (
+            <div
+              key={field.key}
+              className={`flex items-center justify-between gap-1 bg-[#0e1422] border rounded-lg px-1.5 py-0.5 min-h-[30px] transition-colors ${field.color}`}
+            >
+              <label htmlFor={`quick-dim-${field.key}`} className="text-[10px] font-black whitespace-nowrap shrink-0 cursor-pointer">
+                {field.shortLabel}
+                <span className="hidden sm:inline font-mono text-[9px] mr-0.5">({field.code})</span>
+              </label>
+              <DimensionInput
+                id={`quick-dim-${field.key}`}
+                label=""
+                value={dims[field.key]}
+                unit={unit}
+                minMm={15}
+                maxMm={2500}
+                hideInlineWarning
+                onRangeWarning={(msg) =>
+                  setDimInputWarning(msg ? `${field.shortLabel} (${field.code}): ${msg}` : null)
+                }
+                onChange={(mmVal) => handleDimensionChange(field.key, mmVal)}
+                convertMmToUnit={convertMmToUnit}
+                convertUnitToMm={convertUnitToMm}
+                wrapperClassName="w-full min-w-[34px] max-w-[52px]"
+                className="w-full"
+                inputClassName="w-full bg-slate-950/90 border border-slate-700/80 rounded px-1 py-0.5 text-center text-[11px] font-bold text-white tabular-nums outline-none focus:border-amber-400 selection:bg-amber-500/40 selection:text-white"
+              />
+              <span className="text-[8.5px] text-slate-400 font-mono shrink-0">{unit}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Non-blocking Dimension & Structural Warning Banner */}
+      {(dimInputWarning || (structuralDimWarning && dismissedStructuralKey !== structuralDimWarning.key)) && (
+        <div
+          className="bg-amber-950/85 border-b border-amber-500/40 px-3 py-1.5 flex items-center justify-between gap-2 text-[11px] text-amber-200 shrink-0 z-30"
+          dir="rtl"
+          role="status"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="font-bold truncate sm:whitespace-normal">
+              {dimInputWarning ||
+                (structuralDimWarning ? `${structuralDimWarning.title}: ${structuralDimWarning.message}` : '')}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (dimInputWarning) setDimInputWarning(null);
+              else if (structuralDimWarning) setDismissedStructuralKey(structuralDimWarning.key);
+            }}
+            className="text-amber-300/80 hover:text-white p-0.5 rounded cursor-pointer shrink-0"
+            aria-label="بستن هشدار"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
 
       {/* 2. MAIN SPLIT MULTI-MODULE WORK AREA */}
@@ -6558,242 +6796,87 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
             </>
           )}
 
-          {/* Unified Clean CAD Top Workspace Header Dock */}
-          <div className="w-full bg-[#080c14]/95 border-b border-slate-800/80 px-2 sm:px-3 py-2 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 z-40 text-right font-sans select-none shrink-0" dir="rtl">
-            {/* Group 1: Workspace Mode Switcher Tabs */}
-            <div className="flex items-center gap-1 bg-[#03060c] p-1 rounded-xl border border-slate-800/90 shadow-inner overflow-x-auto no-scrollbar max-w-full shrink-0">
+          {/* Unified Compact CAD/3D Workspace Dock (Single Row on Desktop, Slim Wrap on Mobile) */}
+          <div className="w-full bg-[#080c14]/95 border-b border-slate-800/80 px-2 sm:px-3 py-1 flex flex-wrap items-center justify-between gap-1.5 z-30 text-right font-sans select-none shrink-0" dir="rtl">
+            {/* Group 1: Compact Mode Switcher Tabs */}
+            <div className="flex items-center gap-0.5 bg-[#03060c] p-0.5 rounded-lg border border-slate-800/90 shadow-inner">
               <button
                 onClick={() => { setViewMode('2d'); setNestingViewMode('single'); }}
-                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap ${
                   viewMode === '2d' && nestingViewMode === 'single'
-                    ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30 font-black'
+                    ? 'bg-sky-600 text-white shadow font-black'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                 }`}
                 type="button"
               >
-                <Layers className="w-3.5 h-3.5 shrink-0" />
-                <span>نقشه ۲بعدی CAD</span>
+                <Layers className="w-3 h-3 shrink-0" />
+                <span>۲بعدی CAD</span>
               </button>
 
               <button
                 onClick={handleTrySwitchTo3D}
-                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap ${
                   viewMode === '3d'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-black'
+                    ? 'bg-indigo-600 text-white shadow font-black'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                 }`}
                 type="button"
               >
-                <Box className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
-                <span>پیش‌نمایش ۳بعدی</span>
+                <Box className="w-3 h-3 text-indigo-300 shrink-0" />
+                <span>۳بعدی</span>
               </button>
 
               <button
                 onClick={() => { setViewMode('2d'); setNestingViewMode('sheet'); }}
-                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`px-2 sm:px-2.5 py-1 rounded-md text-[10px] sm:text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer whitespace-nowrap ${
                   viewMode === '2d' && nestingViewMode === 'sheet'
-                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30 font-black'
+                    ? 'bg-emerald-600 text-white shadow font-black'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
                 }`}
                 type="button"
               >
-                <Layers3 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-                <span>شیت چاپی (Nesting)</span>
+                <Layers3 className="w-3 h-3 text-emerald-300 shrink-0" />
+                <span>شیت چاپی</span>
               </button>
 
               <button
                 onClick={() => setIsPacklyStudioOpen(true)}
-                className="px-2.5 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 bg-gradient-to-r from-amber-500/20 to-indigo-600/20 text-amber-300 hover:text-white hover:from-amber-500 hover:to-indigo-600 border border-amber-500/40 shadow-sm"
+                className="hidden lg:flex px-2.5 py-1 rounded-md text-[10.5px] font-extrabold transition-all items-center gap-1 cursor-pointer whitespace-nowrap bg-gradient-to-r from-amber-500/20 to-indigo-600/20 text-amber-300 hover:text-white border border-amber-500/30"
                 type="button"
                 title="باز کردن استودیو صنعتی دایلاین Packly"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>استودیو صنعتی Packly</span>
+                <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />
+                <span>Packly</span>
               </button>
             </div>
 
-            {/* Group 2: Quick CAD Action Tools */}
-            {viewMode === '2d' && (
-              <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto no-scrollbar max-w-full">
-                {/* Direct Toggle Dimensions Panel */}
-                <button
-                  onClick={() => setShowFloatingDims(!showFloatingDims)}
-                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border cursor-pointer whitespace-nowrap shrink-0 ${
-                    showFloatingDims 
-                      ? 'bg-sky-600 text-white border-sky-400 shadow-sm font-black' 
-                      : 'bg-slate-900/90 text-sky-300 border-sky-900/60 hover:bg-slate-800'
-                  }`}
-                  type="button"
-                  title="نمایش / مخفی‌سازی پنجره ابعاد اصلی"
-                >
-                  <RulerIcon className="w-3.5 h-3.5 text-sky-300 shrink-0" />
-                  <span>ابعاد اصلی <span className="hidden sm:inline">(L,W,H)</span></span>
-                </button>
-
-                {/* Direct Toggle Pattern Selection Panel */}
-                <button
-                  onClick={() => setShowFloatingPatterns(!showFloatingPatterns)}
-                  className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border cursor-pointer whitespace-nowrap shrink-0 ${
-                    showFloatingPatterns 
-                      ? 'bg-indigo-600 text-white border-indigo-400 shadow-sm font-black' 
-                      : 'bg-slate-900/90 text-indigo-300 border-indigo-900/60 hover:bg-slate-800'
-                  }`}
-                  type="button"
-                  title="نمایش / مخفی‌سازی پنجره انتخاب نوع الگو"
-                >
-                  <Shapes className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
-                  <span>انتخاب الگو</span>
-                </button>
-
-                {/* Secondary Tools Popover Menu */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowSecondaryToolsMenu(!showSecondaryToolsMenu)}
-                    className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 border cursor-pointer ${
-                      showSecondaryToolsMenu || showDiagnosticPanel || showDebugger || showQuickView3D
-                        ? 'bg-slate-800 text-slate-100 border-slate-700 shadow-sm'
-                        : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200'
-                    }`}
-                    type="button"
-                    title="ابزارهای جانبی، عیب‌یابی و تنظیمات تکمیلی"
-                  >
-                    <Sliders className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="hidden sm:inline">ابزارهای جانبی</span>
-                    <ChevronDown className={`w-3 h-3 text-slate-500 transition-transform ${showSecondaryToolsMenu ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  <AnimatePresence>
-                    {showSecondaryToolsMenu && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute left-0 top-full mt-1.5 w-64 bg-[#0d131d] border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 space-y-1 text-right"
-                      >
-                        <div className="text-[10px] font-black text-slate-500 px-2.5 py-1 border-b border-slate-850 flex items-center justify-between">
-                          <span>منوی ابزارهای جانبی مهندسی</span>
-                          <span className="text-[8.5px] font-mono text-sky-400">v3.5 CAD</span>
-                        </div>
-
-                        {/* Structural Diagnostics */}
-                        <button
-                          onClick={() => { setShowDiagnosticPanel(!showDiagnosticPanel); setShowSecondaryToolsMenu(false); }}
-                          className="w-full px-2.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-850 flex items-center justify-between transition-all"
-                          type="button"
-                        >
-                          <div className="flex items-center gap-2">
-                            <ShieldAlert className="w-3.5 h-3.5 text-sky-400" />
-                            <span>تحلیل پایداری سازه</span>
-                          </div>
-                          {structuralDiagnostics.length > 0 && (
-                            <span className="px-1.5 py-0.5 bg-rose-500 text-white font-mono text-[9px] rounded-full font-bold">
-                              {structuralDiagnostics.length}
-                            </span>
-                          )}
-                        </button>
-
-                        {/* Lock Tab Debugger W/2 */}
-                        <button
-                          onClick={() => { setShowDebugger(!showDebugger); setShowSecondaryToolsMenu(false); }}
-                          className="w-full px-2.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-850 flex items-center justify-between transition-all"
-                          type="button"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Ruler className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>دیباگ ابعادی قفل (W/2)</span>
-                          </div>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded ${showDebugger ? 'bg-cyan-950 text-cyan-300' : 'text-slate-500'}`}>
-                            {showDebugger ? 'فعال' : 'غیرفعال'}
-                          </span>
-                        </button>
-
-                        {/* Magnetic Snap */}
-                        <div className="px-2.5 py-1.5 rounded-xl bg-slate-900/60 border border-slate-800/80 flex items-center justify-between text-xs">
-                          <button
-                            onClick={() => setEnableMagneticSnap(!enableMagneticSnap)}
-                            className="flex items-center gap-2 text-slate-300 font-bold hover:text-white cursor-pointer"
-                            type="button"
-                          >
-                            <Magnet className={`w-3.5 h-3.5 ${enableMagneticSnap ? 'text-emerald-400' : 'text-slate-500'}`} />
-                            <span>جذب مغناطیسی</span>
-                          </button>
-                          <select
-                            value={gridSnapStep}
-                            onChange={(e) => setGridSnapStep(Number(e.target.value))}
-                            className="bg-slate-950 text-sky-400 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-800 cursor-pointer"
-                          >
-                            <option value={1}>1mm</option>
-                            <option value={5}>5mm</option>
-                            <option value={10}>10mm</option>
-                          </select>
-                        </div>
-
-                        {/* Quick 3D floating preview */}
-                        <button
-                          onClick={() => { setShowQuickView3D(!showQuickView3D); setShowSecondaryToolsMenu(false); }}
-                          className="w-full px-2.5 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white hover:bg-slate-850 flex items-center justify-between transition-all"
-                          type="button"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Box className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>پیش‌نمایش سریع ۳بعدی</span>
-                          </div>
-                          <span className={`text-[9px] px-1.5 py-0.5 rounded ${showQuickView3D ? 'bg-emerald-950 text-emerald-300' : 'text-slate-500'}`}>
-                            {showQuickView3D ? 'باز' : 'بسته'}
-                          </span>
-                        </button>
-
-                        <div className="border-t border-slate-850 pt-1">
-                          {/* Clear Cache */}
-                          <button
-                            onClick={() => {
-                              if (window.confirm('آیا مطمئن هستید؟ تمام داده‌های کش مرورگر و الگوهای قبلی پاکسازی و شبیه‌ساز کاملاً ریست خواهد شد.')) {
-                                clearAllCache();
-                              }
-                            }}
-                            className="w-full px-2.5 py-2 rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 transition-all"
-                            type="button"
-                          >
-                            <RefreshCw className="w-3.5 h-3.5 text-rose-400" />
-                            <span>پاکسازی کش و ریست کامل</span>
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-            )}
-
-            {/* Group 3: Zoom Controls & Theme Menu */}
-            <div className="flex items-center gap-2">
-              {/* Zoom Bar */}
+            {/* Group 2: Compact Zoom Controls + Unified Tools & View Dropdown */}
+            <div className="flex items-center gap-1.5">
               {viewMode === '2d' && (
-                <div className="flex items-center gap-1 bg-[#03060c] px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-xl border border-slate-800/90">
+                <div className="flex items-center gap-0.5 bg-[#03060c] px-1 py-0.5 rounded-lg border border-slate-800/90">
                   <button
                     onClick={() => setZoomScale(prev => Math.max(0.2, prev - 0.15))}
-                    className="text-slate-300 hover:text-white min-w-[32px] min-h-[32px] sm:min-w-0 sm:min-h-0 px-1.5 py-0.5 rounded-lg hover:bg-slate-800 text-xs font-bold font-mono cursor-pointer flex items-center justify-center"
+                    className="text-slate-300 hover:text-white w-6 h-6 rounded hover:bg-slate-800 text-xs font-bold font-mono cursor-pointer flex items-center justify-center"
                     type="button"
                     title="کاهش بزرگنمایی"
                   >
                     -
                   </button>
-                  <span className="text-[10px] text-sky-400 font-mono font-bold w-10 text-center select-none">
+                  <span className="text-[10px] text-sky-400 font-mono font-bold w-9 text-center select-none tabular-nums">
                     {Math.round(zoomScale * 100)}%
                   </span>
                   <button
                     onClick={() => setZoomScale(prev => Math.min(5.0, prev + 0.15))}
-                    className="text-slate-300 hover:text-white min-w-[32px] min-h-[32px] sm:min-w-0 sm:min-h-0 px-1.5 py-0.5 rounded-lg hover:bg-slate-800 text-xs font-bold font-mono cursor-pointer flex items-center justify-center"
+                    className="text-slate-300 hover:text-white w-6 h-6 rounded hover:bg-slate-800 text-xs font-bold font-mono cursor-pointer flex items-center justify-center"
                     type="button"
                     title="افزایش بزرگنمایی"
                   >
                     +
                   </button>
-                  <div className="w-px h-3.5 bg-slate-800 mx-0.5 sm:mx-1" />
-                  <button 
+                  <div className="w-px h-3.5 bg-slate-800 mx-0.5" />
+                  <button
                     onClick={handleAutoFitDieline}
-                    className="text-[10px] text-slate-300 hover:text-white font-bold transition-all cursor-pointer bg-slate-800/80 hover:bg-slate-700 px-2 py-1 sm:py-0.5 rounded-lg border-none"
+                    className="text-[10px] text-slate-300 hover:text-white font-bold transition-all cursor-pointer bg-slate-800/80 hover:bg-slate-700 px-1.5 py-0.5 rounded"
                     type="button"
                     title="انطباق خودکار بوم"
                   >
@@ -6802,69 +6885,156 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                 </div>
               )}
 
-              {/* View Options Menu Dropdown */}
+              {/* Unified Tools & View Options Dropdown */}
               <div className="relative">
-                <button 
+                <button
                   onClick={() => setIsSmartMenuOpen(!isSmartMenuOpen)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10.5px] font-bold transition-all border cursor-pointer ${
-                    isSmartMenuOpen 
-                      ? 'bg-sky-900/80 text-sky-200 border-sky-500/40' 
-                      : 'bg-slate-900/80 text-slate-300 border-slate-800 hover:bg-slate-800'
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all border cursor-pointer whitespace-nowrap min-h-[28px] ${
+                    isSmartMenuOpen || showDiagnosticPanel || showDebugger || showQuickView3D || showFloatingDims || showFloatingPatterns
+                      ? 'bg-sky-900/80 text-sky-200 border-sky-500/40'
+                      : 'bg-slate-900/90 text-slate-200 border-slate-700 hover:bg-slate-800'
                   }`}
                   type="button"
                 >
-                  <Settings className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="hidden sm:inline">تنظیمات نما</span>
+                  <Sliders className="w-3 h-3 text-sky-400 shrink-0" />
+                  <span>ابزار و نما</span>
                   <ChevronDown className={`w-3 h-3 transition-transform ${isSmartMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 <AnimatePresence>
                   {isSmartMenuOpen && (
-                    <motion.div 
-                      initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.96 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -8, scale: 0.95 }}
-                      className="absolute left-0 top-full mt-2 w-56 bg-[#0a0d14]/98 backdrop-blur-xl border border-slate-800/90 rounded-2xl shadow-2xl p-2 flex flex-col gap-1 z-50 text-[9.5px] font-bold text-right"
+                      exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                      transition={{ duration: 0.14 }}
+                      className="absolute left-0 top-full mt-1.5 w-64 bg-[#0a0d14]/98 backdrop-blur-xl border border-slate-700/90 rounded-2xl shadow-2xl p-2 flex flex-col gap-1 z-50 text-[10px] font-bold text-right"
                       dir="rtl"
                     >
-                      <div className="p-2 border-b border-slate-800/80 mb-1">
-                        <span className="text-slate-500 text-[8.5px] block mb-1.5">تم بوم نقشه (CAD Theme)</span>
+                      <div className="p-2 border-b border-slate-800/80 mb-0.5">
+                        <span className="text-slate-400 text-[9px] block mb-1.5">تم بوم نقشه (CAD Theme)</span>
                         <div className="flex gap-1 justify-between">
-                          <button onClick={() => setCadTheme('white')} className={`flex-1 py-1 rounded transition-colors ${cadTheme === 'white' ? 'bg-sky-600 text-white' : 'bg-slate-900 text-slate-400'}`}>سفید</button>
-                          <button onClick={() => setCadTheme('blueprint')} className={`flex-1 py-1 rounded transition-colors ${cadTheme === 'blueprint' ? 'bg-indigo-900 text-indigo-300 border border-indigo-700/50' : 'bg-slate-900 text-slate-400'}`}>آبی</button>
-                          <button onClick={() => setCadTheme('charcoal')} className={`flex-1 py-1 rounded transition-colors ${cadTheme === 'charcoal' ? 'bg-slate-700 text-slate-200' : 'bg-slate-900 text-slate-400'}`}>ذغالی</button>
+                          <button type="button" onClick={() => setCadTheme('white')} className={`flex-1 py-1 rounded transition-colors cursor-pointer ${cadTheme === 'white' ? 'bg-sky-600 text-white' : 'bg-slate-900 text-slate-400'}`}>سفید</button>
+                          <button type="button" onClick={() => setCadTheme('blueprint')} className={`flex-1 py-1 rounded transition-colors cursor-pointer ${cadTheme === 'blueprint' ? 'bg-indigo-900 text-indigo-300 border border-indigo-700/50' : 'bg-slate-900 text-slate-400'}`}>آبی</button>
+                          <button type="button" onClick={() => setCadTheme('charcoal')} className={`flex-1 py-1 rounded transition-colors cursor-pointer ${cadTheme === 'charcoal' ? 'bg-slate-700 text-slate-200' : 'bg-slate-900 text-slate-400'}`}>ذغالی</button>
                         </div>
                       </div>
 
-                      <button 
+                      {!isMobile && viewMode === '2d' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => { setShowFloatingDims(!showFloatingDims); setIsSmartMenuOpen(false); }}
+                            className={`flex items-center justify-between p-2 rounded-lg transition-colors cursor-pointer ${showFloatingDims ? 'bg-sky-900/40 text-sky-300' : 'text-slate-300 hover:bg-slate-900'}`}
+                          >
+                            <span className="flex items-center gap-2"><RulerIcon className="w-3.5 h-3.5 text-sky-400" /> پنل شناور ابعاد و زبانه‌ها</span>
+                            <span className="text-[9px]">{showFloatingDims ? 'باز' : 'بسته'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setShowFloatingPatterns(!showFloatingPatterns); setIsSmartMenuOpen(false); }}
+                            className={`flex items-center justify-between p-2 rounded-lg transition-colors cursor-pointer ${showFloatingPatterns ? 'bg-indigo-900/40 text-indigo-300' : 'text-slate-300 hover:bg-slate-900'}`}
+                          >
+                            <span className="flex items-center gap-2"><Shapes className="w-3.5 h-3.5 text-indigo-400" /> انتخاب / آپلود الگوی DXF</span>
+                            <span className="text-[9px]">{showFloatingPatterns ? 'باز' : 'بسته'}</span>
+                          </button>
+                        </>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => { setIsPacklyStudioOpen(true); setIsSmartMenuOpen(false); }}
+                        className="flex items-center justify-between p-2 rounded-lg text-amber-300 hover:bg-amber-500/10 transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-amber-400" /> استودیو صنعتی Packly</span>
+                        <span className="text-[9px] text-amber-400">بازکردن</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => { setShowDiagnosticPanel(!showDiagnosticPanel); setIsSmartMenuOpen(false); }}
+                        className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-900 transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2"><ShieldAlert className="w-3.5 h-3.5 text-sky-400" /> تحلیل پایداری سازه</span>
+                        {structuralDiagnostics.length > 0 && (
+                          <span className="px-1.5 py-0.5 bg-rose-500 text-white font-mono text-[9px] rounded-full">
+                            {structuralDiagnostics.length}
+                          </span>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => { setShowDebugger(!showDebugger); setIsSmartMenuOpen(false); }}
+                        className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-900 transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2"><Ruler className="w-3.5 h-3.5 text-cyan-400" /> دیباگ ابعادی قفل (W/2)</span>
+                        <span className={`text-[9px] ${showDebugger ? 'text-cyan-300' : 'text-slate-500'}`}>{showDebugger ? 'فعال' : 'خاموش'}</span>
+                      </button>
+
+                      <div className="px-2 py-1.5 rounded-lg bg-slate-900/60 border border-slate-800/80 flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => setEnableMagneticSnap(!enableMagneticSnap)}
+                          className="flex items-center gap-2 text-slate-300 font-bold hover:text-white cursor-pointer"
+                        >
+                          <Magnet className={`w-3.5 h-3.5 ${enableMagneticSnap ? 'text-emerald-400' : 'text-slate-500'}`} />
+                          <span>جذب مغناطیسی</span>
+                        </button>
+                        <select
+                          value={gridSnapStep}
+                          onChange={(e) => setGridSnapStep(Number(e.target.value))}
+                          className="bg-slate-950 text-sky-400 text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-800 cursor-pointer"
+                        >
+                          <option value={1}>1mm</option>
+                          <option value={5}>5mm</option>
+                          <option value={10}>10mm</option>
+                        </select>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => { setShowQuickView3D(!showQuickView3D); setIsSmartMenuOpen(false); }}
+                        className="flex items-center justify-between p-2 rounded-lg text-slate-300 hover:bg-slate-900 transition-colors cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2"><Box className="w-3.5 h-3.5 text-emerald-400" /> پیش‌نمایش سریع ۳بعدی</span>
+                        <span className={`text-[9px] ${showQuickView3D ? 'text-emerald-300' : 'text-slate-500'}`}>{showQuickView3D ? 'باز' : 'بسته'}</span>
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={() => setHasDieCut(!hasDieCut)}
-                        className={`flex items-center justify-between p-2 rounded-lg transition-colors ${hasDieCut ? 'bg-slate-800/80 text-purple-400' : 'text-slate-400 hover:bg-slate-900/50'}`}
+                        className={`flex items-center justify-between p-2 rounded-lg transition-colors cursor-pointer ${hasDieCut ? 'bg-slate-800/80 text-purple-400' : 'text-slate-400 hover:bg-slate-900/50'}`}
                       >
                         <span className="flex items-center gap-2"><Shapes className="w-3.5 h-3.5" /> لبه دایکات</span>
                         <span>{hasDieCut ? 'سفارشی' : 'استاندارد'}</span>
                       </button>
 
                       {!isMobile && (
-                        <button 
+                        <button
+                          type="button"
                           onClick={() => setShowTelemetry(!showTelemetry)}
-                          className={`flex items-center justify-between p-2 rounded-lg transition-colors ${showTelemetry ? 'bg-slate-800/80 text-amber-400' : 'text-slate-400 hover:bg-slate-900/50'}`}
+                          className={`flex items-center justify-between p-2 rounded-lg transition-colors cursor-pointer ${showTelemetry ? 'bg-slate-800/80 text-amber-400' : 'text-slate-400 hover:bg-slate-900/50'}`}
                         >
                           <span className="flex items-center gap-2"><Award className="w-3.5 h-3.5" /> داده‌های تله‌متری</span>
                           <span>{showTelemetry ? 'روشن' : 'خاموش'}</span>
                         </button>
                       )}
 
-                      {!isMobile && (
-                        <div className="mt-1 pt-1 border-t border-slate-800/80">
-                          <button 
-                            onClick={toggleInteractiveFullscreen}
-                            className={`w-full flex items-center justify-between p-2 rounded-lg transition-colors ${isFullScreen ? 'bg-rose-900/30 text-rose-400' : 'text-slate-400 hover:bg-slate-900/50'}`}
-                          >
-                            <span className="flex items-center gap-2"><Maximize className="w-3.5 h-3.5" /> تمام‌صفحه</span>
-                            <span>{isFullScreen ? 'خروج' : 'ورود'}</span>
-                          </button>
-                        </div>
-                      )}
+                      <div className="pt-1 border-t border-slate-800/80">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm('آیا مطمئن هستید؟ تمام داده‌های کش مرورگر و الگوهای قبلی پاکسازی و شبیه‌ساز کاملاً ریست خواهد شد.')) {
+                              clearAllCache();
+                            }
+                          }}
+                          className="w-full p-2 rounded-lg text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 transition-colors cursor-pointer"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 text-rose-400" />
+                          <span>پاکسازی کش و ریست کامل</span>
+                        </button>
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -9245,12 +9415,11 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
                     <p className="text-xs text-slate-400 mt-1">الگوی مهندسی مورد نظر را جهت ورود به محیط پارامتریک انتخاب کنید.</p>
                   </div>
                 </div>
-                <button 
+                <BackButton
+                  label="بازگشت به جعبه‌ساز"
+                  variant="dark"
                   onClick={() => setIsLibraryOpen(false)}
-                  className="p-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-xl text-slate-400 transition-colors shadow-sm cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                />
               </div>
 
               {/* Grid Body */}

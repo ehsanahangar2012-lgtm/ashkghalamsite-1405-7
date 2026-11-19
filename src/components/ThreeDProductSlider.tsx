@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play,
@@ -20,6 +21,8 @@ import {
   Eye,
   SlidersHorizontal,
   Repeat,
+  Hand,
+  ArrowUpDown,
 } from 'lucide-react';
 import { AppView } from '../types';
 import { useContent } from '../contexts/ContentContext';
@@ -27,7 +30,10 @@ import { saveInquiryPrefill } from '../utils/inquiryPrefill';
 import {
   BOARD_MATERIALS,
   FOIL_MATERIALS,
-  createBoardFiberTexture,
+  HeroBoardSurfaceType,
+  HeroBoardTextureSet,
+  createHeroBoardMaps,
+  createBrushedFoilMaps,
   createFoilArtworkTexture,
   createCustomColorLogoTexture,
   createStudioFloorTexture,
@@ -141,17 +147,25 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     sliderConfig?.autoDielineFold !== undefined ? Boolean(sliderConfig.autoDielineFold) : true
   );
   const [slidePhase, setSlidePhase] = useState<SlidePhase>('dieline');
-  const [slideCycleProgress, setSlideCycleProgress] = useState<number>(0);
 
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [dockCollapsed, setDockCollapsed] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.innerWidth < 768 : false
   );
   const [activeHotspot, setActiveHotspot] = useState<ServiceHotspotSpec | null>(null);
-  const [hotspotScreenCoords, setHotspotScreenCoords] = useState<
-    Array<{ spec: ServiceHotspotSpec; x: number; y: number; visible: boolean }>
-  >([]);
   const [webglUnavailable, setWebglUnavailable] = useState<boolean>(false);
+  const [userInteracted, setUserInteracted] = useState<boolean>(false);
+  const [touchInspectMode, setTouchInspectMode] = useState<boolean>(false);
+  const touchInspectRef = useRef<boolean>(false);
+  const horizontalSpinVelRef = useRef<number>(0);
+
+  // Direct DOM refs so 60fps Three.js loop never triggers 18Hz React tree re-renders
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const foldBadgeRef = useRef<HTMLSpanElement>(null);
+  const foldSliderInputRef = useRef<HTMLInputElement>(null);
+  const foldSliderValueRef = useRef<HTMLSpanElement>(null);
+  const hotspotBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const lastFoldPctRef = useRef<number>(0);
 
   const effectiveLogoUrl = (sliderConfig?.boxLogoUrl || globalSettings?.logoUrl || '').trim();
   const effectiveLogoMode: 'color' | 'foil' = sliderConfig?.boxLogoMode === 'foil' ? 'foil' : 'color';
@@ -169,6 +183,13 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     if (mappedMat) setBoardId(mappedMat);
   }, [sliderConfig]);
 
+  useEffect(() => {
+    if (!dockCollapsed) {
+      if (foldSliderInputRef.current) foldSliderInputRef.current.value = String(lastFoldPctRef.current);
+      if (foldSliderValueRef.current) foldSliderValueRef.current.textContent = `${lastFoldPctRef.current}%`;
+    }
+  }, [dockCollapsed]);
+
   // Ref for triggering slide changes from inside requestAnimationFrame cleanly
   const selectModelIndexRef = useRef<(idx: number) => void>(() => {});
 
@@ -182,8 +203,12 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     sceneStateRef.current.cycleElapsed = 0;
     sceneStateRef.current.manualFoldOverride = false;
     sceneStateRef.current.userDragging = false;
+    lastFoldPctRef.current = 0;
+    if (progressBarRef.current) progressBarRef.current.style.transform = 'scaleX(0.05)';
+    if (foldBadgeRef.current) foldBadgeRef.current.textContent = '0%';
+    if (foldSliderInputRef.current) foldSliderInputRef.current.value = '0';
+    if (foldSliderValueRef.current) foldSliderValueRef.current.textContent = '0%';
     setSlidePhase(sceneStateRef.current.autoDielineFold ? 'dieline' : 'showcase');
-    setSlideCycleProgress(0);
   }, []);
 
   selectModelIndexRef.current = selectModelIndex;
@@ -255,9 +280,15 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     rebuildAssembly: (id: PackagingModelId) => void;
     refreshArtwork: () => void;
     updateMaterials: (bId: string, fId: string) => void;
+    setTouchInspect: (active: boolean) => void;
     resetCamera: () => void;
     replayFold: () => void;
   } | null>(null);
+
+  useEffect(() => {
+    touchInspectRef.current = touchInspectMode;
+    threeHandlesRef.current?.setTouchInspect(touchInspectMode);
+  }, [touchInspectMode]);
 
   useEffect(() => {
     threeHandlesRef.current?.rebuildAssembly(activeModel.id);
@@ -277,6 +308,10 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     if (!mount) return;
 
     const isSoftwareGl = detectSoftwareWebGL();
+    const isCompactViewport = window.innerWidth < 768;
+    const isCoarsePointer =
+      typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    const lowPowerMode = isSoftwareGl || isCompactViewport || isCoarsePointer;
     let renderer: THREE.WebGLRenderer;
 
     try {
@@ -295,11 +330,13 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
 
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.12;
-    renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+    renderer.toneMappingExposure = 1.28;
+    renderer.setPixelRatio(
+      isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, lowPowerMode ? 1.15 : 1.5)
+    );
     renderer.setSize(width, height);
-    renderer.shadowMap.enabled = !isSoftwareGl;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.enabled = !lowPowerMode;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
 
     mount.innerHTML = '';
     mount.appendChild(renderer.domElement);
@@ -310,9 +347,9 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     renderer.domElement.addEventListener('webglcontextlost', handleContextLost, false);
 
     const scene = new THREE.Scene();
-    const bgColor = new THREE.Color('#060913');
+    const bgColor = new THREE.Color('#020307');
     scene.background = bgColor;
-    scene.fog = new THREE.FogExp2('#060913', 0.048);
+    scene.fog = new THREE.FogExp2('#020307', 0.055);
 
     // Studio Reflection Environment (RoomEnvironment via PMREMGenerator)
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
@@ -320,8 +357,10 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     scene.environment = envRT.texture;
     pmremGenerator.dispose();
 
-    const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100);
-    camera.position.set(3.6, 3.15, 4.35);
+    const initialAspect = width / height;
+    const isPortraitInit = initialAspect < 0.85;
+    const camera = new THREE.PerspectiveCamera(isPortraitInit ? 46 : 38, initialAspect, 0.1, 100);
+    camera.position.set(isPortraitInit ? 3.85 : 3.45, isPortraitInit ? 3.05 : 2.95, isPortraitInit ? 4.65 : 4.15);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = !isSoftwareGl;
@@ -332,24 +371,110 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     controls.maxPolarAngle = Math.PI / 2 - 0.06;
     controls.minDistance = 2.6;
     controls.maxDistance = 8.5;
-    controls.target.set(0, 0.36, 0);
+    controls.target.set(0, isPortraitInit ? 0.14 : 0.34, 0);
+
+    // Smart Touch Scroll Arbitration:
+    // On mobile/touch devices, preserve native vertical page scroll (pan-y) by default,
+    // allow passive horizontal finger swipe to spin the 3D turntable smoothly,
+    // and switch to full 2-axis OrbitControls when user activates 360 Inspect Mode or uses a mouse.
+    const isTouchFirstDevice = isCompactViewport || isCoarsePointer;
+    if (isTouchFirstDevice && !touchInspectRef.current) {
+      controls.enabled = false;
+      renderer.domElement.style.touchAction = 'pan-y';
+    } else {
+      controls.enabled = true;
+      renderer.domElement.style.touchAction = 'none';
+    }
+
+    const onPointerDownArbitrate = (ev: PointerEvent) => {
+      if (ev.pointerType === 'mouse') {
+        controls.enabled = true;
+        renderer.domElement.style.touchAction = 'none';
+      } else if (ev.pointerType === 'touch' && !touchInspectRef.current) {
+        controls.enabled = false;
+        renderer.domElement.style.touchAction = 'pan-y';
+      }
+    };
+    renderer.domElement.addEventListener('pointerdown', onPointerDownArbitrate, {
+      capture: true,
+      passive: true,
+    });
+
+    let touchTrack: {
+      active: boolean;
+      startX: number;
+      startY: number;
+      lastX: number;
+      axis: 'none' | 'x' | 'y';
+    } = { active: false, startX: 0, startY: 0, lastX: 0, axis: 'none' };
+
+    const onTouchStartPassive = (ev: TouchEvent) => {
+      if (touchInspectRef.current || ev.touches.length !== 1) {
+        touchTrack.active = false;
+        return;
+      }
+      const pt = ev.touches[0];
+      touchTrack = {
+        active: true,
+        startX: pt.clientX,
+        startY: pt.clientY,
+        lastX: pt.clientX,
+        axis: 'none',
+      };
+    };
+
+    const onTouchMovePassive = (ev: TouchEvent) => {
+      if (!touchTrack.active || touchInspectRef.current || ev.touches.length !== 1) return;
+      const pt = ev.touches[0];
+      const totalDx = Math.abs(pt.clientX - touchTrack.startX);
+      const totalDy = Math.abs(pt.clientY - touchTrack.startY);
+
+      if (touchTrack.axis === 'none') {
+        if (totalDx < 8 && totalDy < 8) return;
+        if (totalDy >= totalDx * 0.9) {
+          touchTrack.axis = 'y'; // Native vertical scroll wins immediately
+          return;
+        }
+        touchTrack.axis = 'x';
+        setUserInteracted(true);
+      }
+
+      if (touchTrack.axis === 'x') {
+        const dx = pt.clientX - touchTrack.lastX;
+        touchTrack.lastX = pt.clientX;
+        stagePivot.rotation.y += dx * 0.0085;
+        plinthGroup.rotation.y += dx * 0.0085;
+        horizontalSpinVelRef.current = THREE.MathUtils.clamp(dx * 0.14, -4.5, 4.5);
+      }
+    };
+
+    const onTouchEndPassive = () => {
+      touchTrack.active = false;
+      touchTrack.axis = 'none';
+    };
+
+    renderer.domElement.addEventListener('touchstart', onTouchStartPassive, { passive: true });
+    renderer.domElement.addEventListener('touchmove', onTouchMovePassive, { passive: true });
+    renderer.domElement.addEventListener('touchend', onTouchEndPassive, { passive: true });
+    renderer.domElement.addEventListener('touchcancel', onTouchEndPassive, { passive: true });
 
     controls.addEventListener('start', () => {
       sceneStateRef.current.cameraPreset = null;
       sceneStateRef.current.userDragging = true;
+      setUserInteracted(true);
     });
     controls.addEventListener('end', () => {
       sceneStateRef.current.userDragging = false;
     });
 
-    // Three-Point Studio Lighting Rig
-    const hemiLight = new THREE.HemisphereLight('#c7d9ff', '#1e1b18', 0.76);
+    // High-Contrast Luxury Exhibition Lighting Rig + Studio Softboxes
+    const hemiLight = new THREE.HemisphereLight('#dbeafe', '#14110c', 0.68);
     scene.add(hemiLight);
 
-    const keyLight = new THREE.DirectionalLight('#fff3dc', 2.2);
+    const keyLight = new THREE.DirectionalLight('#fff5e1', 2.65);
     keyLight.position.set(4.5, 7.5, 5.0);
-    keyLight.castShadow = !isSoftwareGl;
-    keyLight.shadow.mapSize.set(1024, 1024);
+    keyLight.castShadow = !lowPowerMode;
+    keyLight.shadow.mapSize.set(512, 512);
     keyLight.shadow.camera.near = 1;
     keyLight.shadow.camera.far = 20;
     const d = 3.8;
@@ -361,13 +486,26 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     keyLight.shadow.normalBias = 0.02;
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight('#38bdf8', 1.15);
-    rimLight.position.set(-5.0, 4.0, -4.5);
+    const rimLight = new THREE.DirectionalLight('#38bdf8', 1.65);
+    rimLight.position.set(-5.0, 4.2, -4.5);
     scene.add(rimLight);
 
-    const warmAccentLight = new THREE.PointLight('#f59e0b', 1.65, 12, 1.5);
-    warmAccentLight.position.set(3.2, 2.2, -3.5);
+    const warmAccentLight = new THREE.PointLight('#f59e0b', 2.2, 14, 1.4);
+    warmAccentLight.position.set(3.2, 2.3, -3.2);
     scene.add(warmAccentLight);
+
+    if (!isSoftwareGl) {
+      RectAreaLightUniformsLib.init();
+      const topSoftbox = new THREE.RectAreaLight('#fff8eb', 2.6, 5.8, 3.2);
+      topSoftbox.position.set(1.1, 5.1, 2.2);
+      topSoftbox.lookAt(0, 0.35, 0);
+      scene.add(topSoftbox);
+
+      const coolSoftbox = new THREE.RectAreaLight('#bae6fd', 1.35, 4.2, 2.8);
+      coolSoftbox.position.set(-4.2, 2.7, -2.4);
+      coolSoftbox.lookAt(0, 0.35, 0);
+      scene.add(coolSoftbox);
+    }
 
     const maxAniso =
       typeof renderer.capabilities.getMaxAnisotropy === 'function'
@@ -391,8 +529,8 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     const plinthGroup = new THREE.Group();
     const plinthBaseGeo = new THREE.CylinderGeometry(2.55, 2.72, 0.22, 64);
     const plinthBaseMat = new THREE.MeshStandardMaterial({
-      color: '#0c111d',
-      roughness: 0.35,
+      color: '#060911',
+      roughness: 0.38,
       metalness: 0.65,
     });
     const plinthBase = new THREE.Mesh(plinthBaseGeo, plinthBaseMat);
@@ -400,22 +538,35 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     plinthBase.receiveShadow = true;
     plinthGroup.add(plinthBase);
 
-    const brassRingGeo = new THREE.TorusGeometry(2.56, 0.016, 16, 96);
+    const brassRingGeo = new THREE.TorusGeometry(2.56, 0.02, 16, 96);
     brassRingGeo.rotateX(Math.PI / 2);
     const brassRingMat = new THREE.MeshStandardMaterial({
-      color: '#e5b84b',
-      roughness: 0.22,
-      metalness: 0.94,
+      color: '#f2c96b',
+      emissive: '#92400e',
+      emissiveIntensity: 0.45,
+      roughness: 0.18,
+      metalness: 0.96,
     });
     const brassRing = new THREE.Mesh(brassRingGeo, brassRingMat);
-    brassRing.position.y = -0.11;
+    brassRing.position.y = -0.105;
     plinthGroup.add(brassRing);
+
+    const haloRingGeo = new THREE.TorusGeometry(2.74, 0.01, 12, 96);
+    haloRingGeo.rotateX(Math.PI / 2);
+    const haloRingMat = new THREE.MeshBasicMaterial({
+      color: '#38bdf8',
+      transparent: true,
+      opacity: 0.42,
+    });
+    const haloRing = new THREE.Mesh(haloRingGeo, haloRingMat);
+    haloRing.position.y = -0.22;
+    plinthGroup.add(haloRing);
 
     const plinthTopGeo = new THREE.CylinderGeometry(2.48, 2.54, 0.04, 64);
     const plinthTopMat = new THREE.MeshStandardMaterial({
-      color: '#111827',
-      roughness: 0.55,
-      metalness: 0.25,
+      color: '#090e1a',
+      roughness: 0.52,
+      metalness: 0.35,
     });
     const plinthTop = new THREE.Mesh(plinthTopGeo, plinthTopMat);
     plinthTop.position.y = -0.09;
@@ -437,7 +588,7 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     scene.add(plinthGroup);
 
     // Ambient Dust Particles
-    const particleCount = 110;
+    const particleCount = lowPowerMode ? 24 : 48;
     const pGeo = new THREE.BufferGeometry();
     const pPos = new Float32Array(particleCount * 3);
     for (let i = 0; i < particleCount; i++) {
@@ -458,8 +609,20 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     const particles = new THREE.Points(pGeo, pMat);
     scene.add(particles);
 
-    // Shared PBR Packaging Materials
-    const fiberTex = createBoardFiberTexture(maxAniso);
+    // Shared PBR Packaging Materials (Physical Materials + Procedural Normal & Roughness Maps)
+    const boardMapsCache = new Map<HeroBoardSurfaceType, HeroBoardTextureSet>();
+    const getBoardMaps = (surfaceType: HeroBoardSurfaceType): HeroBoardTextureSet => {
+      const existing = boardMapsCache.get(surfaceType);
+      if (existing) return existing;
+      const created = createHeroBoardMaps(surfaceType, maxAniso);
+      boardMapsCache.set(surfaceType, created);
+      return created;
+    };
+
+    const initialBoardMaps = getBoardMaps('velvet');
+    const innerLinerMaps = getBoardMaps('glossy');
+    const brushedFoilMaps = createBrushedFoilMaps(maxAniso);
+
     let foilTex = createFoilArtworkTexture({
       modelCode: sceneStateRef.current.modelCode,
       modelTitleFa: sceneStateRef.current.modelTitleFa,
@@ -470,29 +633,54 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     });
     let colorLogoTex: THREE.CanvasTexture | null = null;
 
-    const boardMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color('#141824'),
-      map: fiberTex,
-      bumpMap: fiberTex,
-      bumpScale: 0.008,
+    const boardMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#141926'),
+      map: initialBoardMaps.map,
+      normalMap: initialBoardMaps.normalMap,
+      normalScale: new THREE.Vector2(0.55, 0.55),
+      roughnessMap: initialBoardMaps.roughnessMap,
+      roughness: 0.82,
+      metalness: 0.03,
+      clearcoat: 0.04,
+      clearcoatRoughness: 0.72,
+      sheen: 0.95,
+      sheenRoughness: 0.52,
+      sheenColor: new THREE.Color('#94a3b8'),
+      envMapIntensity: 1.1,
+    });
+
+    const innerMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color('#dfd6c7'),
+      map: innerLinerMaps.map,
+      normalMap: innerLinerMaps.normalMap,
+      normalScale: new THREE.Vector2(0.3, 0.3),
+      roughnessMap: innerLinerMaps.roughnessMap,
       roughness: 0.72,
-      metalness: 0.08,
+      metalness: 0.02,
+      sheen: 0.25,
+      sheenRoughness: 0.65,
+      sheenColor: new THREE.Color('#f5efe6'),
+      envMapIntensity: 0.9,
+      side: THREE.DoubleSide,
     });
 
     const foilMat = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color('#e5b84b'),
+      color: new THREE.Color('#ecc154'),
       map: foilTex,
       alphaMap: foilTex,
       transparent: true,
       alphaTest: 0.15,
-      bumpMap: foilTex,
-      bumpScale: 0.018,
-      roughness: 0.14,
-      metalness: 0.96,
-      clearcoat: 0.85,
-      clearcoatRoughness: 0.12,
-      emissive: new THREE.Color('#3a2606'),
-      emissiveIntensity: 0.25,
+      roughnessMap: brushedFoilMaps.roughnessMap,
+      normalMap: brushedFoilMaps.normalMap,
+      normalScale: new THREE.Vector2(0.28, 0.28),
+      roughness: 0.12,
+      metalness: 0.98,
+      anisotropy: 0.72,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.08,
+      envMapIntensity: 1.75,
+      emissive: new THREE.Color('#3f2804'),
+      emissiveIntensity: 0.38,
       side: THREE.DoubleSide,
       polygonOffset: true,
       polygonOffsetFactor: -1,
@@ -503,10 +691,11 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
       color: '#ffffff',
       transparent: true,
       alphaTest: 0.08,
-      roughness: 0.18,
+      roughness: 0.14,
       metalness: 0.05,
-      clearcoat: 0.92,
-      clearcoatRoughness: 0.12,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.08,
+      envMapIntensity: 1.35,
       side: THREE.DoubleSide,
       visible: false,
       polygonOffset: true,
@@ -515,15 +704,16 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     });
 
     const glassMat = new THREE.MeshPhysicalMaterial({
-      color: '#bae6fd',
+      color: '#dbeafe',
       roughness: 0.06,
-      metalness: 0.05,
-      transmission: isSoftwareGl ? 0 : 0.9,
+      metalness: 0.06,
+      transmission: 0,
       transparent: true,
-      opacity: isSoftwareGl ? 0.32 : 0.92,
-      ior: 1.5,
-      thickness: 0.15,
+      opacity: 0.28,
       clearcoat: 1.0,
+      clearcoatRoughness: 0.04,
+      reflectivity: 0.95,
+      envMapIntensity: 1.85,
       depthWrite: false,
     });
 
@@ -538,7 +728,7 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     const edgeMat = new THREE.LineBasicMaterial({
       color: '#38bdf8',
       transparent: true,
-      opacity: 0.35,
+      opacity: 0.06,
     });
 
     const creaseMat = new THREE.LineDashedMaterial({
@@ -546,7 +736,7 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
       dashSize: 0.08,
       gapSize: 0.05,
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.04,
     });
 
     const stagePivot = new THREE.Group();
@@ -574,7 +764,6 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
       });
       foilMat.map = foilTex;
       foilMat.alphaMap = foilTex;
-      foilMat.bumpMap = foilTex;
       foilMat.needsUpdate = true;
 
       if (colorLogoTex) {
@@ -619,6 +808,7 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
         spec.defaultDims.width,
         spec.defaultDims.height,
         boardMat,
+        innerMat,
         foilMat,
         colorLogoMat,
         glassMat,
@@ -632,15 +822,41 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     const updateMaterials = (bId: string, fId: string) => {
       const bSpec = BOARD_MATERIALS.find((b) => b.id === bId) || BOARD_MATERIALS[0];
       const fSpec = FOIL_MATERIALS.find((f) => f.id === fId) || FOIL_MATERIALS[0];
+      const maps = getBoardMaps(bSpec.surfaceType);
+
       boardMat.color.set(bSpec.color);
+      boardMat.map = maps.map;
+      boardMat.normalMap = maps.normalMap;
+      boardMat.normalScale.set(bSpec.normalScale, bSpec.normalScale);
+      boardMat.roughnessMap = maps.roughnessMap;
       boardMat.roughness = bSpec.roughness;
       boardMat.metalness = bSpec.metalness;
-      boardMat.bumpScale = bSpec.bumpScale;
+      boardMat.clearcoat = bSpec.clearcoat;
+      boardMat.clearcoatRoughness = bSpec.clearcoatRoughness;
+      boardMat.sheen = bSpec.sheen;
+      boardMat.sheenRoughness = bSpec.sheenRoughness;
+      boardMat.sheenColor.set(bSpec.sheenColor);
+      boardMat.envMapIntensity = bSpec.envMapIntensity;
+      boardMat.needsUpdate = true;
+
+      innerMat.color.set(bSpec.innerColor);
+      innerMat.needsUpdate = true;
 
       foilMat.color.set(fSpec.color);
       foilMat.emissive.set(fSpec.emissive);
       foilMat.roughness = fSpec.roughness;
       foilMat.metalness = fSpec.metalness;
+      foilMat.needsUpdate = true;
+    };
+
+    const setTouchInspect = (active: boolean) => {
+      if (isTouchFirstDevice) {
+        controls.enabled = active;
+        renderer.domElement.style.touchAction = active ? 'none' : 'pan-y';
+      } else {
+        controls.enabled = true;
+        renderer.domElement.style.touchAction = 'none';
+      }
     };
 
     const resetCamera = () => {
@@ -655,8 +871,12 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
       sceneStateRef.current.cycleElapsed = 0;
       sceneStateRef.current.foldTarget = 0;
       foldCurrent = 0;
+      lastFoldPctRef.current = 0;
+      if (progressBarRef.current) progressBarRef.current.style.transform = 'scaleX(0.05)';
+      if (foldBadgeRef.current) foldBadgeRef.current.textContent = '0%';
+      if (foldSliderInputRef.current) foldSliderInputRef.current.value = '0';
+      if (foldSliderValueRef.current) foldSliderValueRef.current.textContent = '0%';
       setSlidePhase('dieline');
-      setSlideCycleProgress(0);
       setFoldPercent(0);
     };
 
@@ -664,6 +884,7 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
       rebuildAssembly,
       refreshArtwork,
       updateMaterials,
+      setTouchInspect,
       resetCamera,
       replayFold,
     };
@@ -680,24 +901,47 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
       const w = mount.clientWidth;
       const h = mount.clientHeight;
       if (w > 0 && h > 0) {
-        camera.aspect = w / h;
+        const aspect = w / h;
+        camera.aspect = aspect;
+        camera.fov = aspect < 0.85 ? 46 : 38;
         camera.updateProjectionMatrix();
         renderer.setSize(w, h);
       }
     };
-    window.addEventListener('resize', onResize);
+    window.addEventListener('resize', onResize, { passive: true });
 
     let frameId = 0;
+    let isLoopScheduled = false;
     let disposed = false;
     let lastTime = performance.now();
     let lastUiBroadcast = 0;
+    let lastBroadcastPhase: SlidePhase = 'dieline';
     let firstFrameDrawn = false;
+
+    const scheduleFrame = () => {
+      if (disposed || isLoopScheduled) return;
+      isLoopScheduled = true;
+      if (isSoftwareGl) {
+        frameId = window.setTimeout(animate, 20);
+      } else {
+        frameId = requestAnimationFrame(animate);
+      }
+    };
+
+    const wakeLoop = () => {
+      if (disposed) return;
+      if (sceneStateRef.current.isVisible && !document.hidden) {
+        lastTime = performance.now();
+        scheduleFrame();
+      }
+    };
 
     const visObserver = new IntersectionObserver(
       (entries) => {
-        sceneStateRef.current.isVisible = entries[0]?.isIntersecting ?? true;
-        if (sceneStateRef.current.isVisible) {
-          lastTime = performance.now();
+        const visibleNow = entries[0]?.isIntersecting ?? true;
+        sceneStateRef.current.isVisible = visibleNow;
+        if (visibleNow) {
+          wakeLoop();
         }
       },
       { threshold: 0.05 }
@@ -706,9 +950,17 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
       visObserver.observe(containerRef.current);
     }
 
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        wakeLoop();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     function afterDraw(cb: () => void) {
       const gl = renderer.getContext() as WebGL2RenderingContext;
       if (!gl || typeof gl.fenceSync !== 'function') {
+        isLoopScheduled = true;
         frameId = window.setTimeout(cb, 80);
         return;
       }
@@ -721,6 +973,7 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
           frameId = window.setTimeout(poll, 5);
         } else {
           if (sync) gl.deleteSync(sync);
+          isLoopScheduled = true;
           frameId = window.setTimeout(cb, 80);
         }
       };
@@ -728,20 +981,16 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
     }
 
     const animate = () => {
+      isLoopScheduled = false;
       if (disposed) return;
+      const st = sceneStateRef.current;
+      if ((!st.isVisible || document.hidden) && firstFrameDrawn) {
+        // Completely pause RAF when offscreen or tab hidden (0 idle CPU/GPU cost)
+        return;
+      }
       const now = performance.now();
       const dt = Math.min(0.05, (now - lastTime) / 1000);
       lastTime = now;
-
-      const st = sceneStateRef.current;
-      if (!st.isVisible && firstFrameDrawn) {
-        if (isSoftwareGl) {
-          frameId = window.setTimeout(animate, 250);
-        } else {
-          frameId = requestAnimationFrame(animate);
-        }
-        return;
-      }
       firstFrameDrawn = true;
 
       // Slider Cycle State Machine: Flat Dieline -> Beautiful Fold -> Assembled Showcase -> Next Item
@@ -805,15 +1054,24 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
 
       // Gently frame elevated blueprint angle when flat dieline is shown (unless user is orbiting)
       if (!st.cameraPreset && !st.userDragging && !st.activeHotspotPause && st.autoDielineFold && !st.manualFoldOverride) {
+        const isPortraitView = camera.aspect < 0.85;
         const flatWeight = THREE.MathUtils.clamp(1 - foldCurrent * 1.15, 0, 1);
-        const desiredY = THREE.MathUtils.lerp(2.42, 3.65, flatWeight);
-        const desiredDist = THREE.MathUtils.lerp(5.55, 6.35, flatWeight);
+        const desiredY = THREE.MathUtils.lerp(isPortraitView ? 2.55 : 2.35, isPortraitView ? 3.85 : 3.55, flatWeight);
+        const desiredDist = THREE.MathUtils.lerp(isPortraitView ? 5.65 : 5.05, isPortraitView ? 6.55 : 5.95, flatWeight);
         const curHorizontalDist = Math.hypot(camera.position.x, camera.position.z) || 1;
         const targetHoriz = Math.sqrt(Math.max(4, desiredDist * desiredDist - desiredY * desiredY));
         const scaleHoriz = THREE.MathUtils.damp(curHorizontalDist, targetHoriz, 2.2, dt) / curHorizontalDist;
         camera.position.x *= scaleHoriz;
         camera.position.z *= scaleHoriz;
         camera.position.y = THREE.MathUtils.damp(camera.position.y, desiredY, 2.4, dt);
+      }
+
+      if (Math.abs(horizontalSpinVelRef.current) > 0.002) {
+        stagePivot.rotation.y += horizontalSpinVelRef.current * dt;
+        plinthGroup.rotation.y += horizontalSpinVelRef.current * dt;
+        horizontalSpinVelRef.current *= Math.exp(-5.5 * dt);
+      } else {
+        horizontalSpinVelRef.current = 0;
       }
 
       if (st.autoRotate) {
@@ -837,59 +1095,91 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
       controls.update();
       renderer.render(scene, camera);
 
-      // Throttled UI sync (~18Hz) for fold slider, progress bar, and 3D hotspot coordinates
-      if (now - lastUiBroadcast > 55 && mount.clientWidth > 0) {
+      // Direct DOM HUD & Hotspot sync (zero React re-renders per frame)
+      if (now - lastUiBroadcast > 50 && mount.clientWidth > 0) {
         lastUiBroadcast = now;
 
         if (!st.manualFoldOverride) {
-          setFoldPercent(Math.round(foldCurrent * 100));
-          setSlidePhase(computedPhase);
-          setSlideCycleProgress(cycleRatio);
+          const pct = Math.round(foldCurrent * 100);
+          lastFoldPctRef.current = pct;
+          if (foldBadgeRef.current) foldBadgeRef.current.textContent = `${pct}%`;
+          if (progressBarRef.current) {
+            progressBarRef.current.style.transform = `scaleX(${Math.max(0.05, cycleRatio)})`;
+          }
+          if (foldSliderInputRef.current && document.activeElement !== foldSliderInputRef.current) {
+            foldSliderInputRef.current.value = String(pct);
+          }
+          if (foldSliderValueRef.current) foldSliderValueRef.current.textContent = `${pct}%`;
+          if (computedPhase !== lastBroadcastPhase) {
+            lastBroadcastPhase = computedPhase;
+            setSlidePhase(computedPhase);
+          }
         }
 
         const mw = mount.clientWidth;
-        const mh = mount.clientHeight;
-        stagePivot.updateMatrixWorld(true);
-        const projected = st.hotspots.map((hs) => {
-          _vec3.set(hs.localPoint[0], hs.localPoint[1], hs.localPoint[2]);
-          _vec3.applyMatrix4(stagePivot.matrixWorld);
-          _vec3.project(camera);
-          const x = (_vec3.x * 0.5 + 0.5) * mw;
-          const y = (-_vec3.y * 0.5 + 0.5) * mh;
-          const visible = _vec3.z < 1 && foldCurrent > 0.72 && x > 30 && x < mw - 30 && y > 40 && y < mh - 80;
-          return { spec: hs, x, y, visible };
-        });
-        setHotspotScreenCoords(projected);
+        if (mw >= 768) {
+          const mh = mount.clientHeight;
+          stagePivot.updateMatrixWorld(true);
+          for (let i = 0; i < st.hotspots.length; i++) {
+            const hs = st.hotspots[i];
+            const btn = hotspotBtnRefs.current[hs.id];
+            if (!btn) continue;
+            _vec3.set(hs.localPoint[0], hs.localPoint[1], hs.localPoint[2]);
+            _vec3.applyMatrix4(stagePivot.matrixWorld);
+            _vec3.project(camera);
+            const x = (_vec3.x * 0.5 + 0.5) * mw;
+            const y = (-_vec3.y * 0.5 + 0.5) * mh;
+            const visible = _vec3.z < 1 && foldCurrent > 0.72 && x > 30 && x < mw - 30 && y > 40 && y < mh - 80;
+            if (visible) {
+              btn.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+              btn.style.opacity = '1';
+              btn.style.pointerEvents = 'auto';
+            } else {
+              btn.style.opacity = '0';
+              btn.style.pointerEvents = 'none';
+            }
+          }
+        }
       }
 
       if (isSoftwareGl) {
         afterDraw(animate);
       } else {
-        frameId = requestAnimationFrame(animate);
+        scheduleFrame();
       }
     };
 
-    if (isSoftwareGl) {
-      frameId = window.setTimeout(animate, 20);
-    } else {
-      frameId = requestAnimationFrame(animate);
-    }
+    scheduleFrame();
 
     return () => {
       disposed = true;
       visObserver.disconnect();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
       window.removeEventListener('resize', onResize);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDownArbitrate, { capture: true });
+      renderer.domElement.removeEventListener('touchstart', onTouchStartPassive);
+      renderer.domElement.removeEventListener('touchmove', onTouchMovePassive);
+      renderer.domElement.removeEventListener('touchend', onTouchEndPassive);
+      renderer.domElement.removeEventListener('touchcancel', onTouchEndPassive);
       renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
       controls.dispose();
       floorTex.dispose();
-      fiberTex.dispose();
+      boardMapsCache.forEach((set) => {
+        set.map.dispose();
+        set.normalMap.dispose();
+        set.roughnessMap.dispose();
+      });
+      boardMapsCache.clear();
+      brushedFoilMaps.roughnessMap.dispose();
+      brushedFoilMaps.normalMap.dispose();
       foilTex.dispose();
       colorLogoTex?.dispose();
       shadowTex.dispose();
       envRT.dispose();
       boardMat.dispose();
+      innerMat.dispose();
       foilMat.dispose();
       colorLogoMat.dispose();
       glassMat.dispose();
@@ -902,6 +1192,8 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
       plinthBaseMat.dispose();
       brassRingGeo.dispose();
       brassRingMat.dispose();
+      haloRingGeo.dispose();
+      haloRingMat.dispose();
       plinthTopGeo.dispose();
       plinthTopMat.dispose();
       contactShadowGeo.dispose();
@@ -945,6 +1237,10 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
   const handleManualFoldScrub = (val: number) => {
     sceneStateRef.current.manualFoldOverride = true;
     sceneStateRef.current.foldTarget = val / 100;
+    lastFoldPctRef.current = val;
+    if (foldBadgeRef.current) foldBadgeRef.current.textContent = `${val}%`;
+    if (foldSliderValueRef.current) foldSliderValueRef.current.textContent = `${val}%`;
+    if (progressBarRef.current) progressBarRef.current.style.transform = `scaleX(${Math.max(0.05, val / 100)})`;
     setFoldPercent(val);
     setSlidePhase('manual');
   };
@@ -1007,40 +1303,56 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
       ref={containerRef}
       aria-label="نمایشگر سه‌بعدی محصولات اشک قلم"
       className={`relative w-full ${
-        isFullscreen ? 'fixed inset-0 h-screen z-[100]' : 'h-[56vh] min-h-[380px] sm:h-[68vh] md:h-[82vh] md:min-h-[620px] max-h-[860px]'
-      } bg-[#060913] text-slate-100 overflow-hidden select-none font-sans border-b border-slate-800/80`}
+        isFullscreen ? 'fixed inset-0 h-screen z-[100]' : 'h-[90dvh] min-h-[540px] sm:h-[88dvh] md:h-[85vh] md:min-h-[640px] max-h-[92dvh] md:max-h-[880px]'
+      } bg-[#020307] text-slate-100 overflow-hidden select-none font-sans border-b border-slate-900`}
       dir="rtl"
     >
-      {/* Isolated WebGL Canvas Container */}
-      <div ref={canvasMountRef} className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing" />
+      {/* Subtle Ambient Studio Aura around 3D Centerpiece */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_46%,rgba(245,158,11,0.07),rgba(15,23,42,0.08)_38%,transparent_68%)]"
+      />
+
+      {/* Isolated WebGL Canvas Container (Native vertical page scroll by default on mobile; pan-y) */}
+      <div
+        ref={canvasMountRef}
+        className={`absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing ${
+          touchInspectMode ? 'touch-none' : 'touch-pan-y md:touch-none'
+        }`}
+      />
 
       {/* Fallback when WebGL is unavailable */}
       {webglUnavailable && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#060913] p-8 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#020307] p-8 text-center">
           <Box className="w-14 h-14 text-amber-400 mb-3" />
           <h2 className="text-xl font-black text-white mb-2">{activeModel.nameFa}</h2>
-          <p className="text-sm text-slate-400 max-w-md">{activeModel.subtitleFa}</p>
         </div>
       )}
 
       {/* Subtle Edge Vignette */}
-      <div className="absolute inset-x-0 top-0 h-24 md:h-28 bg-gradient-to-b from-[#060913]/85 to-transparent pointer-events-none" />
-      <div className="absolute inset-x-0 bottom-0 h-28 md:h-36 bg-gradient-to-t from-[#060913]/95 via-[#060913]/45 to-transparent pointer-events-none" />
+      <div className="absolute inset-x-0 top-0 h-20 md:h-24 bg-gradient-to-b from-[#020307]/90 to-transparent pointer-events-none" />
+      <div className="absolute inset-x-0 bottom-0 h-24 md:h-32 bg-gradient-to-t from-[#020307]/96 via-[#020307]/45 to-transparent pointer-events-none" />
 
-      {/* 3D Interactive Service Hotspots (Desktop/Tablet only to keep mobile hero clean) */}
+      {/* 3D Interactive Service Hotspots (Desktop/Tablet only; positioned directly via refs) */}
       <div className="hidden md:block absolute inset-0 pointer-events-none z-10 overflow-hidden">
-        {hotspotScreenCoords.map(({ spec, x, y, visible }) => {
-          if (!visible) return null;
+        {activeModel.hotspots.map((spec) => {
           const isSelected = activeHotspot?.id === spec.id;
           return (
             <button
               key={spec.id}
+              ref={(el) => {
+                hotspotBtnRefs.current[spec.id] = el;
+              }}
               type="button"
               onClick={() => handleHotspotClick(spec)}
               title={spec.label}
               aria-label={spec.label}
-              style={{ transform: `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)` }}
-              className={`pointer-events-auto absolute top-0 left-0 flex items-center justify-center gap-1.5 rounded-full font-bold transition-colors cursor-pointer shadow-xl border px-2.5 py-1 text-[11px] ${
+              style={{
+                opacity: 0,
+                pointerEvents: 'none',
+                transform: 'translate3d(-9999px, -9999px, 0)',
+              }}
+              className={`absolute top-0 left-0 flex items-center justify-center gap-1.5 rounded-full font-bold transition-colors cursor-pointer shadow-xl border px-2.5 py-1 text-[11px] will-change-transform ${
                 isSelected
                   ? 'bg-amber-500 text-slate-950 border-amber-300'
                   : 'bg-[#0b1120]/90 text-slate-100 border-amber-500/45 hover:border-amber-400 hover:bg-[#111a2e]'
@@ -1053,38 +1365,33 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
         })}
       </div>
 
-      {/* Minimal Top Bar Overlay inside 3D Stage */}
+      {/* Minimal Top Bar Overlay inside 3D Stage (Zero Descriptions — Pure Visual Focus) */}
       <div className="absolute top-3.5 md:top-6 inset-x-3.5 md:inset-x-8 flex items-start justify-between gap-3 z-20 pointer-events-none">
         {/* Top-Right Compact Headline */}
-        <div className="max-w-[65%] md:max-w-md pointer-events-auto">
-          <div className="flex items-center gap-2 text-[10px] md:text-xs text-amber-400/90 font-mono mb-0.5 md:mb-1">
+        <div className="max-w-[66%] md:max-w-lg pointer-events-auto">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#0b1120]/80 border border-amber-500/30 text-[10px] md:text-xs text-amber-400 font-mono mb-1.5 shadow-sm">
             <span>{activeModel.code}</span>
             <span className="text-slate-500">·</span>
-            <span className="font-sans text-sky-300">{phaseLabelFa}</span>
-            <span className="text-slate-400 tabular-nums">{foldPercent}%</span>
+            <span className="font-sans text-sky-300 font-bold">{phaseLabelFa}</span>
+            <span ref={foldBadgeRef} className="text-slate-200 tabular-nums">{foldPercent}%</span>
           </div>
 
-          <h1 className="text-base sm:text-xl md:text-3xl font-black text-white leading-snug mb-1 md:mb-2 [text-wrap:balance]">
+          <h1 className="text-lg sm:text-2xl md:text-3xl font-black text-white leading-tight mb-2 drop-shadow-[0_2px_14px_rgba(0,0,0,0.85)] [text-wrap:balance]">
             {activeModel.nameFa}
           </h1>
 
-          <p className="hidden md:block text-xs text-slate-300/90 leading-relaxed mb-3 max-w-sm">
-            {activeModel.subtitleFa}
-          </p>
-
           {/* Ultra-slim Progress Bar */}
-          <div className="w-28 sm:w-44 md:w-64 h-0.5 bg-slate-800/90 rounded-full overflow-hidden mb-0 md:mb-4">
+          <div className="w-32 sm:w-44 md:w-64 h-0.5 bg-slate-800/90 rounded-full overflow-hidden mb-0 md:mb-3.5">
             <div
-              className="h-full bg-gradient-to-l from-amber-400 to-sky-400 transition-transform duration-150 origin-right"
+              ref={progressBarRef}
+              className="h-full bg-gradient-to-l from-amber-400 to-sky-400 transition-transform duration-150 origin-right will-change-transform"
               style={{
-                transform: `scaleX(${
-                  slidePhase === 'manual' ? foldPercent / 100 : Math.max(0.05, slideCycleProgress)
-                })`,
+                transform: 'scaleX(0.05)',
               }}
             />
           </div>
 
-          {/* Desktop Primary CTAs (mobile moves to compact bottom strip) */}
+          {/* Desktop Primary CTAs */}
           <div className="hidden md:flex items-center gap-2.5">
             <button
               type="button"
@@ -1177,6 +1484,41 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
         </div>
       </div>
 
+      {/* Smart Mobile Touch Arbitration Pill (Allows seamless vertical page scroll + horizontal 360 spin + free Orbit toggle) */}
+      {(dockCollapsed || touchInspectMode) && (
+        <div
+          className={`md:hidden absolute ${
+            dockCollapsed ? 'bottom-[7.85rem]' : 'top-[4.6rem]'
+          } left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 pointer-events-auto`}
+        >
+          {touchInspectMode ? (
+            <button
+              type="button"
+              onClick={() => setTouchInspectMode(false)}
+              className="px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black flex items-center gap-1.5 shadow-xl shadow-emerald-500/25 whitespace-nowrap cursor-pointer"
+            >
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              <span>حالت چرخش ۳D فعال · بازگشت به اسکرول</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setTouchInspectMode(true);
+                setDockCollapsed(true);
+                setUserInteracted(true);
+              }}
+              className="px-3 py-1 rounded-full bg-[#0b1120]/85 border border-amber-400/40 text-[10px] font-bold text-amber-200 flex items-center gap-1.5 shadow-lg whitespace-nowrap cursor-pointer"
+            >
+              <Hand className="w-3 h-3 text-amber-400" />
+              <span>
+                {!userInteracted ? 'اسکرول آزاد · کشیدن افقی یا لمس برای ۳۶۰°' : 'چرخش آزاد ۳۶۰°'}
+              </span>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Selected 3D Service Hotspot Drawer */}
       <AnimatePresence>
         {activeHotspot && (
@@ -1219,12 +1561,12 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
         <span className="font-sans text-slate-300">{activeBoard.label}</span>
       </div>
 
-      {/* Bottom Edge: Single Clean Row on Mobile (< md), Expandable Dock */}
-      <div className="absolute bottom-3 md:bottom-4 left-1/2 -translate-x-1/2 z-30 w-[min(940px,94vw)] flex flex-col items-center pointer-events-none">
+      {/* Bottom Edge: Clean Mobile Action Strip + Expandable Dock */}
+      <div className="absolute bottom-[4.75rem] md:bottom-4 left-1/2 -translate-x-1/2 z-30 w-[min(940px,94vw)] flex flex-col items-center pointer-events-none">
         {dockCollapsed ? (
           <div className="flex items-center justify-between md:justify-center w-full gap-2 pointer-events-auto">
-            {/* Slide stepper visible cleanly on mobile */}
-            <div className="flex md:hidden items-center gap-0.5 bg-[#0b1120]/95 border border-slate-800 rounded-xl p-0.5">
+            {/* Mobile Slide Stepper + Indicator Dots */}
+            <div className="flex md:hidden items-center gap-1 bg-[#0b1120]/90 border border-slate-800 rounded-xl p-0.5 shadow-lg">
               <button
                 type="button"
                 onClick={() => selectModelIndex(activeIndex - 1)}
@@ -1233,9 +1575,19 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
               >
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
-              <span className="px-1.5 text-[10px] font-mono font-bold text-amber-400 tabular-nums">
-                {String(activeIndex + 1).padStart(2, '0')}/{String(PACKAGING_MODELS.length).padStart(2, '0')}
-              </span>
+              <div className="flex items-center gap-1 px-1">
+                {PACKAGING_MODELS.map((m, idx) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => selectModelIndex(idx)}
+                    aria-label={m.nameFa}
+                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                      idx === activeIndex ? 'w-4 bg-amber-400' : 'w-1.5 bg-slate-600 hover:bg-slate-400'
+                    }`}
+                  />
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={() => selectModelIndex(activeIndex + 1)}
@@ -1246,15 +1598,26 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setDockCollapsed(false)}
-              className="px-3.5 py-2 md:py-1.5 rounded-xl border bg-[#0b1120]/95 border-slate-800 text-[11px] font-bold text-slate-300 hover:text-amber-300 flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <SlidersHorizontal className="w-3 h-3 text-amber-400" />
-              <span>تنظیمات مدل</span>
-              <ChevronUp className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleInquiryPrefill}
+                className="md:hidden px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] flex items-center gap-1 shadow-lg shadow-amber-500/20 cursor-pointer whitespace-nowrap"
+              >
+                <span>استعلام</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDockCollapsed(false)}
+                className="px-3 py-2 md:py-1.5 rounded-xl border bg-[#0b1120]/90 border-slate-800 text-[11px] font-bold text-slate-300 hover:text-amber-300 flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shadow-lg"
+              >
+                <SlidersHorizontal className="w-3 h-3 text-amber-400" />
+                <span>تنظیمات</span>
+                <ChevronUp className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         ) : (
           <button
@@ -1305,16 +1668,17 @@ export const ThreeDProductSlider: React.FC<ThreeDProductSliderProps> = ({ onNavi
                     تبدیل دایلاین ← جعبه:
                   </span>
                   <input
+                    ref={foldSliderInputRef}
                     type="range"
                     min={0}
                     max={100}
                     step={1}
-                    value={foldPercent}
+                    defaultValue={foldPercent}
                     onChange={(e) => handleManualFoldScrub(Number(e.target.value))}
                     aria-label="میزان تاشدن دایلاین به جعبه"
                     className="flex-1 accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
                   />
-                  <span className="text-[11px] font-mono font-bold text-amber-400 w-9 text-left tabular-nums">
+                  <span ref={foldSliderValueRef} className="text-[11px] font-mono font-bold text-amber-400 w-9 text-left tabular-nums">
                     {foldPercent}%
                   </span>
                 </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HelpCircle, X, CheckCircle, Lightbulb } from 'lucide-react';
+import { BackButton } from './UIComponents';
 
 export interface SmartHelpButtonProps {
   sectionTitle?: string;
@@ -69,12 +70,12 @@ export const SmartHelpButton: React.FC<SmartHelpButtonProps> = ({
               </div>
             )}
 
-            <button
+            <BackButton
+              label="بستن و بازگشت"
               onClick={() => setIsOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs transition-colors cursor-pointer"
-            >
-              متوجه شدم
-            </button>
+              variant="dark"
+              className="w-full"
+            />
           </div>
         </div>
       )}

@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Card, Button } from './UIComponents';
+import { Card, Button, BackButton } from './UIComponents';
 import { 
   Download, Upload, Monitor, Save, Share2, Info, ChevronLeft, Maximize, Minimize, 
-  Palette, Sparkles, Loader2, Image as ImageIcon, LogOut, WifiOff, Type, Square, 
+  Palette, Sparkles, Loader2, Image as ImageIcon, WifiOff, Type, Square, 
   Circle, Paintbrush, Eraser, Trash2, Undo, Check, Eye, HelpCircle, Layers, Settings, FileImage
 } from 'lucide-react';
 import { SmartHelpButton } from './SmartHelpModal';
@@ -472,14 +472,19 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
     >
       
       {/* Studio Header Toolbar */}
-      <div className="h-14 bg-[#141824] border-b border-slate-850 flex items-center justify-between px-4 shrink-0 shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-tr from-indigo-600 to-indigo-500 w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-600/25">
-            <Palette className="h-5 w-5 text-white animate-pulse" />
+      <div className="min-h-[52px] py-1.5 bg-[#141824] border-b border-slate-850 flex flex-wrap items-center justify-between gap-2 px-3 md:px-4 shrink-0 shadow-md">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <BackButton
+            label="بازگشت به سایت"
+            variant="danger"
+            onClick={() => window.dispatchEvent(new CustomEvent('exit-cad-view'))}
+          />
+          <div className="bg-gradient-to-tr from-indigo-600 to-indigo-500 w-8 h-8 rounded-xl hidden sm:flex items-center justify-center font-bold text-xl shadow-lg shadow-indigo-600/25 shrink-0">
+            <Palette className="h-4 w-4 text-white animate-pulse" />
           </div>
-          <div>
-            <h1 className="text-xs font-black text-slate-100 uppercase tracking-wider font-sans">بوم استودیو طراحی خلاق</h1>
-            <p className="text-[9px] text-slate-400 font-sans">CREATIVE CARTON GRAPHICS & PRE-PRESS SUITE</p>
+          <div className="hidden sm:block truncate">
+            <h1 className="text-xs font-black text-slate-100 uppercase tracking-wider font-sans truncate">بوم استودیو طراحی خلاق</h1>
+            <p className="text-[9px] text-slate-400 font-sans truncate">CREATIVE CARTON GRAPHICS & PRE-PRESS SUITE</p>
           </div>
         </div>
 
@@ -487,17 +492,17 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
         <div className="flex items-center bg-[#0a0d14] p-1 rounded-xl border border-slate-800">
           <button
             onClick={() => setActiveStudioTab('local')}
-            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeStudioTab === 'local' ? 'bg-indigo-650 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${activeStudioTab === 'local' ? 'bg-indigo-650 text-white shadow' : 'text-slate-400 hover:text-white'}`}
           >
-            <Paintbrush className="w-3.5 h-3.5" />
-            <span>استودیوی طراحی فوری (۱۰۰٪ فعال)</span>
+            <Paintbrush className="w-3.5 h-3.5 shrink-0" />
+            <span>استودیوی فوری</span>
           </button>
           <button
             onClick={() => setActiveStudioTab('photopea')}
-            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${activeStudioTab === 'photopea' ? 'bg-indigo-650 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${activeStudioTab === 'photopea' ? 'bg-indigo-650 text-white shadow' : 'text-slate-400 hover:text-white'}`}
           >
-            <Monitor className="w-3.5 h-3.5" />
-            <span>فتوشاپ ابری پیشرفته</span>
+            <Monitor className="w-3.5 h-3.5 shrink-0" />
+            <span>فتوشاپ ابری</span>
           </button>
         </div>
 
@@ -506,7 +511,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
           <Button 
             size="sm" 
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`px-3.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${isSidebarOpen ? 'bg-indigo-600 text-white shadow-lg' : 'bg-[#1e2330] text-slate-300 hover:bg-slate-750'}`}
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${isSidebarOpen ? 'bg-indigo-600 text-white shadow-lg' : 'bg-[#1e2330] text-slate-300 hover:bg-slate-750'}`}
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
             <span>بافت‌ساز هوش مصنوعی</span>
@@ -533,21 +538,11 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
             description="محیط طراحی لایه باز وکتور و فتوشاپ ابری بسته‌بندی اشک قلم با ابزارهای نقاشی، تایپوگرافی، درج لیبل و بافت‌ساز هوشمند."
             tips={[
               "برای دسترسی به فضای طراحی گسترده و بدون حاشیه، دکمه 'تمام‌صفحه' یا کلید F کیبورد را فشار دهید.",
-              "می‌توانید بین 'استودیوی طراحی فوری' و 'فتوشاپ ابری پیشرفته' سوییچ کنید.",
+              "می‌توانید بین 'استودیوی فوری' و 'فتوشاپ ابری' سوییچ کنید.",
               "طرح‌های آماده شده را مستقیماً به فرمت PNG و PDF خروجی بگیرید."
             ]}
             className="w-8 h-8 rounded-xl bg-[#1e2330] text-indigo-400 border border-indigo-500/30 hover:bg-indigo-600/30"
           />
-
-          <div className="w-[1px] h-5 bg-slate-800 mx-1 hidden sm:block"></div>
-          
-          <button 
-            onClick={() => window.dispatchEvent(new CustomEvent('exit-cad-view'))}
-            className="bg-[#240e11] hover:bg-[#381216] border border-rose-950 text-rose-350 font-bold text-[11px] px-3.5 py-1.5 rounded-xl flex items-center justify-center gap-1.5 transition-all shadow cursor-pointer hover:scale-[1.02]"
-          >
-            <LogOut className="w-3.5 h-3.5 text-rose-450 rotate-180" />
-            <span>خروج از استودیو</span>
-          </button>
         </div>
       </div>
 

@@ -36,6 +36,7 @@ export enum AppView {
   ABOUT = 'ABOUT',
   LIBRARY = 'LIBRARY',
   SOFTWARE_STORE = 'SOFTWARE_STORE',
+  CUSTOM_PAGE = 'CUSTOM_PAGE',
   NOT_FOUND = 'NOT_FOUND'
 }
 
@@ -392,4 +393,51 @@ export interface AdminConfig {
   cameraDistanceOffset: number;
   cameraAngleOffset: number;
 }
+
+export interface CustomPageItem {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  heroImage?: string;
+  content: string;
+  ctaText?: string;
+  ctaLink?: string;
+  showInNav?: boolean;
+  showInFooter?: boolean;
+  isPublished: boolean;
+  updatedAt: string;
+}
+
+export interface ManagedProductItem {
+  id: string;
+  slug: string;
+  code: string;
+  title: string;
+  category: string;
+  inquiryBoxType: string;
+  inquiryFlute: string;
+  defaultDims: string;
+  specs: string[];
+  tone: string;
+  description: string;
+  imageUrl?: string;
+  isPublished: boolean;
+}
+
+export interface ManagedServiceItem {
+  id: string;
+  slug: string;
+  title: string;
+  badge: string;
+  specs: string[];
+  description: string;
+  toolPath: string;
+  toolLabel: string;
+  iconName: 'Scissors' | 'Printer' | 'Box' | 'Cpu' | 'Layers' | 'Sparkles' | 'ShieldCheck';
+  imageUrl?: string;
+  isPublished: boolean;
+}
+
 

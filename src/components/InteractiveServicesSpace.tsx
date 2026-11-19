@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Link } from 'react-router-dom';
-import { Scissors, Printer, Box, Cpu, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Scissors, Printer, Box, Cpu, ArrowLeft, CheckCircle2, Hand, ArrowUpDown } from 'lucide-react';
 
 type ServiceArtifactId = 'dieline' | 'offset' | 'corrugated' | 'cad';
 
@@ -349,13 +349,12 @@ function createServiceArtifact(id: ServiceArtifactId): {
   // 'cad': Parametric wireframe + solid translucent CAD blueprint cube
   const solidCore = new THREE.Mesh(
     new THREE.BoxGeometry(1.75, 1.25, 1.45),
-    new THREE.MeshPhysicalMaterial({
+    new THREE.MeshStandardMaterial({
       color: '#0ea5e9',
-      roughness: 0.15,
-      metalness: 0.15,
+      roughness: 0.2,
+      metalness: 0.2,
       transparent: true,
-      opacity: 0.22,
-      clearcoat: 1.0,
+      opacity: 0.24,
     })
   );
   solidCore.position.y = 0.68;
@@ -397,9 +396,15 @@ function createServiceArtifact(id: ServiceArtifactId): {
 
 export const InteractiveServicesSpace: React.FC = () => {
   const [selectedId, setSelectedId] = useState<ServiceArtifactId>('dieline');
+  const [hasEnteredProximity, setHasEnteredProximity] = useState<boolean>(false);
+  const [touchInspectMode, setTouchInspectMode] = useState<boolean>(false);
+  const touchInspectRef = useRef<boolean>(false);
+  const spinVelRef = useRef<number>(0);
+  const spinOffsetRef = useRef<number>(0);
   const sectionRef = useRef<HTMLElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const switchArtifactRef = useRef<((id: ServiceArtifactId) => void) | null>(null);
+  const touchToggleHandleRef = useRef<((active: boolean) => void) | null>(null);
 
   const activeService = SERVICES.find((s) => s.id === selectedId) || SERVICES[0];
 
@@ -408,10 +413,37 @@ export const InteractiveServicesSpace: React.FC = () => {
   }, [selectedId]);
 
   useEffect(() => {
+    touchInspectRef.current = touchInspectMode;
+    touchToggleHandleRef.current?.(touchInspectMode);
+  }, [touchInspectMode]);
+
+  // Defer second WebGL context creation until user scrolls near this section
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || hasEnteredProximity) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setHasEnteredProximity(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin: '320px 0px' }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasEnteredProximity]);
+
+  useEffect(() => {
+    if (!hasEnteredProximity) return;
     const mount = mountRef.current;
     if (!mount) return;
 
     const isSoftwareGl = detectSoftwareWebGL();
+    const isCompactViewport = window.innerWidth < 768;
+    const isCoarsePointer =
+      typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    const lowPowerMode = isSoftwareGl || isCompactViewport || isCoarsePointer;
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
@@ -427,10 +459,12 @@ export const InteractiveServicesSpace: React.FC = () => {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1;
-    renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(
+      isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, lowPowerMode ? 1.15 : 1.5)
+    );
     renderer.setSize(w, h);
-    renderer.shadowMap.enabled = !isSoftwareGl;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.enabled = !lowPowerMode;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
 
     mount.innerHTML = '';
     mount.appendChild(renderer.domElement);
@@ -454,10 +488,79 @@ export const InteractiveServicesSpace: React.FC = () => {
     controls.enableZoom = false;
     controls.target.set(0, 0.45, 0);
 
+    const isTouchFirst = isCompactViewport || isCoarsePointer;
+    if (isTouchFirst && !touchInspectRef.current) {
+      controls.enabled = false;
+      renderer.domElement.style.touchAction = 'pan-y';
+    } else {
+      controls.enabled = true;
+      renderer.domElement.style.touchAction = 'none';
+    }
+
+    touchToggleHandleRef.current = (active: boolean) => {
+      if (isTouchFirst) {
+        controls.enabled = active;
+        renderer.domElement.style.touchAction = active ? 'none' : 'pan-y';
+      } else {
+        controls.enabled = true;
+        renderer.domElement.style.touchAction = 'none';
+      }
+    };
+
+    const onPointerDown = (ev: PointerEvent) => {
+      if (ev.pointerType === 'mouse') {
+        controls.enabled = true;
+        renderer.domElement.style.touchAction = 'none';
+      } else if (ev.pointerType === 'touch' && !touchInspectRef.current) {
+        controls.enabled = false;
+        renderer.domElement.style.touchAction = 'pan-y';
+      }
+    };
+    renderer.domElement.addEventListener('pointerdown', onPointerDown, { capture: true, passive: true });
+
+    let tTrack = { active: false, startX: 0, startY: 0, lastX: 0, axis: 'none' as 'none' | 'x' | 'y' };
+    const onTouchStart = (ev: TouchEvent) => {
+      if (touchInspectRef.current || ev.touches.length !== 1) {
+        tTrack.active = false;
+        return;
+      }
+      const p = ev.touches[0];
+      tTrack = { active: true, startX: p.clientX, startY: p.clientY, lastX: p.clientX, axis: 'none' };
+    };
+    const onTouchMove = (ev: TouchEvent) => {
+      if (!tTrack.active || touchInspectRef.current || ev.touches.length !== 1) return;
+      const p = ev.touches[0];
+      const dxAbs = Math.abs(p.clientX - tTrack.startX);
+      const dyAbs = Math.abs(p.clientY - tTrack.startY);
+      if (tTrack.axis === 'none') {
+        if (dxAbs < 8 && dyAbs < 8) return;
+        if (dyAbs >= dxAbs * 0.9) {
+          tTrack.axis = 'y';
+          return;
+        }
+        tTrack.axis = 'x';
+      }
+      if (tTrack.axis === 'x') {
+        const dx = p.clientX - tTrack.lastX;
+        tTrack.lastX = p.clientX;
+        spinOffsetRef.current += dx * 0.009;
+        spinVelRef.current = THREE.MathUtils.clamp(dx * 0.14, -4, 4);
+      }
+    };
+    const onTouchEnd = () => {
+      tTrack.active = false;
+      tTrack.axis = 'none';
+    };
+    renderer.domElement.addEventListener('touchstart', onTouchStart, { passive: true });
+    renderer.domElement.addEventListener('touchmove', onTouchMove, { passive: true });
+    renderer.domElement.addEventListener('touchend', onTouchEnd, { passive: true });
+    renderer.domElement.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
     scene.add(new THREE.HemisphereLight('#c7d9ff', '#1c1917', 0.7));
     const key = new THREE.DirectionalLight('#fff2db', 2.0);
     key.position.set(4, 6, 4);
-    key.castShadow = !isSoftwareGl;
+    key.castShadow = !lowPowerMode;
+    key.shadow.mapSize.set(512, 512);
     scene.add(key);
 
     const rim = new THREE.DirectionalLight('#38bdf8', 1.1);
@@ -484,7 +587,7 @@ export const InteractiveServicesSpace: React.FC = () => {
     const pivot = new THREE.Group();
     scene.add(pivot);
 
-    let activeArtifact = createServiceArtifact('dieline');
+    let activeArtifact = createServiceArtifact(selectedId);
     pivot.add(activeArtifact.group);
 
     switchArtifactRef.current = (id: ServiceArtifactId) => {
@@ -509,17 +612,33 @@ export const InteractiveServicesSpace: React.FC = () => {
         renderer.setSize(nw, nh);
       }
     };
-    window.addEventListener('resize', onResize);
+    window.addEventListener('resize', onResize, { passive: true });
 
     let frameId = 0;
+    let isLoopScheduled = false;
     let disposed = false;
     let isVisible = true;
     let firstFrameDrawn = false;
-    let start = performance.now();
+    const start = performance.now();
+
+    const scheduleTick = () => {
+      if (disposed || isLoopScheduled) return;
+      isLoopScheduled = true;
+      if (isSoftwareGl) frameId = window.setTimeout(tick, 20);
+      else frameId = requestAnimationFrame(tick);
+    };
+
+    const wakeTick = () => {
+      if (disposed) return;
+      if (isVisible && !document.hidden) {
+        scheduleTick();
+      }
+    };
 
     const visObserver = new IntersectionObserver(
       (entries) => {
         isVisible = entries[0]?.isIntersecting ?? true;
+        if (isVisible) wakeTick();
       },
       { threshold: 0.05 }
     );
@@ -527,9 +646,15 @@ export const InteractiveServicesSpace: React.FC = () => {
       visObserver.observe(sectionRef.current);
     }
 
+    const onVisibilityChange = () => {
+      if (!document.hidden) wakeTick();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     function afterDraw(cb: () => void) {
       const gl = renderer.getContext() as WebGL2RenderingContext;
       if (!gl || typeof gl.fenceSync !== 'function') {
+        isLoopScheduled = true;
         frameId = window.setTimeout(cb, 80);
         return;
       }
@@ -541,43 +666,59 @@ export const InteractiveServicesSpace: React.FC = () => {
         if (st === gl.UNSIGNALED) frameId = window.setTimeout(poll, 5);
         else {
           if (sync) gl.deleteSync(sync);
+          isLoopScheduled = true;
           frameId = window.setTimeout(cb, 80);
         }
       };
       frameId = window.setTimeout(poll, 5);
     }
 
+    let prevTick = performance.now();
     const tick = () => {
+      isLoopScheduled = false;
       if (disposed) return;
-      if (!isVisible && firstFrameDrawn) {
-        if (isSoftwareGl) frameId = window.setTimeout(tick, 250);
-        else frameId = requestAnimationFrame(tick);
+      if ((!isVisible || document.hidden) && firstFrameDrawn) {
         return;
       }
       firstFrameDrawn = true;
-      const t = (performance.now() - start) / 1000;
-      pivot.rotation.y = t * 0.22;
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - prevTick) / 1000);
+      prevTick = now;
+      if (Math.abs(spinVelRef.current) > 0.002) {
+        spinOffsetRef.current += spinVelRef.current * dt;
+        spinVelRef.current *= Math.exp(-5.5 * dt);
+      } else {
+        spinVelRef.current = 0;
+      }
+      const t = (now - start) / 1000;
+      pivot.rotation.y = t * 0.22 + spinOffsetRef.current;
       activeArtifact.animate(t);
       controls.update();
       renderer.render(scene, camera);
       if (isSoftwareGl) afterDraw(tick);
-      else frameId = requestAnimationFrame(tick);
+      else scheduleTick();
     };
 
-    if (isSoftwareGl) frameId = window.setTimeout(tick, 20);
-    else frameId = requestAnimationFrame(tick);
+    scheduleTick();
 
     return () => {
       disposed = true;
+      touchToggleHandleRef.current = null;
       visObserver.disconnect();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
       window.removeEventListener('resize', onResize);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown, { capture: true });
+      renderer.domElement.removeEventListener('touchstart', onTouchStart);
+      renderer.domElement.removeEventListener('touchmove', onTouchMove);
+      renderer.domElement.removeEventListener('touchend', onTouchEnd);
+      renderer.domElement.removeEventListener('touchcancel', onTouchEnd);
       controls.dispose();
       envRT.dispose();
       renderer.dispose();
     };
-  }, []);
+  }, [hasEnteredProximity]);
 
   return (
     <section
@@ -648,12 +789,37 @@ export const InteractiveServicesSpace: React.FC = () => {
             <div className="relative h-56 sm:h-72 md:h-96 w-full">
               <div
                 ref={mountRef}
-                className="w-full h-full cursor-grab active:cursor-grabbing"
+                className={`w-full h-full cursor-grab active:cursor-grabbing ${
+                  touchInspectMode ? 'touch-none' : 'touch-pan-y md:touch-none'
+                }`}
               />
               <div className="hidden sm:block absolute top-4 right-4 pointer-events-none">
                 <span className="text-[11px] font-mono text-slate-400 bg-[#060913]/85 px-3 py-1.5 rounded-lg border border-slate-800">
                   مدل سه‌بعدی تعاملی · برای چرخش بکشید
                 </span>
+              </div>
+              <div className="sm:hidden absolute bottom-2.5 left-1/2 -translate-x-1/2 z-10">
+                <button
+                  type="button"
+                  onClick={() => setTouchInspectMode((v) => !v)}
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1.5 border shadow-lg whitespace-nowrap cursor-pointer ${
+                    touchInspectMode
+                      ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+                      : 'bg-[#060913]/85 text-amber-200 border-amber-400/35'
+                  }`}
+                >
+                  {touchInspectMode ? (
+                    <>
+                      <ArrowUpDown className="w-3 h-3" />
+                      <span>بازگشت به اسکرول صفحه</span>
+                    </>
+                  ) : (
+                    <>
+                      <Hand className="w-3 h-3 text-amber-400" />
+                      <span>چرخش آزاد ۳D</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 

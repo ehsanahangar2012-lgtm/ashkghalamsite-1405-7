@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, MouseEvent as ReactMouseEvent, DragEvent } from 'react';
-import { Upload, X, MousePointer2, Hand, Layers, Settings, Maximize2, Minimize2, ZoomIn, ZoomOut, Download, Plus, Trash2, Command, Circle, Square, Minus, Move, Undo, Redo, RotateCw, Grid3X3, Type, FileDown, Image as ImageIcon, FileType2 } from 'lucide-react';
+import { Upload, MousePointer2, Hand, Layers, Settings, Maximize2, Minimize2, ZoomIn, ZoomOut, Download, Plus, Trash2, Command, Circle, Square, Minus, Move, Undo, Redo, RotateCw, Grid3X3, Type, FileDown, Image as ImageIcon, FileType2 } from 'lucide-react';
+import { BackButton } from './UIComponents';
 import DxfParser from 'dxf-parser';
 
 type Point = { x: number, y: number, bulge?: number };
@@ -642,7 +643,14 @@ export const AutoCADStudio = ({ onExit }: { onExit?: () => void }) => {
           <button onClick={() => setIsFullScreen(!isFullScreen)} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition">
             {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
-          {onExit && <button onClick={onExit} className="p-1.5 hover:bg-red-900/50 rounded text-slate-400 hover:text-red-400 transition ml-1"><X className="w-4 h-4" /></button>}
+          <div dir="rtl">
+            <BackButton
+              label="بازگشت به سایت"
+              variant="danger"
+              onClick={onExit}
+              fallbackPath="/"
+            />
+          </div>
         </div>
       </div>
       

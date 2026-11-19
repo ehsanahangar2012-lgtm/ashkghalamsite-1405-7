@@ -1,5 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { SiteContent, MediaItem, BlogPost, UploadedAsset, SeoConfig, EmergencyConfig, PricingFormula } from '../types';
+import {
+  SiteContent,
+  MediaItem,
+  BlogPost,
+  UploadedAsset,
+  SeoConfig,
+  EmergencyConfig,
+  PricingFormula,
+  CustomPageItem,
+  ManagedProductItem,
+  ManagedServiceItem,
+} from '../types';
 import { createPackageSvgDataUrl } from '../utils/packagePreviewSvg';
 
 interface GlobalSettings {
@@ -14,6 +25,116 @@ interface GlobalSettings {
   [key: string]: any;
 }
 
+export const DEFAULT_MANAGED_PRODUCTS: ManagedProductItem[] = [
+  {
+    id: 'prod-fefco-0201',
+    slug: 'fefco-0201-standard-box',
+    code: 'FEFCO 0201',
+    title: 'کارتن مادر چهار درب استاندارد (FEFCO 0201)',
+    category: 'کارتن‌های صنعتی',
+    inquiryBoxType: 'کارتن چهار درب (FEFCO 0201)',
+    inquiryFlute: 'فلوت B (سه لایه استاندارد)',
+    defaultDims: '40x30x25',
+    specs: ['فلوت B / C / پنج لایه BC', 'تحمل ستونی BCT بالا', 'چاپ فلکسو یا لمینت افست'],
+    tone: '#b45309',
+    description: 'کارتن‌های حمل بار عمومی با ورق‌های ۳ لایه و ۵ لایه، مناسب انبارداری، صادرات، صنایع غذایی و لوازم خانگی.',
+    isPublished: true,
+  },
+  {
+    id: 'prod-fefco-0427',
+    slug: 'fefco-0427-mailer-box',
+    code: 'FEFCO 0427',
+    title: 'جعبه کیبوردی خودبست پستی (FEFCO 0427)',
+    category: 'جعبه‌های ای‌کامرس',
+    inquiryBoxType: 'جعبه کیبوردی قفل‌دار (FEFCO 0427)',
+    inquiryFlute: 'فلوت E (ظریف و لمینتی)',
+    defaultDims: '25x18x8',
+    specs: ['فلوت E ظریف یا ایندربرد', 'دیواره جانبی دوبل بدون چسب', 'ایده‌آل فروشگاه‌های آنلاین'],
+    tone: '#1d4ed8',
+    description: 'طراحی مقاوم دولایه با زبانه قفل شونده بدون نیاز به چسب، مناسب پوشاک، لوازم الکترونیکی، هدایا و آرایشی.',
+    isPublished: true,
+  },
+  {
+    id: 'prod-diecut-tray',
+    slug: 'diecut-tray-boxes',
+    code: 'DIE-TRAY',
+    title: 'سینی کارتن و استند میوه صادراتی (Tray)',
+    category: 'صادرات و تره‌بار',
+    inquiryBoxType: 'کارتن چهار درب (FEFCO 0201)',
+    inquiryFlute: 'فلوت BC (پنج لایه سنگین صادراتی)',
+    defaultDims: '50x35x14',
+    specs: ['مقاوم در برابر رطوبت سردخانه', 'قفل گوشه چیدمان کانتینری', 'دریچه تهویه لیزری'],
+    tone: '#047857',
+    description: 'مقاومت بالا در سردخانه با کاغذهای لاینر مقاوم به رطوبت و قابلیت چیدمان ستونی روی پالت‌های کانتینری.',
+    isPublished: true,
+  },
+  {
+    id: 'prod-hardbox',
+    slug: 'magnetic-luxury-hardbox',
+    code: 'HARDBOX',
+    title: 'هاردباکس مگنتی و جعبه لوکس صادراتی',
+    category: 'بسته‌بندی لوکس و زعفران',
+    inquiryBoxType: 'هاردباکس مگنتی و لوکس',
+    inquiryFlute: 'مقوای ایندربرد / گلاسه',
+    defaultDims: '22x16x9',
+    specs: ['مقوای سخت ۲ تا ۳ میلی‌متر', 'روکش مخملی یا گلاسه + طلاکوب', 'درب مگنتی + فوم برش‌خورده'],
+    tone: '#7c3aed',
+    description: 'جعبه سخت لوکس برای زعفران، عطر، جواهرات و پکیج‌های هدیه مدیریتی با جزئیات چاپ ویژه.',
+    isPublished: true,
+  },
+];
+
+export const DEFAULT_MANAGED_SERVICES: ManagedServiceItem[] = [
+  {
+    id: 'svc-diecut',
+    slug: 'die-cutting-engineering',
+    title: 'مهندسی قالب دایکات و ساخت تیغ لیزری',
+    badge: 'Precision CAD',
+    specs: ['تلورانس خط تا ±۰.۱۵ میلی‌متر', 'پشتیبانی کامل Bobst و فکی', 'خروجی DXF و AutoCAD'],
+    description: 'طراحی تخصصی قالب‌های تخت و روتاری با خطوط تا (Crease) و برش (Cut) مهندسی‌شده برای جعبه‌های صادراتی، دارویی و صنعتی.',
+    toolPath: '/tools/dieline',
+    toolLabel: 'ورود به مهندسی دایلاین ۳D',
+    iconName: 'Scissors',
+    isPublished: true,
+  },
+  {
+    id: 'svc-offset',
+    slug: 'offset-printing',
+    title: 'چاپ افست کارتن و لمینت تا ابعاد شیت بزرگ',
+    badge: 'Offset 5-Color',
+    specs: ['شیت تا ۱۰۰×۷۰ و فوق بزرگ', 'سلفون مات/براق، UV موضعی و طلاکوب', 'چیدمان بهینه فرم زینک'],
+    description: 'چاپ ۵ رنگ همزمان با دقت رنگ CMYK و پنتون، پوشش ورنی پایه آب، سلفون مات و براق، و خدمات تکمیلی طلاکوب و برجسته‌سازی.',
+    toolPath: '/tools/design-studio',
+    toolLabel: 'ورود به استودیو طراحی و چاپ',
+    iconName: 'Printer',
+    isPublished: true,
+  },
+  {
+    id: 'svc-corrugated',
+    slug: 'corrugated-packaging',
+    title: 'تولید ورق و کارتن ۳ لایه و ۵ لایه صنعتی',
+    badge: 'E / B / C / BC Flute',
+    specs: ['محاسبه آنلاین مقاومت فشاری BCT', 'تست رطوبت سردخانه و کانتینر', 'ورق کرافت، تست لاینر و سفید'],
+    description: 'تولید انواع کارتن مادر، سینی میوه صادراتی و جعبه‌های ای‌کامرس با کنترل مهندسی ضریب ایمنی چیدمان پالت و حمل دریایی.',
+    toolPath: '/tools/dieline',
+    toolLabel: 'محاسبه مقاومت BCT و قالب',
+    iconName: 'Box',
+    isPublished: true,
+  },
+  {
+    id: 'svc-3dcad',
+    slug: 'structural-3d-cad',
+    title: 'مدل‌سازی سه‌بعدی تعاملی و ماکت قبل از تیراژ',
+    badge: 'Interactive PBR 3D',
+    specs: ['پیش‌نمایش تاشدن در زوایای ۳۶۰°', 'تست فیزیکی تناسب ابعاد', 'نمونه‌سازی سریع برش پلاتر'],
+    description: 'بررسی دقیق فیتینگ محصول داخل جعبه و رندر سه‌بعدی متریال کرافت و ایندربرد در مرورگر پیش از ساخت قالب و شروع تیراژ.',
+    toolPath: '/tools/autocad',
+    toolLabel: 'ورود به کارگاه CAD',
+    iconName: 'Cpu',
+    isPublished: true,
+  },
+];
+
 interface ContentContextType {
   siteContent: SiteContent;
   globalSettings: GlobalSettings;
@@ -24,6 +145,9 @@ interface ContentContextType {
   seoConfigs: SeoConfig[];
   assets: UploadedAsset[];
   emergencyConfig: EmergencyConfig;
+  customPages: CustomPageItem[];
+  managedProducts: ManagedProductItem[];
+  managedServices: ManagedServiceItem[];
   updateSiteContent: (arg1: any, arg2?: any) => void;
   updateGlobalSettings: (updates: Partial<GlobalSettings>) => void;
   updatePricingFormula: (updates: Partial<PricingFormula>) => void;
@@ -36,6 +160,12 @@ interface ContentContextType {
   uploadAsset: (asset: any, onProgress?: (percent: number) => void) => Promise<UploadedAsset | null>;
   deleteAsset: (id: string) => Promise<boolean>;
   saveSettingsToHost: () => Promise<boolean>;
+  upsertCustomPage: (page: CustomPageItem) => Promise<void>;
+  deleteCustomPage: (id: string) => Promise<void>;
+  upsertManagedProduct: (prod: ManagedProductItem) => Promise<void>;
+  deleteManagedProduct: (id: string) => Promise<void>;
+  upsertManagedService: (svc: ManagedServiceItem) => Promise<void>;
+  deleteManagedService: (id: string) => Promise<void>;
   [key: string]: any;
 }
 
@@ -60,6 +190,9 @@ const defaultGlobalSettings: GlobalSettings = {
   address: 'تهران، مجتمع چاپ اشک قلم',
   heroBadge: 'نسخه ۳.۱۴.۰ - موتور اختصاصی CAD',
   heroHeadline: 'مهندسی پیشرفته جعبه و کارتن',
+  badikaranPortalTitle: 'مجتمع چاپ و بسته‌بندی بادیکاران توس',
+  badikaranPortalUrl: 'https://badikaran.ir',
+  badikaranNotifEnabled: true,
 };
 
 const defaultPricingFormula: PricingFormula = {
@@ -196,6 +329,9 @@ const ContentContext = createContext<ContentContextType>({
   seoConfigs: [],
   assets: [],
   emergencyConfig: defaultEmergencyConfig,
+  customPages: [],
+  managedProducts: DEFAULT_MANAGED_PRODUCTS,
+  managedServices: DEFAULT_MANAGED_SERVICES,
   updateSiteContent: () => {},
   updateGlobalSettings: () => {},
   updatePricingFormula: () => {},
@@ -208,6 +344,12 @@ const ContentContext = createContext<ContentContextType>({
   uploadAsset: async () => null,
   deleteAsset: async () => false,
   saveSettingsToHost: async () => false,
+  upsertCustomPage: async () => {},
+  deleteCustomPage: async () => {},
+  upsertManagedProduct: async () => {},
+  deleteManagedProduct: async () => {},
+  upsertManagedService: async () => {},
+  deleteManagedService: async () => {},
 });
 
 export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -220,6 +362,13 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [seoConfigs, setSeoConfigs] = useState<SeoConfig[]>(() => readStorage('seoConfigs', []));
   const [assets, setAssets] = useState<UploadedAsset[]>(() => readStorage('uploadedAssets', []));
   const [emergencyConfig, setEmergencyConfig] = useState<EmergencyConfig>(() => readStorage('emergencyConfig', defaultEmergencyConfig));
+  const [customPages, setCustomPages] = useState<CustomPageItem[]>(() => readStorage('customPages', []));
+  const [managedProducts, setManagedProducts] = useState<ManagedProductItem[]>(() =>
+    readStorage('managedProducts', DEFAULT_MANAGED_PRODUCTS)
+  );
+  const [managedServices, setManagedServices] = useState<ManagedServiceItem[]>(() =>
+    readStorage('managedServices', DEFAULT_MANAGED_SERVICES)
+  );
 
   const refreshPosts = async () => {
     try {
@@ -256,6 +405,24 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
           if (data.globalSettings) setGlobalSettings((prev) => ({ ...prev, ...data.globalSettings }));
           if (data.pricingFormula) setPricingFormula((prev) => ({ ...prev, ...data.pricingFormula }));
           if (data.emergencyConfig) setEmergencyConfig((prev) => ({ ...prev, ...data.emergencyConfig }));
+          if (Array.isArray(data.customPages)) {
+            setCustomPages(data.customPages);
+            try {
+              localStorage.setItem('customPages', JSON.stringify(data.customPages));
+            } catch {}
+          }
+          if (Array.isArray(data.managedProducts) && data.managedProducts.length > 0) {
+            setManagedProducts(data.managedProducts);
+            try {
+              localStorage.setItem('managedProducts', JSON.stringify(data.managedProducts));
+            } catch {}
+          }
+          if (Array.isArray(data.managedServices) && data.managedServices.length > 0) {
+            setManagedServices(data.managedServices);
+            try {
+              localStorage.setItem('managedServices', JSON.stringify(data.managedServices));
+            } catch {}
+          }
           if (data.sliderConfig) {
             try {
               const existingRaw = localStorage.getItem('ashk_slider_config');
@@ -269,6 +436,73 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
       .catch(() => {});
   }, []);
+
+  const persistPartialSettings = async (patch: Record<string, unknown>) => {
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+    } catch {}
+  };
+
+  const upsertCustomPage = async (page: CustomPageItem) => {
+    const exists = customPages.some((p) => p.id === page.id);
+    const nextList = exists ? customPages.map((p) => (p.id === page.id ? page : p)) : [page, ...customPages];
+    setCustomPages(nextList);
+    try {
+      localStorage.setItem('customPages', JSON.stringify(nextList));
+    } catch {}
+    await persistPartialSettings({ customPages: nextList });
+  };
+
+  const deleteCustomPage = async (id: string) => {
+    const nextList = customPages.filter((p) => p.id !== id);
+    setCustomPages(nextList);
+    try {
+      localStorage.setItem('customPages', JSON.stringify(nextList));
+    } catch {}
+    await persistPartialSettings({ customPages: nextList });
+  };
+
+  const upsertManagedProduct = async (prod: ManagedProductItem) => {
+    const exists = managedProducts.some((p) => p.id === prod.id);
+    const nextList = exists ? managedProducts.map((p) => (p.id === prod.id ? prod : p)) : [prod, ...managedProducts];
+    setManagedProducts(nextList);
+    try {
+      localStorage.setItem('managedProducts', JSON.stringify(nextList));
+    } catch {}
+    await persistPartialSettings({ managedProducts: nextList });
+  };
+
+  const deleteManagedProduct = async (id: string) => {
+    const nextList = managedProducts.filter((p) => p.id !== id);
+    setManagedProducts(nextList);
+    try {
+      localStorage.setItem('managedProducts', JSON.stringify(nextList));
+    } catch {}
+    await persistPartialSettings({ managedProducts: nextList });
+  };
+
+  const upsertManagedService = async (svc: ManagedServiceItem) => {
+    const exists = managedServices.some((s) => s.id === svc.id);
+    const nextList = exists ? managedServices.map((s) => (s.id === svc.id ? svc : s)) : [svc, ...managedServices];
+    setManagedServices(nextList);
+    try {
+      localStorage.setItem('managedServices', JSON.stringify(nextList));
+    } catch {}
+    await persistPartialSettings({ managedServices: nextList });
+  };
+
+  const deleteManagedService = async (id: string) => {
+    const nextList = managedServices.filter((s) => s.id !== id);
+    setManagedServices(nextList);
+    try {
+      localStorage.setItem('managedServices', JSON.stringify(nextList));
+    } catch {}
+    await persistPartialSettings({ managedServices: nextList });
+  };
 
   const updateSiteContent = (arg1: any, arg2?: any) => {
     setSiteContent((prev) => {
@@ -401,6 +635,9 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
           globalSettings,
           pricingFormula,
           emergencyConfig,
+          customPages,
+          managedProducts,
+          managedServices,
         }),
       });
       return res.ok;
@@ -421,6 +658,9 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
         seoConfigs,
         assets,
         emergencyConfig,
+        customPages,
+        managedProducts,
+        managedServices,
         updateSiteContent,
         updateGlobalSettings,
         updatePricingFormula,
@@ -433,6 +673,12 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
         uploadAsset,
         deleteAsset,
         saveSettingsToHost,
+        upsertCustomPage,
+        deleteCustomPage,
+        upsertManagedProduct,
+        deleteManagedProduct,
+        upsertManagedService,
+        deleteManagedService,
       }}
     >
       {children}

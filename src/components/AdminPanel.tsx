@@ -1,9 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useContent } from '../contexts/ContentContext';
-import { Card, Button, Badge } from './UIComponents';
-import { BusinessProcessManager } from './BusinessProcessManager';
-import { SeoStudio, ContentManager, MediaManager, IntegrationHub, ProductionSimulator, MarketSimulatorButton, BlogManager, MediaSelector } from './AdminTools';
+import { Card, Button, Badge, BackButton } from './UIComponents';
 import { 
   LayoutDashboard, Settings, Users, FileText, Database, 
   LogOut, Save, Image as ImageIcon, Calculator, Monitor, 
@@ -13,18 +11,151 @@ import {
   Bell, AlertOctagon, Edit3, Search, Megaphone, X, ChevronDown, ChevronUp, ExternalLink, Menu, Globe, FolderArchive
 } from 'lucide-react';
 import { Project } from '../types';
-import { B2BSuite } from './B2BSuite';
-import { BackupManager } from './BackupManager';
-import { ZipUpdateManager } from './ZipUpdateManager';
 import { parsePersianFloat, cleanPersianNumberString } from '../services/numberUtils';
 import { NumericFormatInput } from './NumericFormatInput';
-import { TeamManagementPanel } from './TeamManagementPanel';
-import { AdminCatalogManager } from './AdminCatalogManager';
-import { SliderSettingsPanel } from './SliderSettingsPanel';
-import { AdminDielineAnalyzer } from './AdminDielineAnalyzer';
-import { AdminSoftwareManager } from './AdminSoftwareManager';
-import { PortalManagementAdmin } from './PortalManagementAdmin';
 
+// Code-split every heavy admin module so opening AdminPanel is instant and memory-efficient
+const BusinessProcessManager = lazy(() =>
+  import('./BusinessProcessManager').then(m => ({ default: m.BusinessProcessManager }))
+);
+const ContentManager = lazy(() =>
+  import('./AdminTools').then(m => ({ default: m.ContentManager }))
+);
+const MediaManager = lazy(() =>
+  import('./AdminTools').then(m => ({ default: m.MediaManager }))
+);
+const IntegrationHub = lazy(() =>
+  import('./AdminTools').then(m => ({ default: m.IntegrationHub }))
+);
+const ProductionSimulator = lazy(() =>
+  import('./AdminTools').then(m => ({ default: m.ProductionSimulator }))
+);
+const MarketSimulatorButton = lazy(() =>
+  import('./AdminTools').then(m => ({ default: m.MarketSimulatorButton }))
+);
+const MediaSelector = lazy(() =>
+  import('./AdminTools').then(m => ({ default: m.MediaSelector }))
+);
+const B2BSuite = lazy(() =>
+  import('./B2BSuite').then(m => ({ default: m.B2BSuite }))
+);
+const BackupManager = lazy(() =>
+  import('./BackupManager').then(m => ({ default: m.BackupManager }))
+);
+const ZipUpdateManager = lazy(() =>
+  import('./ZipUpdateManager').then(m => ({ default: m.ZipUpdateManager }))
+);
+const TeamManagementPanel = lazy(() =>
+  import('./TeamManagementPanel').then(m => ({ default: m.TeamManagementPanel }))
+);
+const AdminCatalogManager = lazy(() =>
+  import('./AdminCatalogManager').then(m => ({ default: m.AdminCatalogManager }))
+);
+const SliderSettingsPanel = lazy(() =>
+  import('./SliderSettingsPanel').then(m => ({ default: m.SliderSettingsPanel }))
+);
+const AdminDielineAnalyzer = lazy(() =>
+  import('./AdminDielineAnalyzer').then(m => ({ default: m.AdminDielineAnalyzer }))
+);
+const AdminSoftwareManager = lazy(() =>
+  import('./AdminSoftwareManager').then(m => ({ default: m.AdminSoftwareManager }))
+);
+const PortalManagementAdmin = lazy(() =>
+  import('./PortalManagementAdmin').then(m => ({ default: m.PortalManagementAdmin }))
+);
+const AdminContentPagesManager = lazy(() =>
+  import('./AdminContentPagesManager').then(m => ({ default: m.AdminContentPagesManager }))
+);
+
+const AdminTabFallback: React.FC<{ label?: string }> = ({ label = 'در حال بارگذاری بخش...' }) => (
+  <div className="p-10 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col items-center justify-center gap-3 text-slate-300 text-xs">
+    <div className="w-7 h-7 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+    <span>{label}</span>
+  </div>
+);
+
+class AdminTabErrorBoundary extends React.Component<
+  { children: React.ReactNode; tabKey: string },
+  { hasError: boolean; message: string }
+> {
+  constructor(props: { children: React.ReactNode; tabKey: string }) {
+    super(props);
+    this.state = { hasError: false, message: '' };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, message: error?.message || 'خطا در رندر بخش' };
+  }
+
+  componentDidUpdate(prevProps: { tabKey: string }) {
+    if (prevProps.tabKey !== this.props.tabKey && this.state.hasError) {
+      this.setState({ hasError: false, message: '' });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 rounded-2xl bg-rose-950/30 border border-rose-500/40 text-rose-200 text-xs flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>بارگذاری این بخش با خطا مواجه شد: {this.state.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, message: '' })}
+            className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold cursor-pointer"
+          >
+            تلاش مجدد
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const ADMIN_TAB_CATEGORIES = [
+  {
+    title: '۱. مدیریت کارگاه و تولید (CAD & Production)',
+    tabs: [
+      { id: 'dashboard', label: 'داشبورد کنترل کارگاه', icon: LayoutDashboard, color: 'text-indigo-400', perm: 'crmDashboard' },
+      { id: 'orders', label: 'گردش کار و سفارشات (Kanban)', icon: Trello, color: 'text-amber-400', perm: 'crmDashboard' },
+      { id: 'dieline_analyzer', label: 'تحلیلگر هوشمند دیلاین (CAD AI)', icon: Sliders, color: 'text-emerald-400', badge: 'جدید', perm: 'crmDashboard' },
+      { id: 'templates_reset', label: 'مدیریت الگوها و ریست دیتابیس', icon: RefreshCw, color: 'text-rose-400', badge: 'یکپارچه', perm: 'crmDashboard' },
+      { id: 'simulator', label: 'شبیه‌ساز چیدمان زینک و لیتوگرافی', icon: Printer, color: 'text-pink-400', perm: 'crmDashboard' }
+    ]
+  },
+  {
+    title: '۲. امور مالی و خزانه‌داری (Finance & ERP)',
+    tabs: [
+      { id: 'b2b_suite', label: 'پیشخوان ERP و خزانه‌داری', icon: Users, color: 'text-indigo-400', badge: 'زنده', perm: 'treasuryAndLedger' },
+      { id: 'formula', label: 'الگوریتم و موتور قیمت‌گذاری', icon: Database, color: 'text-sky-400', perm: 'inquiryRateSettings' }
+    ]
+  },
+  {
+    title: '۳. محتوا، سئو و کاتالوگ (CMS & Catalog Settings)',
+    tabs: [
+      { id: 'pages_products_services', label: 'صفحات جدید، محصولات و خدمات', icon: Layers, color: 'text-amber-400', badge: 'جدید', perm: 'cmsContentEditing' },
+      { id: 'software_hub', label: 'مدیریت و انتشار نرم‌افزارها', icon: Monitor, color: 'text-sky-400', badge: 'بک‌اند', perm: 'cmsContentEditing' },
+      { id: 'catalogs', label: 'تولید و انتشار کاتالوگ سه‌بعدی (فلیپ‌بوک)', icon: BookOpen, color: 'text-amber-400', badge: 'استودیو', perm: 'cmsContentEditing' },
+      { id: 'media_library', label: 'کتابخانه رسانه‌ها (گالری)', icon: ImageIcon, color: 'text-purple-400', perm: 'cmsContentEditing' },
+      { id: 'slider_settings', label: 'تنظیمات اسلایدر استودیو', icon: Monitor, color: 'text-amber-500', perm: 'cmsContentEditing' },
+      { id: 'seo_manager', label: 'سئو و معرفی به موتورهای جستجو و هوش مصنوعی', icon: Globe, color: 'text-emerald-400', badge: 'جدید', perm: 'cmsContentEditing' }
+    ]
+  },
+  {
+    title: '۴. پیکربندی و امنیت سیستم (System & Settings)',
+    tabs: [
+      { id: 'team_accounts', label: 'کاربران و سطوح دسترسی', icon: UserCheck, color: 'text-violet-400', badge: 'دسترسی', requiresAdminRole: true },
+      { id: 'emergency_banner', label: 'نوتیفیکیشن وضعیت اضطراری', icon: Bell, color: 'text-rose-400', badge: 'جدید', perm: 'cmsContentEditing' },
+      { id: 'integrations', label: 'اتصال به پایانه‌ها و API', icon: Link, color: 'text-orange-400', perm: 'backupSystem' },
+      { id: 'backup', label: 'پشتیبان‌گیری و ایمن‌سازی', icon: ShieldCheck, color: 'text-emerald-400', badge: 'امنیتی', perm: 'backupSystem' },
+      { id: 'zip_update', label: 'مدیریت آپدیت و جایگزینی فایل زیپ', icon: FolderArchive, color: 'text-violet-400', badge: 'جدید', perm: 'backupSystem' },
+      { id: 'settings', label: 'تنظیمات برندینگ و سیستم', icon: Settings, color: 'text-slate-400', perm: 'cmsContentEditing' }
+    ]
+  }
+];
 
 export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: boolean }> = ({ onBackToHome, isDarkMode = false }) => {
   const { logout, user, hasPermission } = useAuth();
@@ -38,99 +169,89 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
 
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+  const timersRef = useRef<number[]>([]);
 
-  const handleSaveSettings = async () => {
+  const scheduleTimeout = useCallback((fn: () => void, ms: number) => {
+    const id = window.setTimeout(() => {
+      timersRef.current = timersRef.current.filter((t) => t !== id);
+      if (mountedRef.current) fn();
+    }, ms);
+    timersRef.current.push(id);
+    return id;
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      timersRef.current.forEach((id) => window.clearTimeout(id));
+      timersRef.current = [];
+    };
+  }, []);
+
+  const handleSaveSettings = useCallback(async () => {
     setIsSavingSettings(true);
+    setSaveError(null);
     const success = await saveSettingsToHost();
+    if (!mountedRef.current) return;
     setIsSavingSettings(false);
     if (success) {
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      scheduleTimeout(() => setSaveSuccess(false), 3000);
     } else {
-      alert('خطا در ذخیره تنظیمات');
+      setSaveError('خطا در ذخیره تنظیمات در سرور');
+      scheduleTimeout(() => setSaveError(null), 4000);
     }
-  };
-  
-  // Categorized tabs logic for coherent and simple admin experience
-  const tabCategories = [
-    {
-      title: '۱. مدیریت کارگاه و تولید (CAD & Production)',
-      tabs: [
-        { id: 'dashboard', label: 'داشبورد کنترل کارگاه', icon: LayoutDashboard, color: 'text-indigo-400', perm: 'crmDashboard' },
-        { id: 'orders', label: 'گردش کار و سفارشات (Kanban)', icon: Trello, color: 'text-amber-400', perm: 'crmDashboard' },
-        { id: 'dieline_analyzer', label: 'تحلیلگر هوشمند دیلاین (CAD AI)', icon: Sliders, color: 'text-emerald-400', badge: 'جدید', perm: 'crmDashboard' },
-        { id: 'templates_reset', label: 'مدیریت الگوها و ریست دیتابیس', icon: RefreshCw, color: 'text-rose-400', badge: 'یکپارچه', perm: 'crmDashboard' },
-        { id: 'simulator', label: 'شبیه‌ساز چیدمان زینک و لیتوگرافی', icon: Printer, color: 'text-pink-400', perm: 'crmDashboard' }
-      ]
-    },
-    {
-      title: '۲. امور مالی و خزانه‌داری (Finance & ERP)',
-      tabs: [
-        { id: 'b2b_suite', label: 'پیشخوان ERP و خزانه‌داری', icon: Users, color: 'text-indigo-400', badge: 'زنده', perm: 'treasuryAndLedger' },
-        { id: 'formula', label: 'الگوریتم و موتور قیمت‌گذاری', icon: Database, color: 'text-sky-400', perm: 'inquiryRateSettings' }
-      ]
-    },
-    {
-      title: '۳. محتوا، سئو و کاتالوگ (CMS & Catalog Settings)',
-      tabs: [
-        { id: 'software_hub', label: 'مدیریت و انتشار نرم‌افزارها', icon: Monitor, color: 'text-sky-400', badge: 'بک‌اند', perm: 'cmsContentEditing' },
-        { id: 'catalogs', label: 'کاتالوگ‌ها و بروشورها (K-Book)', icon: BookOpen, color: 'text-amber-400', badge: 'جدید', perm: 'cmsContentEditing' },
-        { id: 'media_library', label: 'کتابخانه رسانه‌ها (گالری)', icon: ImageIcon, color: 'text-purple-400', perm: 'cmsContentEditing' },
-        { id: 'slider_settings', label: 'تنظیمات اسلایدر استودیو', icon: Monitor, color: 'text-amber-500', perm: 'cmsContentEditing' },
-        { id: 'seo_manager', label: 'سئو و معرفی به موتورهای جستجو و هوش مصنوعی', icon: Globe, color: 'text-emerald-400', badge: 'جدید', perm: 'cmsContentEditing' }
-      ]
-    },
-    {
-      title: '۴. پیکربندی و امنیت سیستم (System & Settings)',
-      tabs: [
-        { id: 'team_accounts', label: 'کاربران و سطوح دسترسی', icon: UserCheck, color: 'text-violet-400', badge: 'دسترسی', requiresAdminRole: true },
-        { id: 'emergency_banner', label: 'نوتیفیکیشن وضعیت اضطراری', icon: Bell, color: 'text-rose-400', badge: 'جدید', perm: 'cmsContentEditing' },
-        { id: 'integrations', label: 'اتصال به پایانه‌ها و API', icon: Link, color: 'text-orange-400', perm: 'backupSystem' },
-        { id: 'backup', label: 'پشتیبان‌گیری و ایمن‌سازی', icon: ShieldCheck, color: 'text-emerald-400', badge: 'امنیتی', perm: 'backupSystem' },
-        { id: 'zip_update', label: 'مدیریت آپدیت و جایگزینی فایل زیپ', icon: FolderArchive, color: 'text-violet-400', badge: 'جدید', perm: 'backupSystem' },
-        { id: 'settings', label: 'تنظیمات برندینگ و سیستم', icon: Settings, color: 'text-slate-400', perm: 'cmsContentEditing' }
-      ]
-    }
-  ];
+  }, [saveSettingsToHost, scheduleTimeout]);
 
-  // Filter categories and tabs based on permissions
-  const filteredCategories = tabCategories.map(cat => ({
-    ...cat,
-    tabs: cat.tabs.filter(tab => {
-      if (tab.requiresAdminRole) {
-        return user?.role === 'ADMIN';
-      }
-      if (tab.perm) {
-        return hasPermission(tab.perm);
-      }
-      return true;
-    })
-  })).filter(cat => cat.tabs.length > 0);
+  const filteredCategories = useMemo(() => {
+    return ADMIN_TAB_CATEGORIES.map(cat => ({
+      ...cat,
+      tabs: cat.tabs.filter(tab => {
+        if (tab.requiresAdminRole) {
+          return user?.role === 'ADMIN';
+        }
+        if (tab.perm) {
+          return hasPermission(tab.perm);
+        }
+        return true;
+      })
+    })).filter(cat => cat.tabs.length > 0);
+  }, [user?.role, hasPermission]);
 
-  const [activeTab, setActiveTab] = useState<'dxp' | 'dashboard' | 'orders' | 'b2b_suite' | 'team_accounts' | 'formula' | 'simulator' | 'integrations' | 'backup' | 'zip_update' | 'settings' | 'software_hub' | 'catalogs' | 'media_library' | 'slider_settings' | 'dieline_analyzer' | 'templates_reset' | 'emergency_banner' | 'seo_manager'>(() => {
+  const [activeTab, setActiveTab] = useState<'dxp' | 'dashboard' | 'orders' | 'b2b_suite' | 'team_accounts' | 'formula' | 'simulator' | 'integrations' | 'backup' | 'zip_update' | 'settings' | 'pages_products_services' | 'software_hub' | 'catalogs' | 'media_library' | 'slider_settings' | 'dieline_analyzer' | 'templates_reset' | 'emergency_banner' | 'seo_manager'>(() => {
+    try {
+      const saved = sessionStorage.getItem('ashk_admin_active_tab');
+      if (saved) return saved as any;
+    } catch {}
     return 'dashboard';
   });
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const triggerHaptic = () => {
+  const triggerHaptic = useCallback(() => {
     if (typeof window !== 'undefined' && window.navigator && window.navigator.vibrate) {
       window.navigator.vibrate(50);
     }
-  };
+  }, []);
 
-  const toggleMobileMenu = () => {
+  const toggleMobileMenu = useCallback(() => {
     triggerHaptic();
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
+    setIsMobileMenuOpen((prev) => !prev);
+  }, [triggerHaptic]);
 
-  const handleTabClick = (tabId: string) => {
+  const handleTabClick = useCallback((tabId: string) => {
     setActiveTab(tabId as any);
-    if (isMobileMenuOpen) {
-      triggerHaptic();
-      setIsMobileMenuOpen(false);
-    }
-  };
+    try {
+      sessionStorage.setItem('ashk_admin_active_tab', tabId);
+    } catch {}
+    setIsMobileMenuOpen((wasOpen) => {
+      if (wasOpen) triggerHaptic();
+      return false;
+    });
+  }, [triggerHaptic]);
 
   // Interactive metrics state & alerts
   const [simulationAlert, setSimulationAlert] = useState<string | null>(null);
@@ -154,7 +275,7 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
     }
   });
 
-  const toggleRawState = (val?: boolean) => {
+  const toggleRawState = useCallback((val?: boolean) => {
     const nextVal = val !== undefined ? val : !isRawState;
     setIsRawState(nextVal);
     try {
@@ -165,12 +286,12 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
     } else {
       setSimulationAlert("حالت شبیه‌سازی کارگاه فعال شد (نمایش آمار آزمایشی).");
     }
-    setTimeout(() => setSimulationAlert(null), 5000);
-  };
+    scheduleTimeout(() => setSimulationAlert(null), 5000);
+  }, [isRawState, scheduleTimeout]);
 
-  const handleResetData = () => {
+  const handleResetData = useCallback(() => {
     toggleRawState(true);
-  };
+  }, [toggleRawState]);
 
   // Projects / Kanban orders state (cleared for production readiness)
   const [projects, setProjects] = useState<Project[]>([]);
@@ -179,7 +300,7 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
     setProjects(prev => prev.map(p => p.id === id ? { ...p, status: newStatus as any } : p));
   };
 
-  const handleMarketSimulation = () => {
+  const handleMarketSimulation = useCallback(() => {
     const newPapers = [...pricingFormula.papers];
     
     // Fluctuate prices randomly to simulate operational changes
@@ -192,8 +313,8 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
 
     updatePricingFormula({ papers: newPapers });
     setSimulationAlert("⚠️ جفت ارز ریال/یورو نوسان کرد! نرخ کاغذ مصرفی کارخانه بر اساس قیمت روز بورس کالا کالیبره و اعمال گردید.");
-    setTimeout(() => setSimulationAlert(null), 8000);
-  };
+    scheduleTimeout(() => setSimulationAlert(null), 8000);
+  }, [pricingFormula.papers, updatePricingFormula, scheduleTimeout]);
 
   // Modern industrial machine logs / statuses mockup
   const printingPresses = [
@@ -219,38 +340,33 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
         
         <div className="flex items-center gap-2">
           {onBackToHome && (
-            <button
+            <BackButton
+              label="بازگشت به سایت"
+              variant="dark"
               onClick={onBackToHome}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 border border-indigo-500/40 text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer"
-              title="بازگشت به سایت اصلی"
-            >
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>بازگشت به سایت</span>
-            </button>
+              className="text-[11px] px-2.5"
+            />
           )}
           <button 
+            type="button"
             onClick={toggleMobileMenu}
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 active:scale-90 transition-all duration-200 cursor-pointer"
+            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 transition-colors cursor-pointer"
           >
             {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
       </div>
 
-      {/* MOBILE BLUR OVERLAY */}
+      {/* MOBILE OVERLAY */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-md md:hidden transition-opacity duration-300 opacity-100"
+          className="fixed inset-0 z-40 bg-slate-950/75 md:hidden"
           onClick={toggleMobileMenu}
         />
       )}
 
-      {/* GLOWING AMBIENT BACKGROUND ELEMENTS FOR MODERN LOOKS */}
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/5 blur-[120px] pointer-events-none rounded-full z-0"></div>
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-violet-600/5 blur-[100px] pointer-events-none rounded-full z-0"></div>
-
-      {/* RETHINKED DESIGNER SIDEBAR (منوی نوبل و چشم‌نواز پرتال مدیریت) */}
-      <aside className={`fixed md:sticky top-0 right-0 h-screen w-72 md:w-80 bg-slate-950 border-l border-slate-800/80 p-5 flex flex-col justify-between z-50 transition-transform duration-300 ease-[cubic-bezier(0.25,1,0.5,1)] overflow-y-auto ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+      {/* SIDEBAR */}
+      <aside className={`fixed md:sticky top-0 right-0 h-screen w-72 md:w-80 bg-slate-950 border-l border-slate-800/80 p-5 flex flex-col justify-between z-50 transition-transform duration-200 overflow-y-auto ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
         <div>
           {/* Brand/Header */}
           <div className="p-4 border-b border-slate-800 bg-slate-900/60 rounded-2xl flex flex-col gap-3 mb-5 relative shadow-inner">
@@ -266,10 +382,11 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
               </div>
               
               <div className="flex items-center gap-1.5">
-                <span className="p-1 px-2.5 rounded-full text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 font-bold tracking-tight animate-pulse">v3.5.2 (cPanel)</span>
+                <span className="p-1 px-2.5 rounded-full text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 font-bold tracking-tight">v3.19.0 (cPanel)</span>
                 <button 
+                  type="button"
                   onClick={toggleMobileMenu}
-                  className="md:hidden p-1.5 rounded-full bg-slate-800/80 text-slate-400 hover:text-white active:scale-90 transition-all cursor-pointer"
+                  className="md:hidden p-1.5 rounded-full bg-slate-800/80 text-slate-400 hover:text-white transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -279,11 +396,12 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
             {/* High-visibility Prominent Return to Site Button in Admin Drawer Top */}
             {onBackToHome && (
               <button
+                type="button"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
                   onBackToHome();
                 }}
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl text-xs font-black shadow-lg shadow-indigo-600/30 transition-all cursor-pointer border border-indigo-400/40 active:scale-95 mt-1"
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl text-xs font-black shadow-lg shadow-indigo-600/30 transition-all cursor-pointer border border-indigo-400/40 mt-1"
               >
                 <ArrowUpRight className="w-4 h-4" />
                 <span>بازگشت به سایت اصلی</span>
@@ -305,10 +423,11 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
                     return (
                       <button
                         key={tab.id}
+                        type="button"
                         onClick={() => handleTabClick(tab.id)}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all duration-300 group active:scale-95 ${
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors group ${
                           isSelected 
-                            ? 'bg-gradient-to-l from-indigo-600/30 via-indigo-600/15 to-indigo-950 border-r-4 border-indigo-500 text-white font-bold shadow-md shadow-indigo-500/10' 
+                            ? 'bg-indigo-600/20 border-r-4 border-indigo-500 text-white font-bold shadow-sm' 
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                         }`}
                       >
@@ -351,15 +470,17 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
           <div className="space-y-1">
             {onBackToHome && (
               <button 
+                type="button"
                 onClick={onBackToHome} 
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-400 hover:text-white hover:bg-slate-900 transition rounded-lg"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-slate-400 hover:text-white hover:bg-slate-900 transition rounded-lg cursor-pointer"
               >
                 <ArrowUpRight className="h-4 w-4" /> بازگشت به آتلیه سایت
               </button>
             )}
             <button 
+              type="button"
               onClick={() => { logout(); onBackToHome?.(); }} 
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-950/20 transition rounded-lg"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-950/20 transition rounded-lg cursor-pointer"
             >
               <LogOut className="h-4 w-4" /> خروج ایمن از حساب کاربری
             </button>
@@ -367,23 +488,29 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
         </div>
       </aside>
 
-      {/* RETHINKED MAIN VIEWPORT AREA (ویترین جذاب و درخشان داشبورد جدید) */}
+      {/* RETHINKED MAIN VIEWPORT AREA */}
       <main className={`flex-1 relative z-10 dir-rtl ${activeTab === 'dxp' ? 'p-0' : 'p-6 md:p-8'}`}>
+        {saveError && (
+          <div className="mb-4 px-4 py-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs font-bold flex items-center justify-between gap-2">
+            <span>{saveError}</span>
+            <button type="button" onClick={() => setSaveError(null)} className="text-rose-300 hover:text-white cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         
-        {/* TOP ALERT RIBBON (ریبون هشدار سیستم و استعلام‌های فوری) */}
+        {/* TOP ALERT RIBBON */}
         {activeTab !== 'dxp' && showAdminRibbon && (
-          <div className={`mb-6 p-4 rounded-2xl border backdrop-blur-xl shadow-2xl transition-all duration-300 relative overflow-hidden dir-rtl ${
+          <div className={`mb-6 p-4 rounded-2xl border shadow-xl relative overflow-hidden dir-rtl ${
             ribbonUrgency === 'critical'
-              ? 'bg-gradient-to-r from-rose-950/95 via-red-900/90 to-amber-950/95 border-rose-500/60 text-white shadow-rose-950/50'
+              ? 'bg-gradient-to-r from-rose-950/95 via-red-900/90 to-amber-950/95 border-rose-500/60 text-white'
               : ribbonUrgency === 'warning'
-              ? 'bg-gradient-to-r from-amber-950/95 via-orange-900/90 to-yellow-950/95 border-amber-500/60 text-amber-100 shadow-amber-950/50'
-              : 'bg-gradient-to-r from-indigo-950/95 via-slate-900/90 to-blue-950/95 border-indigo-500/60 text-indigo-100 shadow-indigo-950/50'
+              ? 'bg-gradient-to-r from-amber-950/95 via-orange-900/90 to-yellow-950/95 border-amber-500/60 text-amber-100'
+              : 'bg-gradient-to-r from-indigo-950/95 via-slate-900/90 to-blue-950/95 border-indigo-500/60 text-indigo-100'
           }`}>
-            <div className="absolute top-0 right-0 w-80 h-full bg-white/5 blur-2xl pointer-events-none" />
-
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 relative z-10">
               <div className="flex items-center gap-3 flex-1">
-                <span className={`p-2.5 rounded-xl border flex-shrink-0 animate-pulse ${
+                <span className={`p-2.5 rounded-xl border flex-shrink-0 ${
                   ribbonUrgency === 'critical' 
                     ? 'bg-rose-500/20 border-rose-400 text-rose-300' 
                     : ribbonUrgency === 'warning'
@@ -412,19 +539,21 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
 
               <div className="flex flex-wrap items-center gap-2 self-end md:self-center">
                 <button
-                  onClick={() => setActiveTab('orders')}
-                  className="px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-md"
+                  type="button"
+                  onClick={() => handleTabClick('orders')}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-md cursor-pointer"
                 >
                   <Search className="w-3.5 h-3.5 text-amber-300" />
                   <span>مشاهده و بررسی استعلام‌ها</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => {
                     setTempRibbonMessage(ribbonMessage);
                     setIsEditingRibbon(!isEditingRibbon);
                   }}
-                  className="px-2.5 py-1.5 rounded-xl bg-black/30 hover:bg-black/50 text-slate-200 hover:text-white transition text-xs flex items-center gap-1 border border-white/10"
+                  className="px-2.5 py-1.5 rounded-xl bg-black/30 hover:bg-black/50 text-slate-200 hover:text-white transition text-xs flex items-center gap-1 border border-white/10 cursor-pointer"
                   title="ویرایش متن هشدار"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
@@ -432,8 +561,9 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setShowAdminRibbon(false)}
-                  className="p-1.5 rounded-xl bg-black/30 hover:bg-black/50 text-slate-300 hover:text-white transition border border-white/10"
+                  className="p-1.5 rounded-xl bg-black/30 hover:bg-black/50 text-slate-300 hover:text-white transition border border-white/10 cursor-pointer"
                   title="بستن موقت ریبون"
                 >
                   <X className="w-4 h-4" />
@@ -479,17 +609,14 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
           </div>
         )}
 
-        {/* Dynamic header with real time status indicators */}
+        {/* Dynamic header */}
         {activeTab !== 'dxp' && (
-          <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-950/30 border border-slate-800/40 backdrop-blur-md p-5 rounded-2xl mb-8">
+          <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-950/60 border border-slate-800/70 p-5 rounded-2xl mb-6">
             <div>
-              <div className="flex items-center gap-2 mb-1.5">
-              <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-              <span className="text-[10px] text-slate-400 font-semibold tracking-wide font-sans">اتصال زنده برقرار است • سرورهای محلی اشک‌قلم</span>
-            </div>
-            <h1 className="text-xl md:text-2xl font-bold text-white font-sans">
+              <h1 className="text-xl md:text-2xl font-bold text-white font-sans">
               {activeTab === 'dashboard' && 'خلاصه وضعیت کارگاه'}
               {activeTab === 'orders' && 'تابلو کانبان و جریان کارگاهی'}
+              {activeTab === 'pages_products_services' && 'مدیریت صفحات جدید، معرفی محصولات و خدمات'}
               {activeTab === 'catalogs' && 'آلبوم کاتالوگ‌ و بروشورهای k-BOOK'}
               {activeTab === 'media_library' && 'کتابخانه رسانه‌ها (گالری تصاویر)'}
               {activeTab === 'b2b_suite' && 'پیکربندی ماژول حسابداری مالی'}
@@ -507,25 +634,34 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {onBackToHome && (
+              <BackButton
+                label="بازگشت به سایت"
+                variant="dark"
+                onClick={onBackToHome}
+              />
+            )}
             {!showAdminRibbon && (
               <button
+                type="button"
                 onClick={() => setShowAdminRibbon(true)}
-                className="px-3 py-1.5 rounded-xl border border-rose-500/40 bg-rose-950/30 text-rose-300 hover:bg-rose-900/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                className="px-3 py-1.5 rounded-xl border border-rose-500/40 bg-rose-950/30 text-rose-300 hover:bg-rose-900/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
               >
-                <Bell className="w-3.5 h-3.5 text-rose-400 animate-bounce" />
+                <Bell className="w-3.5 h-3.5 text-rose-400" />
                 <span>نمایش ریبون هشدار</span>
               </button>
             )}
             <button
+              type="button"
               onClick={() => toggleRawState()}
-              className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer ${
                 isRawState
                   ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
                   : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
               }`}
               title={isRawState ? 'کلیک کنید تا به حالت شبیه‌سازی بازگردید' : 'صفر کردن تمام داده‌های آزمایشی'}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRawState ? 'text-amber-400 animate-spin-slow' : 'text-slate-400'}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRawState ? 'text-amber-400' : 'text-slate-400'}`} />
               {isRawState ? 'حالت خام (داده‌های صفر فعال)' : 'ریست به حالت خام / صفر'}
             </button>
             <div className="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs text-slate-400 font-mono">
@@ -719,165 +855,137 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
           </div>
         )}
 
-        {activeTab === 'orders' && (
-          <div className="h-full animate-in fade-in duration-200">
-            {/* INQUIRY HIGHLIGHT RIBBON INSIDE ORDERS TAB */}
-            <div className="mb-6 p-4 bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/80 border border-amber-500/40 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs shadow-lg dir-rtl">
-              <div className="flex items-center gap-3">
-                <span className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30 animate-pulse">
-                  <Megaphone className="w-5 h-5" />
-                </span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-white text-sm">
-                      {isRawState ? 'وضعیت استعلام‌ها و صف سفارشات کارگاه' : 'هشدار ویژه استعلام‌های معوق در صف کارگاه'}
+        <AdminTabErrorBoundary tabKey={activeTab}>
+          <Suspense fallback={<AdminTabFallback />}>
+            {activeTab === 'orders' && (
+              <div className="h-full">
+                {/* INQUIRY HIGHLIGHT RIBBON INSIDE ORDERS TAB */}
+                <div className="mb-6 p-4 bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/80 border border-amber-500/40 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs shadow-lg dir-rtl">
+                  <div className="flex items-center gap-3">
+                    <span className="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
+                      <Megaphone className="w-5 h-5" />
                     </span>
-                    <Badge color={isRawState ? 'green' : 'yellow'}>
-                      {isRawState ? '۰ استعلام معوق (صف خالی)' : '۱۴ استعلام نیازمند تایید'}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-sm">
+                          {isRawState ? 'وضعیت استعلام‌ها و صف سفارشات کارگاه' : 'هشدار ویژه استعلام‌های معوق در صف کارگاه'}
+                        </span>
+                        <Badge color={isRawState ? 'green' : 'yellow'}>
+                          {isRawState ? '۰ استعلام معوق (صف خالی)' : '۱۴ استعلام نیازمند تایید'}
+                        </Badge>
+                      </div>
+                      <p className="text-slate-300 mt-0.5">
+                        {isRawState
+                          ? 'سیستم در حالت خام آماده دریافت اولین استعلام قیمت بستر چاپ و بسته‌بندی می‌باشد.'
+                          : 'استعلام‌های ثبت‌شده برای محاسبات جعبه‌های دارویی، هاردباکس و بسته‌بندی صادراتی در انتظار بررسی برآورد کاغذ و خدمات پس از چاپ می‌باشند.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-end md:self-center">
+                    <Badge color="green">
+                      {isRawState ? 'حالت خام صفر' : 'پاسخ‌دهی میانگین: ۸ دقیقه'}
                     </Badge>
                   </div>
-                  <p className="text-slate-300 mt-0.5">
-                    {isRawState
-                      ? 'سیستم در حالت خام آماده دریافت اولین استعلام قیمت بستر چاپ و بسته‌بندی می‌باشد.'
-                      : 'استعلام‌های ثبت‌شده برای محاسبات جعبه‌های دارویی، هاردباکس و بسته‌بندی صادراتی در انتظار بررسی برآورد کاغذ و خدمات پس از چاپ می‌باشند.'}
-                  </p>
+                </div>
+
+                <div className="mb-6 flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center bg-slate-950/40 p-5 rounded-2xl border border-slate-800/80">
+                  <div className="text-right">
+                    <p className="text-white font-bold text-base">ردیابی جریان چاپ و شیت‌بندی (Kanban Operations)</p>
+                    <p className="text-xs text-slate-400 mt-1">پروژه‌ها را بکشید و رها کنید تا وضعیت گردش کار کارگاهی بروز شود.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="text-xs border-slate-800/80 hover:bg-slate-900/80 text-slate-300">فیلتر سفارشات فعال</Button>
+                    <Button size="sm" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white border-0 font-bold shadow-lg shadow-indigo-600/20">ثبت نوبت دستی کارگاه</Button>
+                  </div>
+                </div>
+                <div className="bg-slate-950/20 border border-slate-800/70 p-6 rounded-3xl">
+                  <BusinessProcessManager />
                 </div>
               </div>
-              <div className="flex items-center gap-2 self-end md:self-center">
-                <Badge color="green">
-                  {isRawState ? 'حالت خام صفر' : 'پاسخ‌دهی میانگین: ۸ دقیقه'}
-                </Badge>
+            )}
+
+            {activeTab === 'dieline_analyzer' && <AdminDielineAnalyzer />}
+
+            {activeTab === 'templates_reset' && (
+              <TemplateAndDataControl 
+                isRawState={isRawState}
+                setIsRawState={setIsRawState}
+                handleResetData={handleResetData}
+                simulationAlert={simulationAlert}
+              />
+            )}
+
+            {activeTab === 'pages_products_services' && <AdminContentPagesManager />}
+
+            {activeTab === 'software_hub' && <AdminSoftwareManager />}
+
+            {activeTab === 'catalogs' && <AdminCatalogManager />}
+
+            {activeTab === 'media_library' && <MediaManager />}
+
+            {activeTab === 'seo_manager' && <ContentManager />}
+
+            {activeTab === 'simulator' && (
+              <div className="bg-slate-950/60 border border-slate-800/85 p-6 rounded-3xl text-slate-100 shadow-xl overflow-visible">
+                <ProductionSimulator />
               </div>
-            </div>
-
-            <div className="mb-6 flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center bg-slate-950/40 p-5 rounded-2xl border border-slate-800/80">
-              <div className="text-right">
-                <p className="text-white font-bold text-base">ردیابی جریان چاپ و شیت‌بندی (Kanban Operations)</p>
-                <p className="text-xs text-slate-400 mt-1">پروژه‌ها را بکشید و رها کنید تا وضعیت گردش کار کارگاهی بروز شود.</p>
+            )}
+            
+            {activeTab === 'integrations' && (
+              <div className="bg-slate-950/60 border border-slate-800/85 p-6 rounded-3xl text-slate-100 shadow-xl overflow-hidden">
+                <IntegrationHub />
               </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" className="text-xs border-slate-800/80 hover:bg-slate-900/80 text-slate-300">فیلتر سفارشات فعال</Button>
-                <Button size="sm" className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white border-0 font-bold shadow-lg shadow-indigo-600/20">ثبت نوبت دستی کارگاه</Button>
+            )}
+
+            {activeTab === 'b2b_suite' && (
+              <div className="bg-slate-950/60 border border-slate-800/85 rounded-3xl overflow-hidden shadow-xl">
+                <B2BSuite isDarkMode={isDarkMode} />
               </div>
-            </div>
-            <div className="bg-slate-950/20 border border-slate-800/70 p-6 rounded-3xl">
-              <BusinessProcessManager />
-            </div>
-          </div>
-        )}
+            )}
 
-        {activeTab === 'dieline_analyzer' && (
-          <div className="animate-in fade-in duration-200">
-            <AdminDielineAnalyzer />
-          </div>
-        )}
+            {activeTab === 'team_accounts' && <TeamManagementPanel isDarkMode={isDarkMode} />}
+            
+            {activeTab === 'formula' && (
+              <PricingEngine 
+                pricingFormula={pricingFormula} 
+                updatePricingFormula={updatePricingFormula}
+                handleMarketSimulation={handleMarketSimulation}
+                simulationAlert={simulationAlert}
+              />
+            )}
 
-        {activeTab === 'templates_reset' && (
-          <div className="animate-in fade-in duration-200">
-            <TemplateAndDataControl 
-              isRawState={isRawState}
-              setIsRawState={setIsRawState}
-              handleResetData={handleResetData}
-              simulationAlert={simulationAlert}
-            />
-          </div>
-        )}
+            {activeTab === 'backup' && <BackupManager isDarkMode={isDarkMode} />}
 
-        {activeTab === 'software_hub' && (
-          <div className="animate-in fade-in duration-200">
-            <AdminSoftwareManager />
-          </div>
-        )}
+            {activeTab === 'zip_update' && <ZipUpdateManager isDarkMode={isDarkMode} />}
 
-        {activeTab === 'catalogs' && (
-          <div className="animate-in fade-in duration-200">
-            <AdminCatalogManager />
-          </div>
-        )}
+            {activeTab === 'settings' && (
+              <GlobalSettingsPanel 
+                globalSettings={globalSettings}
+                updateGlobalSettings={updateGlobalSettings}
+                siteContent={siteContent}
+                updateSiteContent={updateSiteContent}
+                uploadAsset={uploadAsset}
+                isDarkMode={isDarkMode}
+                onSave={handleSaveSettings}
+                isSaving={isSavingSettings}
+                saveSuccess={saveSuccess}
+              />
+            )}
 
-        {activeTab === 'media_library' && (
-          <div className="animate-in fade-in duration-200">
-            <MediaManager />
-          </div>
-        )}
+            {activeTab === 'slider_settings' && (
+              <Card className="p-6">
+                <SliderSettingsPanel />
+              </Card>
+            )}
 
-        {activeTab === 'seo_manager' && (
-          <div className="animate-in fade-in duration-200">
-            <ContentManager />
-          </div>
-        )}
-
-        {activeTab === 'simulator' && (
-          <div className="animate-in fade-in duration-200 bg-slate-950/40 border border-slate-800/85 p-6 rounded-3xl text-slate-100 shadow-xl overflow-visible backdrop-blur-md">
-            <ProductionSimulator />
-          </div>
-        )}
-        
-        {activeTab === 'integrations' && (
-          <div className="animate-in fade-in duration-200 bg-slate-950/40 border border-slate-800/85 p-6 rounded-3xl text-slate-100 shadow-xl overflow-hidden backdrop-blur-md">
-            <IntegrationHub />
-          </div>
-        )}
-
-        {activeTab === 'b2b_suite' && (
-          <div className="animate-in fade-in duration-200 bg-slate-950/40 border border-slate-800/85 rounded-3xl overflow-hidden shadow-xl shadow-slate-950/20">
-            <B2BSuite isDarkMode={isDarkMode} />
-          </div>
-        )}
-
-        {activeTab === 'team_accounts' && (
-          <div className="animate-in fade-in duration-200">
-            <TeamManagementPanel isDarkMode={isDarkMode} />
-          </div>
-        )}
-        
-        {activeTab === 'formula' && (
-          <PricingEngine 
-            pricingFormula={pricingFormula} 
-            updatePricingFormula={updatePricingFormula}
-            handleMarketSimulation={handleMarketSimulation}
-            simulationAlert={simulationAlert}
-          />
-        )}
-
-        {activeTab === 'backup' && (
-          <div className="animate-in fade-in duration-200">
-            <BackupManager isDarkMode={isDarkMode} />
-          </div>
-        )}
-
-        {activeTab === 'zip_update' && (
-          <div className="animate-in fade-in duration-200">
-            <ZipUpdateManager isDarkMode={isDarkMode} />
-          </div>
-        )}
-
-        {activeTab === 'settings' && (
-          <GlobalSettingsPanel 
-            globalSettings={globalSettings}
-            updateGlobalSettings={updateGlobalSettings}
-            siteContent={siteContent}
-            updateSiteContent={updateSiteContent}
-            uploadAsset={uploadAsset}
-            isDarkMode={isDarkMode}
-            onSave={handleSaveSettings}
-            isSaving={isSavingSettings}
-            saveSuccess={saveSuccess}
-          />
-        )}
-
-        {activeTab === 'slider_settings' && (
-          <Card className="p-6">
-             <SliderSettingsPanel />
-          </Card>
-        )}
-
-        {activeTab === 'emergency_banner' && (
-          <EmergencyBannerPanel 
-            config={emergencyConfig} 
-            onUpdate={updateEmergencyConfig} 
-          />
-        )}
+            {activeTab === 'emergency_banner' && (
+              <EmergencyBannerPanel 
+                config={emergencyConfig} 
+                onUpdate={updateEmergencyConfig} 
+              />
+            )}
+          </Suspense>
+        </AdminTabErrorBoundary>
 
       </main>
     </div>
@@ -914,19 +1022,6 @@ const PricingEngine: React.FC<PricingEngineProps> = ({
       </div>
       <div className="flex flex-col gap-2 w-full md:w-auto">
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              if (window.confirm("آیا از بازگشت به تنظیمات کارخانه و پاک‌سازی تمام داده‌های پنل مدیریت اطمینان دارید؟")) {
-                localStorage.clear();
-                window.location.reload();
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-xl transition-all font-bold text-xs"
-            title="خام کردن داده‌های ماشین‌آلات"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span className="hidden md:inline">خام کردن داد‌‌ه‌ها</span>
-          </button>
           <MarketSimulatorButton onSimulate={handleMarketSimulation} />
         </div>
         <span className="text-[10px] text-indigo-300 text-center">شبیه‌سازی اثر شوک ارزی و بازار آزاد تهرانی</span>
@@ -934,7 +1029,7 @@ const PricingEngine: React.FC<PricingEngineProps> = ({
     </div>
 
     {simulationAlert && (
-      <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 p-4 rounded-xl flex items-center gap-3 animate-bounce">
+      <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 p-4 rounded-xl flex items-center gap-3">
         <span className="p-1 px-2.5 bg-amber-500/20 rounded-lg font-bold">زنده</span>
         <p className="text-xs md:text-sm font-medium">{simulationAlert}</p>
       </div>
@@ -1820,6 +1915,15 @@ const EmergencyBannerPanel: React.FC<EmergencyBannerPanelProps> = ({ config, onU
   const [backgroundColor, setBackgroundColor] = useState(currentConfig.backgroundColor || '#dc2626');
   const [viewOnly, setViewOnly] = useState(currentConfig.viewOnly || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const saveTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSave = () => {
     if (onUpdate) {
@@ -1832,15 +1936,14 @@ const EmergencyBannerPanel: React.FC<EmergencyBannerPanelProps> = ({ config, onU
         viewOnly: viewOnly || undefined
       });
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = window.setTimeout(() => setSaveSuccess(false), 3000);
     }
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in pb-12 text-right dir-rtl">
+    <div className="space-y-6 pb-12 text-right dir-rtl">
       <div className="bg-slate-900 border border-slate-800/80 p-6 rounded-3xl relative overflow-hidden shadow-xl">
-        <div className="absolute top-0 left-0 w-48 h-48 bg-rose-500/5 blur-3xl pointer-events-none rounded-full" />
-        
         <div className="flex items-center gap-3 mb-6">
           <div className="p-3 bg-rose-500/10 text-rose-400 rounded-2xl border border-rose-500/20">
             <Bell className="w-6 h-6" />
@@ -1859,8 +1962,10 @@ const EmergencyBannerPanel: React.FC<EmergencyBannerPanelProps> = ({ config, onU
               <span className="text-[11px] text-slate-400 mt-1 block">اعلان را به صورت آنی فعال یا غیرفعال کنید</span>
             </div>
             <button
+              type="button"
+              dir="ltr"
               onClick={() => setEnabled(!enabled)}
-              className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 ${enabled ? 'bg-emerald-600' : 'bg-slate-800'}`}
+              className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 cursor-pointer ${enabled ? 'bg-emerald-600' : 'bg-slate-800'}`}
             >
               <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-300 ${enabled ? 'translate-x-6' : 'translate-x-0'}`} />
             </button>

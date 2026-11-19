@@ -15,8 +15,8 @@ interface LoginProps {
 
 export const Login: React.FC<LoginProps> = ({ onSuccess, onBack, onLoginSuccess, targetRole }) => {
   const { login } = useAuth();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('ashk1403');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -32,12 +32,16 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onBack, onLoginSuccess,
       return;
     }
 
-    // Support admin / ashk1403 (with English or Persian digits)
+    if (!cleanPass) {
+      setError('لطفاً رمز عبور را وارد فرمایید.');
+      return;
+    }
+
     const isPassValid = cleanPass === 'ashk1403' || cleanPass === 'admin' || cleanPass === 'ashk';
     const isUserValid = cleanUser === 'admin' || cleanUser === 'ashk';
 
     if (!isUserValid || !isPassValid) {
-      setError('اطلاعات ورود نادرست است. نام کاربری: admin و رمز عبور: ashk1403 می‌باشد.');
+      setError('نام کاربری یا رمز عبور نادرست است. لطفاً مجدداً بررسی فرمایید.');
       return;
     }
 
@@ -82,7 +86,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onBack, onLoginSuccess,
           ) : <div />}
 
           <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 font-mono">
-            PORTAL SECURITY v3.13.0
+            PORTAL SECURITY v3.19.0
           </span>
         </div>
 
@@ -108,7 +112,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onBack, onLoginSuccess,
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1.5">نام کاربری</label>
             <div className="relative">
@@ -116,7 +120,8 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onBack, onLoginSuccess,
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="admin"
+                placeholder="نام کاربری خود را وارد کنید"
+                autoComplete="username"
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 pl-10 focus:outline-none focus:border-amber-500 font-sans"
               />
               <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -130,16 +135,12 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onBack, onLoginSuccess,
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="ashk1403"
+                placeholder="رمز عبور را وارد کنید"
+                autoComplete="current-password"
                 className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 pl-10 focus:outline-none focus:border-amber-500 font-sans"
               />
               <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             </div>
-          </div>
-
-          <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
-            <span>اطلاعات پیش‌فرض سیستم:</span>
-            <span className="font-mono text-amber-400 font-bold">admin / ashk1403</span>
           </div>
 
           <Button type="submit" variant="primary" className="w-full py-2.5 mt-2 text-slate-950 font-black">

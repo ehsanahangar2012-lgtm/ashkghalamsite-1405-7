@@ -1,7 +1,8 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Grid, Phone, CheckCircle, Box, Sparkles, ShieldCheck, 
-  Settings, Award, Layers, type LucideIcon 
+  Settings, Award, Layers, ArrowRight, type LucideIcon 
 } from 'lucide-react';
 
 const iconMap: Record<string, LucideIcon> = {
@@ -22,6 +23,60 @@ const colorMap: Record<string, string> = {
   purple: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
   amber: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
   red: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+};
+
+interface BackButtonProps {
+  label?: string;
+  to?: string;
+  fallbackPath?: string;
+  onClick?: () => void;
+  variant?: 'auto' | 'dark' | 'light' | 'danger';
+  className?: string;
+}
+
+export const BackButton: React.FC<BackButtonProps> = ({
+  label = 'بازگشت',
+  to,
+  fallbackPath = '/',
+  onClick,
+  variant = 'auto',
+  className = '',
+}) => {
+  const navigate = useNavigate();
+
+  const handlePress = () => {
+    if (onClick) {
+      onClick();
+      return;
+    }
+    if (to) {
+      navigate(to);
+      return;
+    }
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate(fallbackPath);
+    }
+  };
+
+  const variantClasses: Record<NonNullable<BackButtonProps['variant']>, string> = {
+    auto: 'bg-white/95 hover:bg-amber-50 text-slate-900 border border-slate-300 shadow-sm dark:bg-slate-800/95 dark:hover:bg-slate-700 dark:text-white dark:border-slate-600',
+    dark: 'bg-slate-800/95 hover:bg-slate-700 text-white border border-slate-600 shadow-lg',
+    light: 'bg-white hover:bg-slate-100 text-slate-900 border border-slate-300 shadow-sm',
+    danger: 'bg-rose-600 hover:bg-rose-500 text-white border border-rose-400/50 shadow-md',
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handlePress}
+      className={`inline-flex items-center justify-center gap-2 min-h-[40px] px-3.5 py-2 rounded-xl text-xs md:text-sm font-black whitespace-nowrap shrink-0 transition-all duration-150 cursor-pointer active:scale-95 ${variantClasses[variant]} ${className}`}
+    >
+      <ArrowRight className="w-4 h-4 shrink-0" />
+      <span>{label}</span>
+    </button>
+  );
 };
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

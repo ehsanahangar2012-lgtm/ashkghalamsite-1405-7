@@ -1,61 +1,38 @@
 import React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { SeoHead } from './SeoHead';
-import { AppView } from '../types';
-import { Card, Button } from './UIComponents';
-import { Printer, Box, Scissors, Cpu, ArrowLeft, Layers, ShieldCheck } from 'lucide-react';
+import { AppView, ManagedServiceItem } from '../types';
+import { Card, Button, BackButton } from './UIComponents';
+import { Printer, Box, Scissors, Cpu, ArrowLeft, Layers, ShieldCheck, Sparkles, type LucideIcon } from 'lucide-react';
 import { SmartHelpButton } from './SmartHelpModal';
 import { saveInquiryPrefill } from '../utils/inquiryPrefill';
+import { useContent } from '../contexts/ContentContext';
+import { NotFound } from './NotFound';
+import { findBySlugOrId } from '../utils/slugUtils';
 
-const services = [
-  {
-    slug: 'die-cutting-engineering',
-    title: 'مهندسی قالب دایکات و ساخت تیغ لیزری',
-    badge: 'Precision CAD',
-    specs: ['تلورانس خط تا ±۰.۱۵ میلی‌متر', 'پشتیبانی کامل Bobst و فکی', 'خروجی DXF و AutoCAD'],
-    description: 'طراحی تخصصی قالب‌های تخت و روتاری با خطوط تا (Crease) و برش (Cut) مهندسی‌شده برای جعبه‌های صادراتی، دارویی و صنعتی.',
-    toolPath: '/tools/dieline',
-    toolLabel: 'ورود به مهندسی دایلاین ۳D',
-    icon: Scissors,
-  },
-  {
-    slug: 'offset-printing',
-    title: 'چاپ افست کارتن و لمینت تا ابعاد شیت بزرگ',
-    badge: 'Offset 5-Color',
-    specs: ['شیت تا ۱۰۰×۷۰ و فوق بزرگ', 'سلفون مات/براق، UV موضعی و طلاکوب', 'چیدمان بهینه فرم زینک'],
-    description: 'چاپ ۵ رنگ همزمان با دقت رنگ CMYK و پنتون، پوشش ورنی پایه آب، سلفون مات و براق، و خدمات تکمیلی طلاکوب و برجسته‌سازی.',
-    toolPath: '/tools/design-studio',
-    toolLabel: 'ورود به استودیو طراحی و چاپ',
-    icon: Printer,
-  },
-  {
-    slug: 'corrugated-packaging',
-    title: 'تولید ورق و کارتن ۳ لایه و ۵ لایه صنعتی',
-    badge: 'E / B / C / BC Flute',
-    specs: ['محاسبه آنلاین مقاومت فشاری BCT', 'تست رطوبت سردخانه و کانتینر', 'ورق کرافت، تست لاینر و سفید'],
-    description: 'تولید انواع کارتن مادر، سینی میوه صادراتی و جعبه‌های ای‌کامرس با کنترل مهندسی ضریب ایمنی چیدمان پالت و حمل دریایی.',
-    toolPath: '/tools/dieline',
-    toolLabel: 'محاسبه مقاومت BCT و قالب',
-    icon: Box,
-  },
-  {
-    slug: 'structural-3d-cad',
-    title: 'مدل‌سازی سه‌بعدی تعاملی و ماکت قبل از تیراژ',
-    badge: 'Interactive PBR 3D',
-    specs: ['پیش‌نمایش تاشدن در زوایای ۳۶۰°', 'تست فیزیکی تناسب ابعاد', 'نمونه‌سازی سریع برش پلاتر'],
-    description: 'بررسی دقیق فیتینگ محصول داخل جعبه و رندر سه‌بعدی متریال کرافت و ایندربرد در مرورگر پیش از ساخت قالب و شروع تیراژ.',
-    toolPath: '/tools/autocad',
-    toolLabel: 'ورود به کارگاه CAD',
-    icon: Cpu,
-  },
-];
+const SERVICE_ICONS: Record<ManagedServiceItem['iconName'], LucideIcon> = {
+  Scissors,
+  Printer,
+  Box,
+  Cpu,
+  Layers,
+  Sparkles,
+  ShieldCheck,
+};
 
 export const ServicesHub: React.FC = () => {
   const { slug } = useParams<{ slug?: string }>();
   const navigate = useNavigate();
-  const activeService = slug ? services.find(s => s.slug === slug) : null;
+  const { managedServices } = useContent();
 
-  const handleInquiry = (svc: typeof services[0]) => {
+  const publishedServices = managedServices.filter(s => s.isPublished !== false);
+  const activeService = slug ? findBySlugOrId(publishedServices, slug) : null;
+
+  if (slug && !activeService) {
+    return <NotFound />;
+  }
+
+  const handleInquiry = (svc: ManagedServiceItem) => {
     saveInquiryPrefill({
       sourceLabel: `بخش خدمات: ${svc.title}`,
       notes: `خدمت انتخابی: ${svc.title} (${svc.badge})`,
@@ -74,11 +51,19 @@ export const ServicesHub: React.FC = () => {
 
       <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-l from-slate-900 via-slate-900 to-amber-950/60 border border-slate-800 p-6 rounded-3xl shadow-2xl text-white">
         <div>
-          <span className="text-xs font-black text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20 inline-flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5" />
-            توانمندی‌های تولیدی و مهندسی اشک قلم
-          </span>
-          <h1 className="text-2xl md:text-3xl font-black text-white mt-3">
+          <div className="flex flex-wrap items-center gap-2.5 mb-3">
+            <BackButton
+              label={activeService ? 'بازگشت به همه خدمات' : 'بازگشت'}
+              to={activeService ? '/services' : undefined}
+              fallbackPath="/"
+              variant="dark"
+            />
+            <span className="text-xs font-black text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20 inline-flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5" />
+              توانمندی‌های تولیدی و مهندسی اشک قلم
+            </span>
+          </div>
+          <h1 className="text-2xl md:text-3xl font-black text-white mt-1">
             {activeService ? activeService.title : 'خدمات جامع مهندسی چاپ و کارتن‌سازی سه‌بعدی'}
           </h1>
           <p className="text-slate-300 text-sm mt-1.5 max-w-2xl leading-relaxed">
@@ -104,12 +89,12 @@ export const ServicesHub: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {services.map((svc) => {
-          const Icon = svc.icon;
+        {publishedServices.map((svc) => {
+          const Icon = SERVICE_ICONS[svc.iconName] || Layers;
           const isCurrent = activeService?.slug === svc.slug;
           return (
             <Card
-              key={svc.slug}
+              key={svc.id || svc.slug}
               className={`group flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 ${
                 isCurrent
                   ? 'border-amber-500/60 bg-amber-500/5'
@@ -117,6 +102,16 @@ export const ServicesHub: React.FC = () => {
               }`}
             >
               <div>
+                {svc.imageUrl && (
+                  <div className="aspect-[16/9] rounded-2xl overflow-hidden bg-slate-950 border border-slate-200 dark:border-slate-800 mb-4">
+                    <img
+                      src={svc.imageUrl}
+                      alt={svc.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                )}
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-500 border border-amber-500/20 group-hover:scale-105 transition-transform">
                     <Icon className="w-6 h-6" />
@@ -138,9 +133,9 @@ export const ServicesHub: React.FC = () => {
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-slate-200 dark:border-slate-800">
-                <Link to={svc.toolPath}>
+                <Link to={svc.toolPath || '/inquiry'}>
                   <Button variant="ghost" size="sm" className="text-amber-600 dark:text-amber-400 hover:text-amber-500 text-xs">
-                    {svc.toolLabel}
+                    {svc.toolLabel || 'ورود به ابزار مرتبط'}
                     <ArrowLeft className="w-3.5 h-3.5 mr-1" />
                   </Button>
                 </Link>
@@ -162,3 +157,4 @@ export const ServicesHub: React.FC = () => {
     </div>
   );
 };
+

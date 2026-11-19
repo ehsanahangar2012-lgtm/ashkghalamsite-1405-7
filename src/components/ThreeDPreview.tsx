@@ -283,8 +283,13 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
 
     let topFlapGroup: THREE.Group | null = null;
     let bottomFlapGroup: THREE.Group | null = null;
+    let topTuckGroup: THREE.Group | null = null;
+    let bottomTuckGroup: THREE.Group | null = null;
     let leftFlapGroup: THREE.Group | null = null;
     let rightFlapGroup: THREE.Group | null = null;
+    let bottomLeftFlapGroup: THREE.Group | null = null;
+    let bottomRightFlapGroup: THREE.Group | null = null;
+    let glueTabGroup: THREE.Group | null = null;
     let frontPanel: THREE.Mesh | null = null;
     let backPanel: THREE.Mesh | null = null;
     let leftPanel: THREE.Mesh | null = null;
@@ -292,6 +297,7 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
     let baseH = 150;
     let baseW = 200;
     let baseD = 100;
+    let baseTh = 2.0;
 
     let activePbrMaps: SurfacePBRMaps | null = null;
     let activeInnerMaps: SurfacePBRMaps | null = null;
@@ -326,17 +332,17 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
         rimLight.intensity = 0.95 * mult;
         fillLight.intensity = 0.85 * mult;
       } else {
-        const bg = new THREE.Color('#070b14');
+        const bg = new THREE.Color('#04060c');
         scene.background = bg;
         (scene.fog as THREE.FogExp2).color.copy(bg);
         hemi.color.set('#c7d9ff');
-        hemi.groundColor.set('#1e1b18');
-        hemi.intensity = 0.85 * mult;
+        hemi.groundColor.set('#141210');
+        hemi.intensity = 0.76 * mult;
         keyLight.color.set('#fff5e4');
-        keyLight.intensity = 1.8 * mult;
+        keyLight.intensity = 1.9 * mult;
         rimLight.color.set('#38bdf8');
-        rimLight.intensity = 0.9 * mult;
-        fillLight.intensity = 0.55 * mult;
+        rimLight.intensity = 0.95 * mult;
+        fillLight.intensity = 0.52 * mult;
       }
     };
     envUpdateRef.current = applyEnvironment;
@@ -377,8 +383,9 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
       baseW = bw;
       baseH = bh;
       baseD = bd;
+      baseTh = th;
 
-      contactPlane.position.y = -bh / 2 - 5;
+      contactPlane.position.y = -bh / 2 - 6;
 
       const scale = Math.max(0.4, Math.min(3.0, Number(s.textureScale) || 1));
       const grain = Math.max(0.1, Math.min(2.5, Number(s.grainIntensity) || 1));
@@ -448,6 +455,17 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
         wireframe: Boolean(s.wireframe),
       });
 
+      // Distinct warm matte kraft adhesive finish for glue tab (لب‌چسب) visibility
+      const glueTabMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color('#b68b5d'),
+        map: activeInnerMaps.map,
+        bumpMap: activeInnerMaps.bumpMap,
+        bumpScale: 1.2 * grain,
+        roughness: 0.92,
+        metalness: 0.0,
+        wireframe: Boolean(s.wireframe),
+      });
+
       // Cut thickness edge (fluted core for corrugated, fibrous pulp for solid boards)
       const edgeBoardMat = new THREE.MeshStandardMaterial({
         color: preset.isCorrugated ? new THREE.Color('#ffffff') : outerColor.clone().lerp(new THREE.Color('#8c7a66'), 0.35),
@@ -471,7 +489,8 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
         ph: number,
         pd: number,
         outerFaceIdx: number,
-        innerFaceIdx: number
+        innerFaceIdx: number,
+        customOuterMat?: THREE.Material
       ) => {
         const g = new THREE.BoxGeometry(pw, ph, pd);
         const mats: THREE.Material[] = [
@@ -482,12 +501,52 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
           edgeBoardMat,
           edgeBoardMat,
         ];
-        mats[outerFaceIdx] = outerMat;
+        mats[outerFaceIdx] = customOuterMat || outerMat;
         mats[innerFaceIdx] = innerMat;
         const m = new THREE.Mesh(g, mats);
         m.castShadow = true;
         m.receiveShadow = true;
         m.add(new THREE.LineSegments(new THREE.EdgesGeometry(g), creaseLineMat));
+        return m;
+      };
+
+      const makeChamferedFlap = (fw: number, fh: number, fd: number, taperDir: 'z+' | 'z-' | 'x+' | 'x-') => {
+        const hw = fw / 2;
+        const hd = fd / 2;
+        const shape = new THREE.Shape();
+        if (taperDir === 'z+') {
+          const ch = Math.min(fw * 0.14, fd * 0.42);
+          shape.moveTo(-hw, -hd);
+          shape.lineTo(hw, -hd);
+          shape.lineTo(Math.max(4, hw - ch), hd);
+          shape.lineTo(-Math.max(4, hw - ch), hd);
+        } else if (taperDir === 'z-') {
+          const ch = Math.min(fw * 0.14, fd * 0.42);
+          shape.moveTo(-Math.max(4, hw - ch), -hd);
+          shape.lineTo(Math.max(4, hw - ch), -hd);
+          shape.lineTo(hw, hd);
+          shape.lineTo(-hw, hd);
+        } else if (taperDir === 'x-') {
+          const ch = Math.min(fd * 0.16, fw * 0.42);
+          shape.moveTo(-hw, -Math.max(4, hd - ch));
+          shape.lineTo(hw, -hd);
+          shape.lineTo(hw, hd);
+          shape.lineTo(-hw, Math.max(4, hd - ch));
+        } else {
+          const ch = Math.min(fd * 0.16, fw * 0.42);
+          shape.moveTo(-hw, -hd);
+          shape.lineTo(hw, -Math.max(4, hd - ch));
+          shape.lineTo(hw, Math.max(4, hd - ch));
+          shape.lineTo(-hw, hd);
+        }
+        shape.closePath();
+        const ext = new THREE.ExtrudeGeometry(shape, { depth: fh, bevelEnabled: false, curveSegments: 1 });
+        ext.rotateX(Math.PI / 2);
+        ext.translate(0, fh / 2, 0);
+        const m = new THREE.Mesh(ext, outerMat);
+        m.castShadow = true;
+        m.receiveShadow = true;
+        m.add(new THREE.LineSegments(new THREE.EdgesGeometry(ext), creaseLineMat));
         return m;
       };
 
@@ -544,37 +603,77 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
       rightPanel.position.set(bw / 2, 0, 0);
       boxRoot.add(rightPanel);
 
-      // Articulated Top & Bottom lids
-      topFlapGroup = new THREE.Group();
-      topFlapGroup.position.set(0, bh / 2, -bd / 2);
-      const topLid = makePanel(bw, th, bd, 2, 3);
-      topLid.position.set(0, 0, bd / 2);
-      addSpecialEffectPlate(topLid, bw, bd, 'y', th / 2 + 0.25);
-      topFlapGroup.add(topLid);
-      boxRoot.add(topFlapGroup);
+      // Visible Articulated Glue Tab (لب‌چسب) at rear corner of leftPanel
+      const glueW = Math.max(12, Math.min(22, bw * 0.14));
+      glueTabGroup = new THREE.Group();
+      glueTabGroup.position.set(-bw / 2 + th * 0.45, 0, -bd / 2 + th * 0.55);
+      const glueMesh = makePanel(glueW, bh * 0.92, th * 0.78, 5, 4, glueTabMat);
+      glueMesh.position.set(glueW / 2, 0, th * 0.45);
+      glueTabGroup.add(glueMesh);
+      boxRoot.add(glueTabGroup);
 
-      bottomFlapGroup = new THREE.Group();
-      bottomFlapGroup.position.set(0, -bh / 2, bd / 2);
-      const bottomLid = makePanel(bw, th, bd, 3, 2);
-      bottomLid.position.set(0, 0, -bd / 2);
-      bottomFlapGroup.add(bottomLid);
-      boxRoot.add(bottomFlapGroup);
-
-      // Articulated Left & Right Dust Flaps
-      const dustFlapLen = Math.min(bd * 0.42, bw * 0.35);
+      // Articulated Top & Bottom Dust Flaps (گوشواره‌های بالا و پایین) positioned INSIDE wall tops [bh/2 - th .. bh/2]
+      const dustFlapLen = Math.min(bd * 0.42, bw * 0.34);
       leftFlapGroup = new THREE.Group();
-      leftFlapGroup.position.set(-bw / 2, bh / 2, 0);
-      const leftDust = makePanel(dustFlapLen, th, bd * 0.88, 2, 3);
-      leftDust.position.set(dustFlapLen / 2, -th * 0.9, 0);
+      leftFlapGroup.position.set(-bw / 2 + th * 0.55, bh / 2 - th * 0.05, 0);
+      const leftDust = makeChamferedFlap(dustFlapLen, th * 0.84, bd * 0.86, 'x+');
+      leftDust.position.set(dustFlapLen / 2, -th * 0.5, 0);
       leftFlapGroup.add(leftDust);
       boxRoot.add(leftFlapGroup);
 
       rightFlapGroup = new THREE.Group();
-      rightFlapGroup.position.set(bw / 2, bh / 2, 0);
-      const rightDust = makePanel(dustFlapLen, th, bd * 0.88, 2, 3);
-      rightDust.position.set(-dustFlapLen / 2, -th * 0.9, 0);
+      rightFlapGroup.position.set(bw / 2 - th * 0.55, bh / 2 - th * 0.05, 0);
+      const rightDust = makeChamferedFlap(dustFlapLen, th * 0.84, bd * 0.86, 'x-');
+      rightDust.position.set(-dustFlapLen / 2, -th * 0.5, 0);
       rightFlapGroup.add(rightDust);
       boxRoot.add(rightFlapGroup);
+
+      bottomLeftFlapGroup = new THREE.Group();
+      bottomLeftFlapGroup.position.set(-bw / 2 + th * 0.55, -bh / 2 + th * 0.05, 0);
+      const bLeftDust = makeChamferedFlap(dustFlapLen, th * 0.84, bd * 0.86, 'x+');
+      bLeftDust.position.set(dustFlapLen / 2, th * 0.5, 0);
+      bottomLeftFlapGroup.add(bLeftDust);
+      boxRoot.add(bottomLeftFlapGroup);
+
+      bottomRightFlapGroup = new THREE.Group();
+      bottomRightFlapGroup.position.set(bw / 2 - th * 0.55, -bh / 2 + th * 0.05, 0);
+      const bRightDust = makeChamferedFlap(dustFlapLen, th * 0.84, bd * 0.86, 'x-');
+      bRightDust.position.set(-dustFlapLen / 2, th * 0.5, 0);
+      bottomRightFlapGroup.add(bRightDust);
+      boxRoot.add(bottomRightFlapGroup);
+
+      // Articulated Top Lid resting cleanly ON TOP OF walls [bh/2 .. bh/2 + th] when closed!
+      topFlapGroup = new THREE.Group();
+      topFlapGroup.position.set(0, bh / 2, -bd / 2);
+      const topLid = makePanel(bw, th, bd, 2, 3);
+      topLid.position.set(0, th / 2, bd / 2);
+      addSpecialEffectPlate(topLid, bw, bd, 'y', th / 2 + 0.25);
+      topFlapGroup.add(topLid);
+
+      // Top Front Tuck Flap (زبانه قفل درب) tucked cleanly inside frontPanel
+      const tuckLen = Math.max(14, Math.min(34, bh * 0.28, bd * 0.35));
+      topTuckGroup = new THREE.Group();
+      topTuckGroup.position.set(0, th * 0.5, bd - th * 1.15);
+      const topTuckMesh = makeChamferedFlap(bw - th * 3.2, th * 0.8, tuckLen, 'z+');
+      topTuckMesh.position.set(0, 0, tuckLen / 2);
+      topTuckGroup.add(topTuckMesh);
+      topFlapGroup.add(topTuckGroup);
+      boxRoot.add(topFlapGroup);
+
+      // Articulated Bottom Lid resting cleanly BELOW walls [-bh/2 - th .. -bh/2] when closed!
+      bottomFlapGroup = new THREE.Group();
+      bottomFlapGroup.position.set(0, -bh / 2, bd / 2);
+      const bottomLid = makePanel(bw, th, bd, 3, 2);
+      bottomLid.position.set(0, -th / 2, -bd / 2);
+      bottomFlapGroup.add(bottomLid);
+
+      bottomTuckGroup = new THREE.Group();
+      bottomTuckGroup.position.set(0, -th * 0.5, -bd + th * 1.15);
+      const bottomTuckMesh = makeChamferedFlap(bw - th * 3.2, th * 0.8, tuckLen, 'z-');
+      bottomTuckMesh.position.set(0, 0, -tuckLen / 2);
+      bottomTuckGroup.add(bottomTuckMesh);
+      bottomFlapGroup.add(bottomTuckGroup);
+      boxRoot.add(bottomFlapGroup);
     };
 
     rebuildRef.current = buildBox;
@@ -605,9 +704,14 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
     window.addEventListener('resize', onResize);
 
     let reqId = 0;
-    let openCurrent = 0;
+    let openCurrent = stateRef.current.isOpenRatio ?? 0.85;
     let explodeCurrent = 0;
     let lastTime = performance.now();
+
+    const easeCubic = (x: number) => {
+      const t = THREE.MathUtils.clamp(x, 0, 1);
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    };
 
     function afterDraw(cb: () => void) {
       const gl = renderer.getContext() as WebGL2RenderingContext;
@@ -638,10 +742,8 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
       const s = stateRef.current;
       controls.autoRotate = Boolean(s.cameraOrbit);
 
-      // In DielineGenerator, foldRatio 1.0 = closed box (0 rad), 0.0 = unfolded open (-PI*0.72)
-      // Wait: check caller semantics! In DielineGenerator, sliders say "بستن (100%)" -> foldRatio=1, "باز کامل (5%)" -> foldRatio=0.05
-      // Keeping backwards compatibility: map isOpenRatio smoothly so 0..1 opens/closes naturally
-      openCurrent = THREE.MathUtils.damp(openCurrent, s.isOpenRatio ?? 0, 6, dt);
+      // In DielineGenerator, foldRatio 1.0 = fully closed (100%), 0.05 = fully open, <0 = inverse reverse bend
+      openCurrent = THREE.MathUtils.damp(openCurrent, s.isOpenRatio ?? 0.85, 7, dt);
       explodeCurrent = THREE.MathUtils.damp(explodeCurrent, s.isExploded ? 1 : 0, 6, dt);
 
       const topSign = s.flapDirections?.top === 'outside' ? 1 : -1;
@@ -649,21 +751,63 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
       const leftSign = s.flapDirections?.left === 'outside' ? -1 : 1;
       const rightSign = s.flapDirections?.right === 'outside' ? 1 : -1;
 
+      let lidOpenAmount = 0;
+      let dustOpenAmount = 0;
+      let tuckCloseT = 1;
+      let glueCloseT = 1;
+
+      if (openCurrent >= 0) {
+        const closedT = THREE.MathUtils.clamp(openCurrent, 0, 1);
+        const glueStage = easeCubic(closedT / 0.35);
+        const dustStage = easeCubic((closedT - 0.12) / 0.48);
+        const lidStage = easeCubic((closedT - 0.38) / 0.44);
+        tuckCloseT = easeCubic((closedT - 0.72) / 0.28);
+        glueCloseT = glueStage;
+        dustOpenAmount = 1 - dustStage;
+        lidOpenAmount = 1 - lidStage;
+      } else {
+        // Negative foldRatio = reverse bend outside
+        const rev = THREE.MathUtils.clamp(Math.abs(openCurrent), 0, 1);
+        lidOpenAmount = -rev * 0.45;
+        dustOpenAmount = -rev * 0.45;
+        tuckCloseT = 0;
+        glueCloseT = 0;
+      }
+
+      if (glueTabGroup) {
+        glueTabGroup.rotation.y = -(1 - glueCloseT) * (Math.PI * 0.42);
+        glueTabGroup.position.x = -baseW / 2 + baseTh * 0.45 - explodeCurrent * 36;
+        glueTabGroup.position.z = -baseD / 2 + baseTh * 0.55 - explodeCurrent * 18;
+      }
       if (topFlapGroup) {
-        topFlapGroup.rotation.x = topSign * openCurrent * (Math.PI * 0.72);
+        topFlapGroup.rotation.x = topSign * lidOpenAmount * (Math.PI * 0.68);
         topFlapGroup.position.y = baseH / 2 + explodeCurrent * 42;
       }
+      if (topTuckGroup) {
+        topTuckGroup.rotation.x = tuckCloseT * (Math.PI / 2);
+      }
       if (bottomFlapGroup) {
-        bottomFlapGroup.rotation.x = bottomSign * openCurrent * (Math.PI * 0.55);
+        bottomFlapGroup.rotation.x = bottomSign * lidOpenAmount * (Math.PI * 0.58);
         bottomFlapGroup.position.y = -baseH / 2 - explodeCurrent * 42;
       }
+      if (bottomTuckGroup) {
+        bottomTuckGroup.rotation.x = -tuckCloseT * (Math.PI / 2);
+      }
       if (leftFlapGroup) {
-        leftFlapGroup.rotation.z = leftSign * Math.abs(openCurrent) * (Math.PI * 0.45);
-        leftFlapGroup.position.x = -baseW / 2 - explodeCurrent * 36;
+        leftFlapGroup.rotation.z = leftSign * dustOpenAmount * (Math.PI * 0.55);
+        leftFlapGroup.position.x = -baseW / 2 + baseTh * 0.55 - explodeCurrent * 36;
       }
       if (rightFlapGroup) {
-        rightFlapGroup.rotation.z = rightSign * Math.abs(openCurrent) * (Math.PI * 0.45);
-        rightFlapGroup.position.x = baseW / 2 + explodeCurrent * 36;
+        rightFlapGroup.rotation.z = rightSign * dustOpenAmount * (Math.PI * 0.55);
+        rightFlapGroup.position.x = baseW / 2 - baseTh * 0.55 + explodeCurrent * 36;
+      }
+      if (bottomLeftFlapGroup) {
+        bottomLeftFlapGroup.rotation.z = -leftSign * dustOpenAmount * (Math.PI * 0.52);
+        bottomLeftFlapGroup.position.x = -baseW / 2 + baseTh * 0.55 - explodeCurrent * 36;
+      }
+      if (bottomRightFlapGroup) {
+        bottomRightFlapGroup.rotation.z = -rightSign * dustOpenAmount * (Math.PI * 0.52);
+        bottomRightFlapGroup.position.x = baseW / 2 - baseTh * 0.55 + explodeCurrent * 36;
       }
       if (frontPanel) frontPanel.position.z = baseD / 2 + explodeCurrent * 36;
       if (backPanel) backPanel.position.z = -baseD / 2 - explodeCurrent * 36;
@@ -702,7 +846,7 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
   return (
     <div
       id="three-d-canvas-container"
-      className="w-full h-full min-h-[320px] relative rounded-2xl overflow-hidden bg-[#070b14] border border-slate-800 flex items-center justify-center"
+      className="w-full h-full min-h-[320px] relative rounded-2xl overflow-hidden bg-[#04060c] border border-slate-800 flex items-center justify-center"
     >
       <div ref={mountRef} className="w-full h-full min-h-[320px] cursor-grab active:cursor-grabbing" />
       {renderError && (

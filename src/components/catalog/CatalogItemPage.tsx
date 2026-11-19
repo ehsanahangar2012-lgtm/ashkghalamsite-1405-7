@@ -1,32 +1,85 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { catalogService, CatalogItem } from '../../services/catalogService';
+import { CatalogItem } from '../../services/catalogService';
+import { useCatalog } from '../../contexts/CatalogContext';
+import { CatalogProject } from '../../types/flipbook';
 import { resolveCatalogCoverImage } from '../../utils/catalogAssets';
+
+const FlipbookViewer = lazy(() =>
+  import('../studio/FlipbookViewer').then((m) => ({ default: m.FlipbookViewer }))
+);
 import { getCatalogDossier, TechnicalSchematicSvg } from './CatalogSpreadModal';
 import { SeoHead } from '../SeoHead';
 import { NotFound } from '../NotFound';
-import { BookOpen, Download, ChevronRight, HelpCircle, Box, ArrowUpRight, Layers, Printer, Ruler, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Download, HelpCircle, Box, ArrowUpRight, Layers, Printer, Ruler, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { BackButton } from '../UIComponents';
 import { saveInquiryPrefill } from '../../utils/inquiryPrefill';
 
 export const CatalogItemPage: React.FC = () => {
   const { slug } = useParams<{ slug?: string }>();
   const navigate = useNavigate();
+  const { publicCatalogs, hasLoadedPublic, ensureLoaded, getFlipbookProject } = useCatalog();
   const [catalog, setCatalog] = useState<CatalogItem | null>(null);
+  const [flipbookProject, setFlipbookProject] = useState<CatalogProject | null>(null);
+  const [loadingFlipbook, setLoadingFlipbook] = useState(false);
+  const [flipbookError, setFlipbookError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
-  const [activeSheet, setActiveSheet] = useState<'cover' | 'cad' | 'specs'>('cover');
+  const [activeSheet, setActiveSheet] = useState<'flipbook' | 'cover' | 'cad' | 'specs'>('cover');
   const [imgFailed, setImgFailed] = useState(false);
 
   useEffect(() => {
-    if (slug) {
-      setLoading(true);
-      setImgFailed(false);
-      catalogService.getCatalogBySlugOrId(slug).then((cat) => {
-        setCatalog(cat);
-        setLoading(false);
-      });
+    if (!slug) return;
+    let cancelled = false;
+    setLoading(true);
+    setImgFailed(false);
+    setFlipbookProject(null);
+    setFlipbookError(null);
+
+    const resolveItem = async () => {
+      await ensureLoaded(false);
+    };
+
+    resolveItem().then(() => {
+      if (cancelled) return;
+      setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, ensureLoaded]);
+
+  useEffect(() => {
+    if (!slug || !hasLoadedPublic) return;
+    let cancelled = false;
+    const matched =
+      publicCatalogs.find((c) => c.slug === slug || String(c.id) === slug || c.uuid === slug) || null;
+    setCatalog(matched);
+
+    if (matched?.flipbookId) {
+      setActiveSheet('flipbook');
+      setLoadingFlipbook(true);
+      getFlipbookProject(matched.flipbookId)
+        .then((proj) => {
+          if (!cancelled) setFlipbookProject(proj);
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            setFlipbookError(err instanceof Error ? err.message : 'خطا در بارگذاری فلیپ‌بوک');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingFlipbook(false);
+        });
+    } else {
+      setActiveSheet('cover');
     }
-  }, [slug]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, hasLoadedPublic, publicCatalogs, getFlipbookProject]);
 
   if (loading) {
     return (
@@ -58,7 +111,7 @@ export const CatalogItemPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 font-sans text-right" dir="rtl">
+    <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 font-sans text-right" dir="rtl">
       <SeoHead
         customTitle={`${catalog.title} | کاتالوگ رسمی اشک قلم`}
         customDescription={catalog.description || `مشاهده و دریافت کاتالوگ ${catalog.title} در صنایع بسته‌بندی اشک قلم.`}
@@ -68,14 +121,7 @@ export const CatalogItemPage: React.FC = () => {
 
       {/* Breadcrumb Row */}
       <div className="flex items-center justify-between gap-4 pb-6 mb-6 border-b border-slate-200 dark:border-slate-800">
-        <button
-          type="button"
-          onClick={() => navigate('/catalog')}
-          className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors font-bold cursor-pointer whitespace-nowrap shrink-0"
-        >
-          <ChevronRight className="w-4 h-4" />
-          <span>بازگشت به آرشیو کاتالوگ‌ها</span>
-        </button>
+        <BackButton label="بازگشت به آرشیو کاتالوگ‌ها" to="/catalog" variant="auto" />
 
         <button
           type="button"
@@ -91,19 +137,22 @@ export const CatalogItemPage: React.FC = () => {
         <div className="mb-8 p-4 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-900 dark:text-amber-200 text-xs leading-relaxed">
           <p className="font-bold mb-1">راهنمای مطالعه و ثبت سفارش تولید:</p>
           <p>
-            با استفاده از زبانه‌های بالای تصویر می‌توانید بین عکس استودیویی، نقشه شماتیک برش و خط تا (Cut/Crease) و جدول تلورانس جابه‌جا شوید. برای محاسبه ابعاد اختصاصی خود می‌توانید مستقیماً وارد جعبه‌ساز سه‌بعدی شوید.
+            با استفاده از زبانه‌های بالای تصویر می‌توانید بین کاتالوگ سه‌بعدی، عکس استودیویی، نقشه شماتیک برش و خط تا (Cut/Crease) و جدول تلورانس جابه‌جا شوید. روی تصاویر سه‌بعدی دوبار کلیک کنید تا تصویر و مشخصات آن بزرگ‌نمایی شود.
           </p>
         </div>
       )}
 
       {/* Main Split Editorial Presentation */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left / Visual Stage (7 columns) */}
-        <div className="lg:col-span-7 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
+        {/* Visual Stage (8 columns when flipbook active so 3D book has spacious horizontal room) */}
+        <div className={`${activeSheet === 'flipbook' && catalog.flipbookId ? 'lg:col-span-8' : 'lg:col-span-7'} space-y-4`}>
           {/* Interactive Spread Mode Switcher */}
-          <div className="inline-flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+          <div className="inline-flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto max-w-full">
             {[
-              { id: 'cover' as const, label: 'نمای استودیویی' },
+              ...(catalog.flipbookId
+                ? [{ id: 'flipbook' as const, label: 'کاتالوگ سه‌بعدی (ورق‌زدن)' }]
+                : []),
+              { id: 'cover' as const, label: catalog.flipbookId ? 'تصویر جلد' : 'نمای استودیویی' },
               { id: 'cad' as const, label: 'شماتیک برش و خط تا' },
               { id: 'specs' as const, label: 'جدول تلورانس تولید' },
             ].map((tab) => (
@@ -123,6 +172,33 @@ export const CatalogItemPage: React.FC = () => {
           </div>
 
           {/* Interactive Stage Frame */}
+          {activeSheet === 'flipbook' && catalog.flipbookId && (
+            <div className="h-[580px] sm:h-[660px] lg:h-[700px] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#12141a]">
+              {loadingFlipbook ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-3 text-sm">
+                  <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+                  <span>در حال بارگذاری کاتالوگ سه‌بعدی...</span>
+                </div>
+              ) : flipbookError ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-rose-300 gap-2 text-xs p-6 text-center">
+                  <AlertCircle className="w-7 h-7 text-rose-400" />
+                  <span>{flipbookError}</span>
+                </div>
+              ) : flipbookProject ? (
+                <Suspense
+                  fallback={
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-3 text-sm">
+                      <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
+                      <span>در حال بارگذاری نمایشگر سه‌بعدی...</span>
+                    </div>
+                  }
+                >
+                  <FlipbookViewer project={flipbookProject} compact />
+                </Suspense>
+              ) : null}
+            </div>
+          )}
+
           {activeSheet === 'cover' && (
             <div className="aspect-[4/3] rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden">
               {coverSrc && !imgFailed ? (
@@ -183,8 +259,12 @@ export const CatalogItemPage: React.FC = () => {
           )}
         </div>
 
-        {/* Right / Contiguous Engineering Spec & Order Module (5 columns) */}
-        <div className="lg:col-span-5 bg-white dark:bg-[#0d1320] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 flex flex-col justify-between gap-6">
+        {/* Right / Contiguous Engineering Spec & Order Module */}
+        <div
+          className={`${
+            activeSheet === 'flipbook' && catalog.flipbookId ? 'lg:col-span-4' : 'lg:col-span-5'
+          } bg-white dark:bg-[#0d1320] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 flex flex-col justify-between gap-6`}
+        >
           <div>
             {/* Clean Unboxed Metadata */}
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 tabular-nums mb-3">

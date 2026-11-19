@@ -54,7 +54,91 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
   // Host Deploy ZIP Packaging State
   const [isBuildingZip, setIsBuildingZip] = useState(false);
   const [zipBuildSuccess, setZipBuildSuccess] = useState<string | null>(null);
+  const [zipDownloadError, setZipDownloadError] = useState<string | null>(null);
+  const [releaseInfo, setReleaseInfo] = useState<{
+    available: boolean;
+    version: string;
+    fileName: string;
+    sizeMb?: number;
+    downloadUrl?: string;
+    staticUrl?: string;
+  }>({
+    available: true,
+    version: '3.19.0',
+    fileName: 'ashk-ghalam-v3.19.0-cpanel.zip',
+    downloadUrl: '/api/release/download',
+    staticUrl: '/downloads/ashk-ghalam-v3.19.0-cpanel.zip',
+  });
   const [showHostGuide, setShowHostGuide] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/release/latest', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data && data.fileName) {
+          setReleaseInfo(data);
+        }
+      })
+      .catch(() => {
+        // keep default v3.19.0 metadata
+      });
+    return () => {
+      active = false;
+    };
+  }, [activeSegment]);
+
+  const handleDownloadCpanelZip = async () => {
+    if (isBuildingZip) return;
+    setIsBuildingZip(true);
+    setZipBuildSuccess(null);
+    setZipDownloadError(null);
+    const targetName = releaseInfo.fileName || 'ashk-ghalam-v3.19.0-cpanel.zip';
+    const candidates = [
+      `${releaseInfo.downloadUrl || '/api/release/download'}?t=${Date.now()}`,
+      `${releaseInfo.staticUrl || `/downloads/${targetName}`}?t=${Date.now()}`,
+    ];
+
+    try {
+      let downloadedBlob: Blob | null = null;
+      for (const url of candidates) {
+        try {
+          const res = await fetch(url, { cache: 'no-store' });
+          if (!res.ok) continue;
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          if (ct.includes('text/html')) continue;
+          const blob = await res.blob();
+          if (blob.size > 10000) {
+            downloadedBlob = blob;
+            break;
+          }
+        } catch {
+          // try next candidate
+        }
+      }
+
+      if (!downloadedBlob) {
+        throw new Error('فایل زیپ بیلد روی این سرور در دسترس نیست یا پاسخ سرور نامعتبر است.');
+      }
+
+      const blobUrl = URL.createObjectURL(downloadedBlob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = targetName;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 8000);
+
+      const mb = (downloadedBlob.size / (1024 * 1024)).toFixed(2);
+      setZipBuildSuccess(`فایل ${targetName} (${mb} MB) با موفقیت آماده و دانلود شد.`);
+    } catch (err: any) {
+      setZipDownloadError(err instanceof Error ? err.message : 'دانلود فایل زیپ با خطا مواجه شد.');
+    } finally {
+      setIsBuildingZip(false);
+    }
+  };
   const [isExportingCatalogs, setIsExportingCatalogs] = useState(false);
   const [isMigratingCatalogs, setIsMigratingCatalogs] = useState(false);
   const [migrationDragActive, setMigrationDragActive] = useState(false);
@@ -1367,13 +1451,13 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
                     </span>
                     <div>
                       <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
-                        <span>بسته تجمیعی و آماده آپلود روی انواع هاست (نسخه ۳.۲ بروزرسانی‌شده)</span>
+                        <span>بسته نهایی cPanel (خروجی مستقیم بدون پوشه تودرتو)</span>
                         <span className="bg-amber-500/20 text-amber-300 text-[10px] px-2 py-0.5 rounded-full border border-amber-500/40 font-mono">
-                          v3.2 Production Build
+                          v{releaseInfo.version || '3.19.0'} Production Build
                         </span>
                       </h3>
                       <p className="text-xs text-slate-400 mt-0.5">
-                        شامل کلیه کامپوننت‌ها، استودیو صنعتی Packly، موتورهای آفلاین، کدهای بهینه‌شده، فایل .htaccess و راهنمای فارسی
+                        فقط فایل آماده استقرار روی هاست cPanel شامل index.html، assets، سرور و ورکر سئو بدون هیچ پوشه اضافی یا آرشیو تودرتو
                       </p>
                     </div>
                   </div>
@@ -1382,13 +1466,13 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
                     type="button"
                     onClick={() => setShowHostGuide(!showHostGuide)}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all cursor-pointer ${
-                      showHostGuide 
-                        ? 'bg-amber-500 text-slate-950 border-amber-400' 
+                      showHostGuide
+                        ? 'bg-amber-500 text-slate-950 border-amber-400'
                         : 'bg-slate-800 text-amber-300 border-amber-500/30 hover:bg-slate-700'
                     }`}
                   >
                     <HelpCircle className="w-4 h-4" />
-                    <span>راهنمای استقرار روی هاست</span>
+                    <span>راهنمای استقرار روی cPanel</span>
                   </button>
                 </div>
 
@@ -1397,92 +1481,109 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
                   <div className="p-4 rounded-2xl bg-slate-950/80 border border-amber-500/30 text-xs text-slate-300 space-y-3 leading-relaxed">
                     <div className="font-bold text-amber-400 flex items-center gap-1.5">
                       <Sparkles className="w-4 h-4" />
-                      <span>دستورالعمل استقرار سریع روی انواع کنترل‌پنل‌ها و سرورها:</span>
+                      <span>دستورالعمل استقرار سریع روی هاست اشتراکی cPanel:</span>
                     </div>
                     <ul className="list-disc list-inside space-y-1.5 text-[11px] text-slate-300 mr-2">
-                      <li><strong>هاست اشتراکی (cPanel / DirectAdmin / Plesk / دایرکت ادمین):</strong> بسته <code>ashk-ghalam-v3.2-host-ready.zip</code> را دانلود و در پوشه <code>public_html</code> اکسترکت کنید. فایل <code>.htaccess</code> از پیش تنظیم شده تا روت‌های تک‌صفحه‌ای و کش فونت‌ها بدون مشکل کار کنند.</li>
-                      <li><strong>سرورهای ابری ایرانی (لیارا، پله، چابکان، ابرآروان):</strong> می‌توانید از بسته کلاینت ایستا (Static Platform) یا بسته کامل Node.js با دستور <code>npm run start</code> استفاده کنید.</li>
-                      <li><strong>سرور لینوکس VPS (Nginx / Apache):</strong> فایل <code>nginx.conf.example</code> داخل بسته قرار دارد و نیازی به اینترنت یا سرویس خارجی نیست.</li>
+                      <li><strong>استقرار مستقیم در روت (بدون پوشه تودرتو):</strong> فایل <code dir="ltr">{releaseInfo.fileName || 'ashk-ghalam-v3.19.0-cpanel.zip'}</code> را در File Manager هاست cPanel آپلود و Extract کنید؛ فایل‌های <code>index.html</code>، <code>.htaccess</code>، <code>server.js</code> و <code>package.json</code> مستقیماً در ریشه قرار می‌گیرند.</li>
+                      <li><strong>اجرای Node.js روی cPanel:</strong> در بخش Setup Node.js App مسیر ریشه را انتخاب و دستور <code>npm install --omit=dev</code> و سپس <code>npm start</code> را اجرا کنید.</li>
+                      <li><strong>میزبانی استاتیک در <code>public_html</code>:</strong> فایل <code>.htaccess</code> آماده است و تمام مسیرهای SPA و فونت‌ها بدون خطای ۴۰۴ اجرا می‌شوند.</li>
                     </ul>
                   </div>
                 )}
               </div>
 
-              {/* Package Download Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Card 1: Production Host Ready */}
-                <div className="p-5 rounded-2xl bg-slate-900 border border-amber-500/30 flex flex-col justify-between gap-4 hover:border-amber-500/60 transition-all">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="p-2 bg-amber-500/20 text-amber-400 rounded-xl">
-                        <Folder className="w-5 h-5" />
-                      </span>
-                      <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
-                        آماده آپلود مستقیم (توصیه شده)
-                      </Badge>
-                    </div>
-                    <h4 className="font-extrabold text-sm text-white">بسته آماده هاست (Host-Ready Dist)</h4>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      فایل‌های کامپایل‌شده نهایی با پسوند .zip شامل index.html، کدهای فشرده باندل شده، فونت‌های وزیرمتن، .htaccess برای cPanel و مستندات فارسی.
-                    </p>
-                    <div className="pt-2 flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                      <span>حجم فایل: ~۱.۸۵ مگابایت</span>
-                      <span>•</span>
-                      <span>نسخه ۳.۲ استاندارد</span>
-                    </div>
-                  </div>
+              {zipBuildSuccess && (
+                <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{zipBuildSuccess}</span>
+                </div>
+              )}
 
-                  <a
-                    href="/downloads/ashk_ghalam_v3.5.2_cpanel.zip"
-                    download="ashk_ghalam_v3.5.2_cpanel.zip"
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>دانلود فایل زیپ هاست cPanel (ashk_ghalam_v3.5.2_cpanel.zip)</span>
-                  </a>
+              {zipDownloadError && (
+                <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{zipDownloadError}</span>
+                </div>
+              )}
+
+              {/* Single Standalone cPanel Download Card */}
+              <div className="p-5 md:p-6 rounded-2xl bg-slate-900 border border-amber-500/40 flex flex-col justify-between gap-4 hover:border-amber-500/70 transition-all shadow-xl">
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
+                      <Folder className="w-5 h-5" />
+                    </span>
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px]">
+                      فایل تکی cPanel · بدون پوشه تودرتو
+                    </Badge>
+                  </div>
+                  <h4 className="font-extrabold text-base text-white">
+                    پکیج کامل cPanel — نسخه ۳.۱۹.۰
+                  </h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    خروجی نهایی پروژه با ساختار مسطح (Flat Root) شامل <code>index.html</code>، پوشه <code>assets/</code>، سرور <code>server.js</code>، ورکر مستقل سئو <code>agent-worker.js</code>، فایل‌های <code>sitemap.xml</code>، <code>robots.txt</code>، <code>.htaccess</code> و <code>package.json</code>.
+                  </p>
+                  <div className="pt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-400 font-mono">
+                    <span className="text-amber-300 font-bold" dir="ltr">{releaseInfo.fileName || 'ashk-ghalam-v3.19.0-cpanel.zip'}</span>
+                    <span>•</span>
+                    <span>آماده استقرار روی هاست</span>
+                    {releaseInfo.sizeMb ? (
+                      <>
+                        <span>•</span>
+                        <span>{releaseInfo.sizeMb} MB</span>
+                      </>
+                    ) : null}
+                    <span>•</span>
+                    <span>نسخه v{releaseInfo.version || '3.19.0'}</span>
+                  </div>
                 </div>
 
-                {/* Card 2: Full Source & Project Bundle */}
-                <div className="p-5 rounded-2xl bg-slate-900 border border-indigo-500/30 flex flex-col justify-between gap-4 hover:border-indigo-500/60 transition-all">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl">
-                        <FileCode className="w-5 h-5" />
-                      </span>
-                      <Badge className="bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 text-[10px]">
-                        سورس کامل + بیلد
-                      </Badge>
-                    </div>
-                    <h4 className="font-extrabold text-sm text-white">پکیج کامل سورس‌کد و بیلد پروژه</h4>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      شامل تمام پوشه‌های components، services، types.ts، کدهای سرور cPanel/PHP، کانفیگ‌های Vite و Tailwind به همراه پوشه dist.
-                    </p>
-                    <div className="pt-2 flex items-center gap-2 text-[10px] text-slate-400 font-mono">
-                      <span>حجم فایل: ~۳.۲ مگابایت</span>
-                      <span>•</span>
-                      <span>نسخه ۳.۵.۲ کامل</span>
-                    </div>
-                  </div>
-
-                  <a
-                    href="/downloads/ashk_ghalam_v3.5.2_source_bundle.zip"
-                    download="ashk_ghalam_v3.5.2_source_bundle.zip"
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+                <div className="space-y-2.5">
+                  <button
+                    type="button"
+                    onClick={handleDownloadCpanelZip}
+                    disabled={isBuildingZip}
+                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-60 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
                   >
-                    <Download className="w-4 h-4" />
-                    <span>دانلود پکیج سورس‌کد (ashk_ghalam_v3.5.2_source_bundle.zip)</span>
-                  </a>
+                    {isBuildingZip ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>در حال دریافت و آماده‌سازی فایل زیپ...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        <span>دانلود فایل زیپ cPanel ({releaseInfo.fileName || 'ashk-ghalam-v3.19.0-cpanel.zip'})</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                    <span>لینک جایگزین دانلود مستقیم:</span>
+                    <a
+                      href={releaseInfo.downloadUrl || '/api/release/download'}
+                      download={releaseInfo.fileName || 'ashk-ghalam-v3.19.0-cpanel.zip'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-amber-300 hover:text-amber-200 underline font-mono"
+                      dir="ltr"
+                    >
+                      /downloads/{releaseInfo.fileName || 'ashk-ghalam-v3.19.0-cpanel.zip'}
+                    </a>
+                  </div>
                 </div>
               </div>
 
               {/* Server Details Spec */}
-              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center justify-between text-xs text-slate-400">
+              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
                 <div className="flex items-center gap-2">
-                  <HardDrive className="w-4 h-4 text-emerald-400" />
-                  <span>وضعیت پکیجینگ: فایلهای زیپ در شاخه عمومی <code>/public/downloads</code> و <code>/dist/downloads</code> مستقر و قابل دانلود هستند.</span>
+                  <HardDrive className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>
+                    فایل در مسیر <code dir="ltr">/downloads/{releaseInfo.fileName || 'ashk-ghalam-v3.19.0-cpanel.zip'}</code> و <code dir="ltr">/api/release/download</code> آماده دانلود است.
+                  </span>
                 </div>
-                <span className="font-mono text-[10px] bg-slate-800 px-2.5 py-1 rounded-lg text-slate-300">
-                  Ready for Direct Upload
+                <span className="font-mono text-[10px] bg-slate-800 px-2.5 py-1 rounded-lg text-emerald-300">
+                  Flat Root · v{releaseInfo.version || '3.19.0'}
                 </span>
               </div>
             </div>

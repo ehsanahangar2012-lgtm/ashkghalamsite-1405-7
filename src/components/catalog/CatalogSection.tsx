@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { catalogService, CatalogItem } from '../../services/catalogService';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { CatalogItem } from '../../services/catalogService';
+import { useCatalog } from '../../contexts/CatalogContext';
 import { resolveCatalogCoverImage } from '../../utils/catalogAssets';
 import { saveInquiryPrefill } from '../../utils/inquiryPrefill';
 import { CatalogSpreadModal, getCatalogDossier } from './CatalogSpreadModal';
 import { BookOpen, Search, Download, Eye, ArrowUpRight, Box, BookMarked } from 'lucide-react';
 import { SmartHelpButton } from '../SmartHelpModal';
+import { BackButton } from '../UIComponents';
 
 const CatalogCoverThumb: React.FC<{
   catalog: CatalogItem;
   className?: string;
-}> = ({ catalog, className = '' }) => {
+}> = React.memo(({ catalog, className = '' }) => {
   const [failed, setFailed] = useState(false);
   const src = resolveCatalogCoverImage(catalog.coverImage, catalog.id);
 
@@ -19,6 +21,8 @@ const CatalogCoverThumb: React.FC<{
       <img
         src={src}
         alt={catalog.title}
+        loading="lazy"
+        decoding="async"
         referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
         className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03] ${className}`}
@@ -32,35 +36,40 @@ const CatalogCoverThumb: React.FC<{
       <span className="text-xs font-bold text-slate-700 dark:text-slate-200 line-clamp-2">{catalog.title}</span>
     </div>
   );
-};
+});
 
 export const CatalogSection: React.FC = () => {
   const navigate = useNavigate();
-  const [catalogs, setCatalogs] = useState<CatalogItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const location = useLocation();
+  const isCatalogPage = location.pathname.startsWith('/catalog');
+  const { publicCatalogs: catalogs, loading: contextLoading, hasLoadedPublic, ensureLoaded } = useCatalog();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [activeSpreadCatalog, setActiveSpreadCatalog] = useState<CatalogItem | null>(null);
 
   useEffect(() => {
-    catalogService.fetchCatalogs(true).then((data) => {
-      setCatalogs(data);
-      setLoading(false);
-    });
-  }, []);
+    void ensureLoaded(false);
+  }, [ensureLoaded]);
 
-  const categories = ['ALL', ...Array.from(new Set(catalogs.map((c) => c.category).filter(Boolean)))];
+  const loading = !hasLoadedPublic && contextLoading;
 
-  const filtered = catalogs.filter((c) => {
-    const matchCat = selectedCategory === 'ALL' || c.category === selectedCategory;
+  const categories = useMemo(
+    () => ['ALL', ...Array.from(new Set(catalogs.map((c) => c.category).filter(Boolean)))],
+    [catalogs]
+  );
+
+  const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const matchSearch =
-      !q ||
-      c.title.toLowerCase().includes(q) ||
-      c.description?.toLowerCase().includes(q) ||
-      c.category?.toLowerCase().includes(q);
-    return matchCat && matchSearch;
-  });
+    return catalogs.filter((c) => {
+      const matchCat = selectedCategory === 'ALL' || c.category === selectedCategory;
+      const matchSearch =
+        !q ||
+        c.title.toLowerCase().includes(q) ||
+        c.description?.toLowerCase().includes(q) ||
+        c.category?.toLowerCase().includes(q);
+      return matchCat && matchSearch;
+    });
+  }, [catalogs, selectedCategory, search]);
 
   const handleInquiryFromCatalog = (cat: CatalogItem) => {
     saveInquiryPrefill({
@@ -89,6 +98,11 @@ export const CatalogSection: React.FC = () => {
       {/* Editorial Header */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-5 md:pb-8 border-b border-slate-200 dark:border-slate-800">
         <div className="max-w-2xl">
+          {isCatalogPage && (
+            <div className="mb-3">
+              <BackButton label="بازگشت" fallbackPath="/" variant="auto" />
+            </div>
+          )}
           <div className="flex items-center gap-2.5 text-xs font-bold text-amber-600 dark:text-amber-400 mb-1.5">
             <span>آرشیو فنی و ژورنال‌های بسته‌بندی</span>
             <span aria-hidden="true">·</span>
@@ -202,6 +216,12 @@ export const CatalogSection: React.FC = () => {
                     <span className="font-bold text-amber-600 dark:text-amber-400">نسخه شاخص · ۰۱</span>
                     <span aria-hidden="true">·</span>
                     <span>{featuredCatalog.category}</span>
+                    {featuredCatalog.flipbookId && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">فلیپ‌بوک سه‌بعدی</span>
+                      </>
+                    )}
                     {featuredCatalog.pageCount && (
                       <>
                         <span aria-hidden="true">·</span>
@@ -249,7 +269,7 @@ export const CatalogSection: React.FC = () => {
                     className="py-2.5 px-4 sm:px-5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-2 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <BookMarked className="w-4 h-4" />
-                    <span>ورق‌زدن سریع</span>
+                    <span>{featuredCatalog.flipbookId ? 'ورق‌زدن سه‌بعدی' : 'ورق‌زدن سریع'}</span>
                   </button>
 
                   <Link
@@ -289,13 +309,14 @@ export const CatalogSection: React.FC = () => {
                   className="group w-[78vw] sm:w-[56vw] md:w-auto shrink-0 snap-start bg-white dark:bg-[#0d1320] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-xl dark:hover:shadow-black/50 transition-all duration-200"
                 >
                   <div>
-                    {/* Media-First 4:3 Studio Frame */}
-                    <Link
-                      to={`/catalog/${cat.slug || cat.id}`}
-                      className="block aspect-[4/3] bg-slate-100 dark:bg-slate-900 overflow-hidden border-b border-slate-200 dark:border-slate-800"
+                    {/* Media-First 4:3 Studio Frame (Opens in-place without leaving page) */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveSpreadCatalog(cat)}
+                      className="w-full block aspect-[4/3] bg-slate-100 dark:bg-slate-900 overflow-hidden border-b border-slate-200 dark:border-slate-800 cursor-pointer text-right"
                     >
                       <CatalogCoverThumb catalog={cat} />
-                    </Link>
+                    </button>
 
                     <div className="p-5 md:p-6">
                       {/* Clean Unboxed Metadata */}
@@ -305,6 +326,12 @@ export const CatalogSection: React.FC = () => {
                         </span>
                         <span aria-hidden="true">·</span>
                         <span className="truncate">{cat.category || 'بسته‌بندی مهندسی'}</span>
+                        {cat.flipbookId && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400 shrink-0">۳D</span>
+                          </>
+                        )}
                         {cat.pageCount && (
                           <>
                             <span aria-hidden="true">·</span>
@@ -313,11 +340,15 @@ export const CatalogSection: React.FC = () => {
                         )}
                       </div>
 
-                      <Link to={`/catalog/${cat.slug || cat.id}`}>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSpreadCatalog(cat)}
+                        className="w-full text-right cursor-pointer"
+                      >
                         <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 leading-snug mb-2 line-clamp-2 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                           {cat.title}
                         </h3>
-                      </Link>
+                      </button>
 
                       {cat.description && (
                         <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2 mb-3">
@@ -340,7 +371,7 @@ export const CatalogSection: React.FC = () => {
                         className="py-1.5 px-3 rounded-lg bg-slate-900 dark:bg-slate-800 hover:bg-amber-500 dark:hover:bg-amber-500 text-white hover:text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
                       >
                         <BookMarked className="w-3.5 h-3.5" />
-                        <span>ورق‌زدن</span>
+                        <span>{cat.flipbookId ? 'ورق‌زدن سه‌بعدی' : 'ورق‌زدن'}</span>
                       </button>
 
                       <Link

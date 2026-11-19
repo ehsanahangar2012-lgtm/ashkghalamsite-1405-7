@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { SeoHead } from './SeoHead';
 import { AppView } from '../types';
-import { Button, Card } from './UIComponents';
+import { Button, Card, BackButton } from './UIComponents';
 import { SmartHelpButton } from './SmartHelpModal';
 import { Send, CheckCircle2, AlertCircle, Calculator, Layers, Sparkles, X } from 'lucide-react';
 import { useContent } from '../contexts/ContentContext';
@@ -180,6 +180,10 @@ export const Inquiry: React.FC = () => {
         customTitle="استعلام قیمت و سفارش کارتن | اشک قلم"
         customDescription="محاسبه آنلاین قیمت کارتن، مقوا و دایکات بر اساس ابعاد، تیراژ و متریال در اشک قلم."
       />
+
+      <div className="flex items-center justify-between mb-4">
+        <BackButton label="بازگشت" fallbackPath="/" variant="auto" />
+      </div>
 
       <div className="flex flex-col items-center text-center mb-8 relative">
         <div className="flex items-center gap-2 mb-3">

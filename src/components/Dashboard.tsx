@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Project, UserRole } from '../types';
-import { Card, Button, Badge } from './UIComponents';
+import { Card, Button, Badge, BackButton } from './UIComponents';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { FileText, CheckCircle, Package, Upload, Coins, TrendingUp, Scissors, PaintBucket, Truck, Search, Layout, Image as ImageIcon, User as UserIcon, Camera, Calculator, Sparkles, Layers, ClipboardList } from 'lucide-react';
 import { SeoStudio, ContentManager, MediaManager } from './AdminTools';
@@ -205,7 +205,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, activeRole, projects
   const renderAdminView = () => (
     <div className="space-y-6 dir-rtl text-right">
       <div className="bg-white dark:bg-slate-900 p-3 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 overflow-x-auto">
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <BackButton label="بازگشت" fallbackPath="/" variant="auto" />
           <button onClick={() => setAdminTab('overview')} className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 cursor-pointer ${adminTab === 'overview' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/40 dark:text-primary-300' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
             <TrendingUp className="h-4 w-4" /> داشبورد
           </button>
@@ -288,8 +289,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, activeRole, projects
 
   const renderUserView = () => (
     <div className="space-y-6 dir-rtl text-right">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-black text-slate-900 dark:text-white">پیشخوان کاربری و سفارشات</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <BackButton label="بازگشت" fallbackPath="/" variant="auto" />
+          <h2 className="text-xl font-black text-slate-900 dark:text-white">پیشخوان کاربری و سفارشات</h2>
+        </div>
         <SmartHelpButton
           sectionTitle="راهنمای پیشخوان کاربری"
           description="در این بخش می‌توانید وضعیت پروژه‌های خود را دنبال کرده و برآورد سریع قیمت و آپلود فایل دیلاین انجام دهید."

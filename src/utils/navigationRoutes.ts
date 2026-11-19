@@ -25,6 +25,7 @@ export const VIEW_PATH_MAP: Record<AppView, string> = {
   [AppView.SUPPORT]: '/about',
   [AppView.ENGINEERING_CAD]: '/tools/dieline',
   [AppView.B2B_SUITE]: '/about',
+  [AppView.CUSTOM_PAGE]: '/pages',
   [AppView.NOT_FOUND]: '/404'
 };
 
@@ -36,7 +37,7 @@ export const getViewForPath = (pathname: string): AppView => {
   const normalized = pathname.toLowerCase().replace(/\/+$/, '') || '/';
 
   if (normalized === '/') return AppView.HOME;
-  if (normalized === '/catalog') return AppView.CATALOG;
+  if (normalized === '/catalog' || normalized.startsWith('/catalog/')) return AppView.CATALOG;
   if (normalized === '/portfolio' || normalized.startsWith('/portfolio/')) return AppView.PORTFOLIO;
   if (normalized === '/blog' || normalized.startsWith('/blog/')) return AppView.BLOG;
   if (normalized === '/about') return AppView.ABOUT;
@@ -50,6 +51,7 @@ export const getViewForPath = (pathname: string): AppView => {
   if (normalized === '/software') return AppView.SOFTWARE_STORE;
   if (normalized === '/dashboard') return AppView.DASHBOARD;
   if (normalized === '/admin' || normalized === '/admin-panel') return AppView.ADMIN_PANEL;
+  if (normalized.startsWith('/pages/')) return AppView.CUSTOM_PAGE;
 
   return AppView.NOT_FOUND;
 };

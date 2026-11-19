@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { jsPDF } from 'jspdf';
-import { Card, Button } from './UIComponents';
+import { Card, Button, BackButton } from './UIComponents';
 import { FileText, Download, Check } from 'lucide-react';
 
 interface StandardDoc {
@@ -101,9 +101,12 @@ export const Library: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto p-4 md:p-8 font-sans dir-rtl text-right">
       <div className="mb-8">
-        <span className="text-xs font-black text-amber-600 dark:text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
-          کتابخانه فنی و مراجع مهندسی
-        </span>
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          <BackButton label="بازگشت" fallbackPath="/" variant="auto" />
+          <span className="text-xs font-black text-amber-600 dark:text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
+            کتابخانه فنی و مراجع مهندسی
+          </span>
+        </div>
         <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 mt-2">مرجع تخصصی استانداردهای بسته‌بندی و FEFCO</h1>
         <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
           دسترسی به مستندات فنی، نقشه‌های اجرایی دایکات و راهنماهای کالیبراسیون خطوط تولید کارتن اشک قلم.

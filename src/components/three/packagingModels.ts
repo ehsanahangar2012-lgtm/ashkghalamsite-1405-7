@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { AppView } from '../../types';
 
 export type PackagingModelId =
@@ -200,10 +201,13 @@ export interface ArticulatedPanel {
   foldAxis: 'x' | 'z';
   foldDirection: number;
   maxFoldAngle: number;
-  foldStage: 'wall' | 'innerWall' | 'back' | 'lid' | 'flap';
+  foldStage: 'glue' | 'wall' | 'innerWall' | 'back' | 'dust' | 'lid' | 'flap';
   isLid?: boolean;
   isWindowLid?: boolean;
   isInnerTray?: boolean;
+  isGlueTab?: boolean;
+  taperDir?: 'z+' | 'z-' | 'x+' | 'x-';
+  dynamicShift?: [number, number, number];
   group: THREE.Group;
   mesh: THREE.Mesh;
   wireMesh: THREE.Mesh;
@@ -217,12 +221,66 @@ export interface PackagingAssemblyResult {
   setCadMode: (cadBlend: number, foldProgress?: number) => void;
 }
 
+function createTaperedPanelGeometry(
+  sx: number,
+  sy: number,
+  sz: number,
+  taperDir: 'z+' | 'z-' | 'x+' | 'x-'
+): THREE.BufferGeometry {
+  const hw = sx / 2;
+  const hd = sz / 2;
+  const shape = new THREE.Shape();
+
+  if (taperDir === 'z+') {
+    const ch = Math.min(sx * 0.2, sz * 0.45);
+    shape.moveTo(-hw, -hd);
+    shape.lineTo(hw, -hd);
+    shape.lineTo(Math.max(0.02, hw - ch), hd);
+    shape.lineTo(-Math.max(0.02, hw - ch), hd);
+    shape.closePath();
+  } else if (taperDir === 'z-') {
+    const ch = Math.min(sx * 0.2, sz * 0.45);
+    shape.moveTo(-Math.max(0.02, hw - ch), -hd);
+    shape.lineTo(Math.max(0.02, hw - ch), -hd);
+    shape.lineTo(hw, hd);
+    shape.lineTo(-hw, hd);
+    shape.closePath();
+  } else if (taperDir === 'x-') {
+    const ch = Math.min(sz * 0.2, sx * 0.45);
+    shape.moveTo(-hw, -Math.max(0.02, hd - ch));
+    shape.lineTo(hw, -hd);
+    shape.lineTo(hw, hd);
+    shape.lineTo(-hw, Math.max(0.02, hd - ch));
+    shape.closePath();
+  } else {
+    const ch = Math.min(sz * 0.2, sx * 0.45);
+    shape.moveTo(-hw, -hd);
+    shape.lineTo(hw, -Math.max(0.02, hd - ch));
+    shape.lineTo(hw, Math.max(0.02, hd - ch));
+    shape.lineTo(-hw, hd);
+    shape.closePath();
+  }
+
+  const extrude = new THREE.ExtrudeGeometry(shape, {
+    depth: sy,
+    bevelEnabled: false,
+    curveSegments: 1,
+  });
+  // Extrude is in XY along +Z; rotate +90deg X maps (x, y, z) -> (x, -z, y)
+  // Then translate +sy/2 so local Y spans [-sy/2, +sy/2] cleanly matching RoundedBoxGeometry
+  extrude.rotateX(Math.PI / 2);
+  extrude.translate(0, sy / 2, 0);
+  extrude.computeVertexNormals();
+  return extrude;
+}
+
 export function buildPackagingAssembly(
   modelId: PackagingModelId,
   L: number,
   W: number,
   H: number,
-  boardMat: THREE.MeshStandardMaterial,
+  boardMat: THREE.MeshPhysicalMaterial,
+  innerMat: THREE.MeshPhysicalMaterial,
   foilMat: THREE.MeshPhysicalMaterial,
   colorLogoMat: THREE.MeshPhysicalMaterial,
   glassMat: THREE.MeshPhysicalMaterial,
@@ -231,7 +289,7 @@ export function buildPackagingAssembly(
   creaseMat: THREE.LineDashedMaterial
 ): PackagingAssemblyResult {
   const root = new THREE.Group();
-  const t = 0.028;
+  const t = 0.032;
 
   interface RawPanel {
     id: string;
@@ -242,58 +300,91 @@ export function buildPackagingAssembly(
     foldAxis: 'x' | 'z';
     foldDirection: number;
     maxFoldAngle: number;
-    foldStage: 'wall' | 'innerWall' | 'back' | 'lid' | 'flap';
+    foldStage: 'glue' | 'wall' | 'innerWall' | 'back' | 'dust' | 'lid' | 'flap';
     isLid?: boolean;
     isWindowLid?: boolean;
     isInnerTray?: boolean;
+    isGlueTab?: boolean;
+    taperDir?: 'z+' | 'z-' | 'x+' | 'x-';
+    dynamicShift?: [number, number, number];
   }
 
   let defs: RawPanel[] = [];
 
   if (modelId === 'giftBox') {
+    const lidL = L + 0.04;
+    const lidW = W + 0.04;
+    const earW = Math.min(W * 0.24, 0.28);
     defs = [
       { id: 'bottom', parentId: null, pivot: [0, 0, 0], size: [L, t, W], offset: [0, t / 2, 0], foldAxis: 'x', foldDirection: 0, maxFoldAngle: 0, foldStage: 'wall' },
       { id: 'left_wall', parentId: 'bottom', pivot: [-L / 2, 0, 0], size: [H, t, W], offset: [-H / 2, t / 2, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'wall' },
       { id: 'right_wall', parentId: 'bottom', pivot: [L / 2, 0, 0], size: [H, t, W], offset: [H / 2, t / 2, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'wall' },
       { id: 'front_wall', parentId: 'bottom', pivot: [0, 0, W / 2], size: [L, t, H], offset: [0, t / 2, H / 2], foldAxis: 'x', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'wall' },
+      { id: 'front_glue_left', parentId: 'front_wall', pivot: [-L / 2, 0, H / 2], size: [earW, t * 0.8, H * 0.84], offset: [-earW / 2, t * 0.45, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'glue', isGlueTab: true, taperDir: 'x-', dynamicShift: [t * 1.15, 0, 0] },
+      { id: 'front_glue_right', parentId: 'front_wall', pivot: [L / 2, 0, H / 2], size: [earW, t * 0.8, H * 0.84], offset: [earW / 2, t * 0.45, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'glue', isGlueTab: true, taperDir: 'x+', dynamicShift: [-t * 1.15, 0, 0] },
       { id: 'back_wall', parentId: 'bottom', pivot: [0, 0, -W / 2], size: [L, t, H], offset: [0, t / 2, -H / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'back' },
-      { id: 'lid', parentId: 'back_wall', pivot: [0, 0, -H], size: [L + 0.04, t, W + 0.04], offset: [0, t / 2, -(W + 0.04) / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'lid', isLid: true },
-      { id: 'lid_front_flap', parentId: 'lid', pivot: [0, 0, -(W + 0.04)], size: [L + 0.02, t * 0.9, H * 0.42], offset: [0, -t / 2, -(H * 0.42) / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'flap' },
+      { id: 'back_glue_left', parentId: 'back_wall', pivot: [-L / 2, 0, -H / 2], size: [earW, t * 0.8, H * 0.84], offset: [-earW / 2, t * 0.45, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'glue', isGlueTab: true, taperDir: 'x-', dynamicShift: [t * 1.15, 0, 0] },
+      { id: 'back_glue_right', parentId: 'back_wall', pivot: [L / 2, 0, -H / 2], size: [earW, t * 0.8, H * 0.84], offset: [earW / 2, t * 0.45, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'glue', isGlueTab: true, taperDir: 'x+', dynamicShift: [-t * 1.15, 0, 0] },
+      // Lid uses offset Y = -t/2 with dynamicShift [0, t*(1-lidT), 0] so at flat=0 it is flush [0..t] and when closed (+180deg) it sits ON TOP of walls [H .. H+t]!
+      { id: 'lid', parentId: 'back_wall', pivot: [0, t, -H], size: [lidL, t, lidW], offset: [0, -t / 2, -lidW / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'lid', isLid: true, dynamicShift: [0, -t, 0] },
+      { id: 'lid_front_flap', parentId: 'lid', pivot: [0, 0, -lidW], size: [L + 0.02, t * 0.9, H * 0.42], offset: [0, -t * 0.55, -(H * 0.42) / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'flap' },
     ];
   } else if (modelId === 'slidingSleeve') {
+    const lidL = L + 0.02;
+    const lidW = W + 0.02;
+    const earW = Math.min(W * 0.22, 0.24);
     defs = [
       { id: 'bottom', parentId: null, pivot: [0, 0, 0], size: [L, t, W], offset: [0, t / 2, 0], foldAxis: 'x', foldDirection: 0, maxFoldAngle: 0, foldStage: 'wall' },
       { id: 'front_wall', parentId: 'bottom', pivot: [0, 0, W / 2], size: [L, t, H], offset: [0, t / 2, H / 2], foldAxis: 'x', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'wall' },
       { id: 'back_wall', parentId: 'bottom', pivot: [0, 0, -W / 2], size: [L, t, H], offset: [0, t / 2, -H / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'back' },
-      { id: 'left_tray', parentId: 'bottom', pivot: [-L / 2, 0, 0], size: [H * 0.88, t * 0.9, W - 0.06], offset: [-(H * 0.88) / 2, t / 2, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'innerWall', isInnerTray: true },
-      { id: 'right_tray', parentId: 'bottom', pivot: [L / 2, 0, 0], size: [H * 0.88, t * 0.9, W - 0.06], offset: [(H * 0.88) / 2, t / 2, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'innerWall', isInnerTray: true },
-      { id: 'lid', parentId: 'back_wall', pivot: [0, 0, -H], size: [L + 0.02, t, W + 0.02], offset: [0, t / 2, -(W + 0.02) / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'lid', isLid: true },
+      { id: 'sleeve_glue_left', parentId: 'back_wall', pivot: [-L / 2, 0, -H / 2], size: [earW, t * 0.8, H * 0.8], offset: [-earW / 2, t * 0.45, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'glue', isGlueTab: true, taperDir: 'x-', dynamicShift: [t * 1.35, 0, 0] },
+      { id: 'sleeve_glue_right', parentId: 'back_wall', pivot: [L / 2, 0, -H / 2], size: [earW, t * 0.8, H * 0.8], offset: [earW / 2, t * 0.45, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'glue', isGlueTab: true, taperDir: 'x+', dynamicShift: [-t * 1.35, 0, 0] },
+      { id: 'left_tray', parentId: 'bottom', pivot: [-L / 2, 0, 0], size: [H * 0.88, t * 0.9, W - 0.06], offset: [-(H * 0.88) / 2, t / 2, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'dust', isInnerTray: true },
+      { id: 'right_tray', parentId: 'bottom', pivot: [L / 2, 0, 0], size: [H * 0.88, t * 0.9, W - 0.06], offset: [(H * 0.88) / 2, t / 2, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'dust', isInnerTray: true },
+      { id: 'lid', parentId: 'back_wall', pivot: [0, t, -H], size: [lidL, t, lidW], offset: [0, -t / 2, -lidW / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'lid', isLid: true, dynamicShift: [0, -t, 0] },
     ];
   } else if (modelId === 'pharmaCarton') {
+    const dustLen = Math.min(W * 0.36, L * 0.34);
+    const glueDepth = 0.22;
+    const tuckDepth = 0.32;
     defs = [
       { id: 'bottom', parentId: null, pivot: [0, 0, 0], size: [L, t, W], offset: [0, t / 2, 0], foldAxis: 'x', foldDirection: 0, maxFoldAngle: 0, foldStage: 'wall' },
       { id: 'back_wall', parentId: 'bottom', pivot: [0, 0, -W / 2], size: [L, t, H], offset: [0, t / 2, -H / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'back' },
       { id: 'front_wall', parentId: 'bottom', pivot: [0, 0, W / 2], size: [L, t, H], offset: [0, t / 2, H / 2], foldAxis: 'x', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'wall' },
       { id: 'left_wall', parentId: 'bottom', pivot: [-L / 2, 0, 0], size: [H, t, W], offset: [-H / 2, t / 2, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'wall' },
       { id: 'right_wall', parentId: 'bottom', pivot: [L / 2, 0, 0], size: [H, t, W], offset: [H / 2, t / 2, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'wall' },
-      { id: 'lid', parentId: 'back_wall', pivot: [0, 0, -H], size: [L, t, W], offset: [0, t / 2, -W / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'lid', isLid: true },
-      { id: 'lid_front_flap', parentId: 'lid', pivot: [0, 0, -W], size: [L - 0.04, t * 0.85, 0.34], offset: [0, -t / 2, -0.17], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'flap' },
+      // Chamfered glue tab (لب چسب) on left_wall extending +Z when flat, folding cleanly behind front_wall
+      { id: 'glue_tab', parentId: 'left_wall', pivot: [-H / 2, 0, W / 2], size: [H * 0.88, t * 0.82, glueDepth], offset: [0, t * 0.45, glueDepth / 2], foldAxis: 'x', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'glue', isGlueTab: true, taperDir: 'z+', dynamicShift: [0, t * 0.5, -t * 1.25] },
+      // Top Dust Flaps (گوشواره های بغل) on left & right walls: fold 90deg BEFORE lid closes, resting cleanly under lid [H-t .. H]
+      { id: 'left_dust_flap', parentId: 'left_wall', pivot: [-H, 0, 0], size: [dustLen, t * 0.85, W * 0.86], offset: [-dustLen / 2, t * 0.45, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'dust', taperDir: 'x-' },
+      { id: 'right_dust_flap', parentId: 'right_wall', pivot: [H, 0, 0], size: [dustLen, t * 0.85, W * 0.86], offset: [dustLen / 2, t * 0.45, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'dust', taperDir: 'x+' },
+      // Top Lid rests strictly ON TOP of walls [H .. H+t]
+      { id: 'lid', parentId: 'back_wall', pivot: [0, t, -H], size: [L + 0.01, t, W + 0.01], offset: [0, -t / 2, -(W + 0.01) / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'lid', isLid: true, dynamicShift: [0, -t, 0] },
+      // Lid Tuck Flap shifts +2.1t along local Z when folding so it slides smoothly INSIDE front_wall!
+      { id: 'lid_front_flap', parentId: 'lid', pivot: [0, 0, -(W + 0.01)], size: [L - 0.07, t * 0.82, tuckDepth], offset: [0, -t * 0.5, -tuckDepth / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'flap', taperDir: 'z-', dynamicShift: [0, 0, t * 2.1] },
     ];
   } else {
     const isWindow = modelId === 'windowBox';
+    const lidL = L + 0.01;
+    const lidW = W + 0.01;
+    const lockEarW = Math.min(W * 0.34, 0.36);
     defs = [
       { id: 'bottom', parentId: null, pivot: [0, 0, 0], size: [L, t, W], offset: [0, t / 2, 0], foldAxis: 'x', foldDirection: 0, maxFoldAngle: 0, foldStage: 'wall' },
       { id: 'left_wall', parentId: 'bottom', pivot: [-L / 2, 0, 0], size: [H, t, W], offset: [-H / 2, t / 2, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'wall' },
-      { id: 'left_wall_inner', parentId: 'left_wall', pivot: [-H, 0, 0], size: [H - 0.03, t * 0.85, W - 0.05], offset: [-(H - 0.03) / 2, -t / 2, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI * 0.98, foldStage: 'innerWall' },
+      { id: 'left_wall_inner', parentId: 'left_wall', pivot: [-H, t, 0], size: [H - 0.04, t * 0.85, W - 0.08], offset: [-(H - 0.04) / 2, -t / 2, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI * 0.98, foldStage: 'innerWall', dynamicShift: [0, t, 0] },
       { id: 'right_wall', parentId: 'bottom', pivot: [L / 2, 0, 0], size: [H, t, W], offset: [H / 2, t / 2, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'wall' },
-      { id: 'right_wall_inner', parentId: 'right_wall', pivot: [H, 0, 0], size: [H - 0.03, t * 0.85, W - 0.05], offset: [(H - 0.03) / 2, -t / 2, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI * 0.98, foldStage: 'innerWall' },
+      { id: 'right_wall_inner', parentId: 'right_wall', pivot: [H, t, 0], size: [H - 0.04, t * 0.85, W - 0.08], offset: [(H - 0.04) / 2, -t / 2, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI * 0.98, foldStage: 'innerWall', dynamicShift: [0, t, 0] },
       { id: 'front_wall', parentId: 'bottom', pivot: [0, 0, W / 2], size: [L, t, H], offset: [0, t / 2, H / 2], foldAxis: 'x', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'wall' },
-      { id: 'front_wall_inner', parentId: 'front_wall', pivot: [0, 0, H], size: [L - 0.05, t * 0.85, H - 0.03], offset: [0, -t / 2, (H - 0.03) / 2], foldAxis: 'x', foldDirection: -1, maxFoldAngle: Math.PI * 0.98, foldStage: 'innerWall' },
+      // Front corner lock ears (گوشواره های قفل جلو) fold inward before inner side walls sandwich them
+      { id: 'front_left_ear', parentId: 'front_wall', pivot: [-L / 2, 0, H / 2], size: [lockEarW, t * 0.8, H * 0.82], offset: [-lockEarW / 2, t * 0.45, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'dust', isGlueTab: true, taperDir: 'x-', dynamicShift: [t * 1.15, 0, 0] },
+      { id: 'front_right_ear', parentId: 'front_wall', pivot: [L / 2, 0, H / 2], size: [lockEarW, t * 0.8, H * 0.82], offset: [lockEarW / 2, t * 0.45, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'dust', isGlueTab: true, taperDir: 'x+', dynamicShift: [-t * 1.15, 0, 0] },
+      { id: 'front_wall_inner', parentId: 'front_wall', pivot: [0, t, H], size: [L - 0.08, t * 0.85, H - 0.04], offset: [0, -t / 2, (H - 0.04) / 2], foldAxis: 'x', foldDirection: -1, maxFoldAngle: Math.PI * 0.98, foldStage: 'innerWall' },
       { id: 'back_wall', parentId: 'bottom', pivot: [0, 0, -W / 2], size: [L, t, H], offset: [0, t / 2, -H / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'back' },
-      { id: 'lid', parentId: 'back_wall', pivot: [0, 0, -H], size: [L, t, W], offset: [0, t / 2, -W / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'lid', isLid: true, isWindowLid: isWindow },
-      { id: 'lid_front_flap', parentId: 'lid', pivot: [0, 0, -W], size: [L - 0.06, t * 0.85, H * 0.86], offset: [0, -t / 2, -(H * 0.86) / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'flap' },
-      { id: 'lid_left_flap', parentId: 'lid', pivot: [-L / 2, 0, -W / 2], size: [H * 0.84, t * 0.85, W - 0.06], offset: [-(H * 0.84) / 2, -t / 2, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'flap' },
-      { id: 'lid_right_flap', parentId: 'lid', pivot: [L / 2, 0, -W / 2], size: [H * 0.84, t * 0.85, W - 0.06], offset: [(H * 0.84) / 2, -t / 2, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'flap' },
+      // Lid sits strictly ON TOP of walls [H .. H+t]
+      { id: 'lid', parentId: 'back_wall', pivot: [0, t, -H], size: [lidL, t, lidW], offset: [0, -t / 2, -lidW / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'lid', isLid: true, isWindowLid: isWindow, dynamicShift: [0, -t, 0] },
+      { id: 'lid_front_flap', parentId: 'lid', pivot: [0, 0, -lidW], size: [L - 0.14, t * 0.82, H * 0.82], offset: [0, -t * 0.5, -(H * 0.82) / 2], foldAxis: 'x', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'flap', taperDir: 'z-', dynamicShift: [0, 0, t * 3.1] },
+      { id: 'lid_left_flap', parentId: 'lid', pivot: [-lidL / 2, 0, -lidW / 2], size: [H * 0.8, t * 0.82, W - 0.16], offset: [-(H * 0.8) / 2, -t * 0.5, 0], foldAxis: 'z', foldDirection: -1, maxFoldAngle: Math.PI / 2, foldStage: 'flap', taperDir: 'x-', dynamicShift: [t * 4.0, 0, 0] },
+      { id: 'lid_right_flap', parentId: 'lid', pivot: [lidL / 2, 0, -lidW / 2], size: [H * 0.8, t * 0.82, W - 0.16], offset: [(H * 0.8) / 2, -t * 0.5, 0], foldAxis: 'z', foldDirection: 1, maxFoldAngle: Math.PI / 2, foldStage: 'flap', taperDir: 'x+', dynamicShift: [-t * 4.0, 0, 0] },
     ];
   }
 
@@ -304,16 +395,23 @@ export function buildPackagingAssembly(
     const group = new THREE.Group();
     group.position.set(...def.pivot);
 
-    const geom = new THREE.BoxGeometry(...def.size);
+    const [sx, sy, sz] = def.size;
+    const minDim = Math.min(sx, sy, sz);
+    const bevelRadius = Math.min(0.0065, minDim * 0.28);
+    const geom = def.taperDir
+      ? createTaperedPanelGeometry(sx, sy, sz, def.taperDir)
+      : new RoundedBoxGeometry(sx, sy, sz, 2, bevelRadius);
     geom.translate(...def.offset);
 
-    const mesh = new THREE.Mesh(geom, boardMat);
+    const panelMat = def.isInnerTray || def.isGlueTab ? innerMat : boardMat;
+    const mesh = new THREE.Mesh(geom, panelMat);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.layers.enable(1);
 
     if (def.isLid && def.isWindowLid) {
       const [fw, fh, fd] = def.size;
+      const oy = def.offset[1]; // -fh/2
       const oz = def.offset[2];
       const winW = fw * 0.58;
       const winD = fd * 0.54;
@@ -321,14 +419,14 @@ export function buildPackagingAssembly(
       const sideD = (fd - winD) / 2;
 
       const frameParts: Array<[number, number, number, number, number, number]> = [
-        [sideW, fh, fd, -fw / 2 + sideW / 2, fh / 2, oz],
-        [sideW, fh, fd, fw / 2 - sideW / 2, fh / 2, oz],
-        [winW, fh, sideD, 0, fh / 2, oz - fd / 2 + sideD / 2],
-        [winW, fh, sideD, 0, fh / 2, oz + fd / 2 - sideD / 2],
+        [sideW, fh, fd, -fw / 2 + sideW / 2, oy, oz],
+        [sideW, fh, fd, fw / 2 - sideW / 2, oy, oz],
+        [winW, fh, sideD, 0, oy, oz - fd / 2 + sideD / 2],
+        [winW, fh, sideD, 0, oy, oz + fd / 2 - sideD / 2],
       ];
 
       frameParts.forEach(([pw, ph, pd, px, py, pz]) => {
-        const fg = new THREE.BoxGeometry(pw, ph, pd);
+        const fg = new RoundedBoxGeometry(pw, ph, pd, 2, Math.min(0.005, Math.min(pw, ph, pd) * 0.25));
         fg.translate(px, py, pz);
         const fm = new THREE.Mesh(fg, boardMat);
         fm.castShadow = true;
@@ -340,29 +438,35 @@ export function buildPackagingAssembly(
       mesh.visible = false;
       group.add(mesh);
 
-      const glassGeom = new THREE.BoxGeometry(winW + 0.02, fh * 0.55, winD + 0.02);
-      glassGeom.translate(0, fh * 0.5, oz);
+      const glassGeom = new THREE.BoxGeometry(winW + 0.02, fh * 0.45, winD + 0.02);
+      glassGeom.translate(0, oy, oz);
       const glassMesh = new THREE.Mesh(glassGeom, glassMat);
       glassMesh.renderOrder = 4;
       group.add(glassMesh);
 
-      const bezelGeom = new THREE.EdgesGeometry(new THREE.BoxGeometry(winW, fh + 0.004, winD).translate(0, fh / 2, oz));
+      // Metallic foil window trim bezel on outer top surface (y = -fh under +180deg lid fold)
+      const bezelStrip = new THREE.Mesh(
+        new THREE.BoxGeometry(winW + 0.036, 0.004, 0.018).translate(0, oy - fh / 2 - 0.002, oz - winD / 2 - 0.012),
+        foilMat
+      );
+      group.add(bezelStrip);
+
+      const bezelGeom = new THREE.EdgesGeometry(new THREE.BoxGeometry(winW, fh + 0.004, winD).translate(0, oy, oz));
       const bezelLine = new THREE.LineSegments(bezelGeom, edgeMat);
       group.add(bezelLine);
 
-      // Foil strip below window
+      // Foil strip on front rim of window lid (local -Z maps to world +Z when closed)
       const stripGeom = new THREE.PlaneGeometry(fw * 0.72, fd * 0.16);
-      stripGeom.rotateX(-Math.PI / 2);
-      stripGeom.translate(0, fh + 0.004, oz + fd * 0.38);
+      stripGeom.rotateX(Math.PI / 2);
+      stripGeom.translate(0, oy - fh / 2 - 0.004, oz - fd * 0.38);
       const stripMesh = new THREE.Mesh(stripGeom, foilMat);
       stripMesh.renderOrder = 6;
       group.add(stripMesh);
 
-      // Custom Color Logo badge on the lid rim for window boxes
       const badgeSize = Math.min(sideD * 0.85, 0.34);
       const winLogoGeom = new THREE.PlaneGeometry(badgeSize, badgeSize);
-      winLogoGeom.rotateX(-Math.PI / 2);
-      winLogoGeom.translate(0, fh + 0.006, oz + fd * 0.38);
+      winLogoGeom.rotateX(Math.PI / 2);
+      winLogoGeom.translate(0, oy - fh / 2 - 0.006, oz - fd * 0.38);
       const winLogoMesh = new THREE.Mesh(winLogoGeom, colorLogoMat);
       winLogoMesh.renderOrder = 7;
       group.add(winLogoMesh);
@@ -370,38 +474,89 @@ export function buildPackagingAssembly(
       group.add(mesh);
     }
 
+    // Add realistic laminated inner liner sheet on bottom & inner walls/lid
+    if ((def.id === 'bottom' || (def.isLid && !def.isWindowLid)) && !def.isInnerTray) {
+      const linerGeom = new THREE.PlaneGeometry(sx * 0.94, sz * 0.94);
+      if (def.id === 'bottom') {
+        linerGeom.rotateX(-Math.PI / 2);
+        linerGeom.translate(def.offset[0], def.offset[1] + sy / 2 + 0.0015, def.offset[2]);
+      } else {
+        // Inner side of lid (local +y face = offset.y + sy/2 = 0)
+        linerGeom.rotateX(-Math.PI / 2);
+        linerGeom.translate(def.offset[0], def.offset[1] + sy / 2 + 0.0015, def.offset[2]);
+      }
+      const linerMesh = new THREE.Mesh(linerGeom, innerMat);
+      linerMesh.receiveShadow = true;
+      group.add(linerMesh);
+    }
+
+    // Physical luxury details & glue score strip per packaging architecture
+    if (def.isGlueTab) {
+      // Subtle matte adhesive strip across center of glue tab for industrial clarity
+      const stripW = def.foldAxis === 'z' ? sx * 0.42 : sx * 0.82;
+      const stripD = def.foldAxis === 'z' ? sz * 0.82 : sz * 0.42;
+      const glueStripeGeo = new THREE.PlaneGeometry(stripW, stripD);
+      glueStripeGeo.rotateX(-Math.PI / 2);
+      glueStripeGeo.translate(def.offset[0], def.offset[1] + sy / 2 + 0.0018, def.offset[2]);
+      const glueStripe = new THREE.Mesh(glueStripeGeo, creaseMat);
+      group.add(glueStripe);
+    }
+
+    if (modelId === 'giftBox' && def.id === 'lid_front_flap') {
+      // Twin metallic neodymium magnetic clasps embedded on front closure flap
+      const claspGeo = new THREE.CylinderGeometry(0.036, 0.036, 0.006, 20);
+      [-L * 0.28, L * 0.28].forEach((mx) => {
+        const clasp = new THREE.Mesh(claspGeo, foilMat);
+        clasp.position.set(mx, def.offset[1] + sy / 2 + 0.002, def.offset[2]);
+        group.add(clasp);
+      });
+    } else if (modelId === 'slidingSleeve' && def.id === 'front_wall') {
+      const tabGeo = new RoundedBoxGeometry(0.24, 0.012, 0.08, 1, 0.004);
+      const tabMesh = new THREE.Mesh(tabGeo, foilMat);
+      tabMesh.position.set(0, def.offset[1] - sy / 2 - 0.004, def.offset[2]);
+      group.add(tabMesh);
+    } else if (modelId === 'pharmaCarton' && def.id === 'lid_front_flap') {
+      const sealGeo = new THREE.PlaneGeometry(L * 0.52, 0.055);
+      sealGeo.rotateX(-Math.PI / 2);
+      sealGeo.translate(0, def.offset[1] + sy / 2 + 0.002, def.offset[2]);
+      const sealMesh = new THREE.Mesh(sealGeo, foilMat);
+      group.add(sealMesh);
+    }
+
     if (def.isLid && !def.isWindowLid) {
       const [fw, fh, fd] = def.size;
+      const oy = def.offset[1]; // -fh/2
       const oz = def.offset[2];
       const artSize = Math.min(fw, fd) * 0.78;
+
+      // Outer TOP lid artwork: local -Y face (oy - fh/2 = -fh) faces UP (+Y world) when folded +180deg
       const topArt = new THREE.PlaneGeometry(artSize, artSize);
-      topArt.rotateX(-Math.PI / 2);
-      topArt.translate(0, fh + 0.003, oz);
+      topArt.rotateX(Math.PI / 2);
+      topArt.translate(0, oy - fh / 2 - 0.003, oz);
       const topArtMesh = new THREE.Mesh(topArt, foilMat);
       topArtMesh.renderOrder = 6;
       group.add(topArtMesh);
 
-      // Full-color custom admin logo centered inside the lid emblem medallion
       const logoPlaneSize = artSize * 0.44;
       const logoGeom = new THREE.PlaneGeometry(logoPlaneSize, logoPlaneSize);
-      logoGeom.rotateX(-Math.PI / 2);
-      // Slight -Z offset matches y=242/768 (upper half of foil artwork canvas, inside circular seal)
-      logoGeom.translate(0, fh + 0.005, oz - artSize * 0.185);
+      logoGeom.rotateX(Math.PI / 2);
+      logoGeom.translate(0, oy - fh / 2 - 0.005, oz + artSize * 0.185);
       const logoMesh = new THREE.Mesh(logoGeom, colorLogoMat);
       logoMesh.renderOrder = 7;
       group.add(logoMesh);
 
+      // Inner underside lid emblem (visible when lid opens)
       const innerArt = new THREE.PlaneGeometry(artSize * 0.85, artSize * 0.85);
-      innerArt.rotateX(Math.PI / 2);
-      innerArt.translate(0, -0.003, oz);
+      innerArt.rotateX(-Math.PI / 2);
+      innerArt.translate(0, oy + fh / 2 + 0.004, oz);
       const innerArtMesh = new THREE.Mesh(innerArt, foilMat);
       innerArtMesh.renderOrder = 6;
       group.add(innerArtMesh);
     }
 
-    // Also place uploaded brand emblem subtly on front wall exterior when assembled
+    // Uploaded brand emblem on front wall exterior when assembled
     if (def.id === 'front_wall' && H >= 0.45) {
-      const [, fh, fd] = def.size;
+      const [, , fd] = def.size;
       const oz = def.offset[2];
       const frontBadgeSize = Math.min(L * 0.24, fd * 0.72, 0.45);
       const frontLogoGeom = new THREE.PlaneGeometry(frontBadgeSize, frontBadgeSize);
@@ -417,7 +572,7 @@ export function buildPackagingAssembly(
     wireMesh.scale.setScalar(1.003);
     group.add(wireMesh);
 
-    // Precision CAD cut/edge outline
+    // Subtle precision cut/edge outline
     const edgeGeom = new THREE.EdgesGeometry(geom);
     const edgeLine = new THREE.LineSegments(edgeGeom, edgeMat);
     group.add(edgeLine);
@@ -426,11 +581,12 @@ export function buildPackagingAssembly(
     let creaseLine: THREE.Line | undefined;
     if (def.parentId) {
       const cGeom = new THREE.BufferGeometry();
-      const span = def.foldAxis === 'z' ? W * 0.48 : L * 0.48;
+      const span = def.foldAxis === 'z' ? sz * 0.46 : sx * 0.46;
+      const yLine = def.isLid || def.foldStage === 'innerWall' ? 0.004 : t + 0.005;
       const pts =
         def.foldAxis === 'z'
-          ? [0, t + 0.005, -span, 0, t + 0.005, span]
-          : [-span, t + 0.005, 0, span, t + 0.005, 0];
+          ? [0, yLine, -span, 0, yLine, span]
+          : [-span, yLine, 0, span, yLine, 0];
       cGeom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
       creaseLine = new THREE.Line(cGeom, creaseMat);
       creaseLine.computeLineDistances();
@@ -459,25 +615,29 @@ export function buildPackagingAssembly(
   const applyFoldAndExplode = (foldProgress: number, explodeProgress: number) => {
     const f = THREE.MathUtils.clamp(foldProgress, 0, 1);
 
-    // Staggered realistic packaging folding sequence with cubic easing
-    const wallT = easeInOutCubic((f - 0.03) / 0.27);
-    const innerWallT = easeInOutCubic((f - 0.22) / 0.22);
-    const backT = easeInOutCubic((f - 0.34) / 0.24);
-    const lidT = easeInOutCubic((f - 0.54) / 0.26);
+    // Staggered realistic packaging folding sequence:
+    // 1) Glue tabs (0.02..0.18) -> 2) Main walls (0.08..0.34) -> 3) Back & Dust flaps (0.28..0.56) -> 4) Inner walls / Tray (0.38..0.62) -> 5) Lid rests on top (0.56..0.82) -> 6) Tuck flaps lock in (0.78..1.00)
+    const glueT = easeInOutCubic((f - 0.02) / 0.18);
+    const wallT = easeInOutCubic((f - 0.08) / 0.26);
+    const backT = easeInOutCubic((f - 0.24) / 0.24);
+    const dustT = easeInOutCubic((f - 0.34) / 0.24);
+    const innerWallT = easeInOutCubic((f - 0.44) / 0.20);
+    const lidT = easeInOutCubic((f - 0.56) / 0.26);
     const flapT = easeInOutCubic((f - 0.78) / 0.22);
 
-    // Keep unfolded flat dieline centered on the circular plinth and lift slightly mid-fold so flaps clear the table
-    const flatShiftZ = (W + H) * 0.44;
+    const flatShiftZ = (W + H) * 0.42;
     root.position.z = (1 - easeInOutCubic(f)) * flatShiftZ;
-    root.position.y = Math.sin(f * Math.PI) * 0.12;
+    root.position.y = Math.sin(f * Math.PI) * 0.11;
 
     const lidOpenOffset = explodeProgress * 0.55;
 
     panels.forEach((p) => {
       let stageVal = 0;
-      if (p.foldStage === 'wall') stageVal = wallT;
-      else if (p.foldStage === 'innerWall') stageVal = innerWallT;
+      if (p.foldStage === 'glue') stageVal = glueT;
+      else if (p.foldStage === 'wall') stageVal = wallT;
       else if (p.foldStage === 'back') stageVal = backT;
+      else if (p.foldStage === 'dust') stageVal = dustT;
+      else if (p.foldStage === 'innerWall') stageVal = innerWallT;
       else if (p.foldStage === 'lid') stageVal = Math.max(0, lidT - lidOpenOffset);
       else if (p.foldStage === 'flap') stageVal = Math.max(0, flapT - explodeProgress * 0.7);
 
@@ -490,10 +650,14 @@ export function buildPackagingAssembly(
 
       if (p.parentId) {
         const exp = explodeProgress * 0.28;
+        const shiftProgress = p.isLid ? lidT : stageVal;
+        const dsX = p.dynamicShift ? p.dynamicShift[0] * shiftProgress : 0;
+        const dsY = p.dynamicShift ? p.dynamicShift[1] * shiftProgress : 0;
+        const dsZ = p.dynamicShift ? p.dynamicShift[2] * shiftProgress : 0;
         p.group.position.set(
-          p.pivot[0] + (p.foldAxis === 'z' ? p.foldDirection * exp : 0),
-          p.pivot[1] + (p.isLid ? exp * 1.4 : exp * 0.35),
-          p.pivot[2] + (p.foldAxis === 'x' ? -p.foldDirection * exp : 0)
+          p.pivot[0] + dsX + (p.foldAxis === 'z' ? p.foldDirection * exp : 0),
+          p.pivot[1] + dsY + (p.isLid ? exp * 1.4 : exp * 0.35),
+          p.pivot[2] + dsZ + (p.foldAxis === 'x' ? -p.foldDirection * exp : 0)
         );
       }
     });
@@ -501,16 +665,18 @@ export function buildPackagingAssembly(
 
   const setCadMode = (cadBlend: number, foldProgress = 1) => {
     const c = THREE.MathUtils.clamp(cadBlend, 0, 1);
-    // Highlight dieline cut/crease paths naturally when unfolded into a flat sheet
     const dielineBoost = THREE.MathUtils.clamp(1 - foldProgress * 1.35, 0, 1);
 
     boardMat.opacity = 1 - c * 0.82;
     boardMat.transparent = c > 0.02;
     boardMat.depthWrite = c < 0.5;
+    innerMat.opacity = 1 - c * 0.82;
+    innerMat.transparent = c > 0.02;
+    innerMat.depthWrite = c < 0.5;
     wireMat.opacity = c * 0.45;
     wireMat.visible = c > 0.02;
-    edgeMat.opacity = Math.min(1, 0.22 + c * 0.72 + dielineBoost * 0.65);
-    creaseMat.opacity = Math.min(1, 0.16 + c * 0.78 + dielineBoost * 0.75);
+    edgeMat.opacity = Math.min(1, 0.055 + c * 0.78 + dielineBoost * 0.72);
+    creaseMat.opacity = Math.min(1, 0.04 + c * 0.82 + dielineBoost * 0.78);
     foilMat.opacity = 1 - c * 0.85;
     foilMat.transparent = c > 0.02;
   };

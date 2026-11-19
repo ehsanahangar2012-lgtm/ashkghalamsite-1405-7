@@ -1,11 +1,11 @@
 {
   "name": "ashk-ghalam-erp",
   "private": true,
-  "version": "3.13.0",
+  "version": "3.19.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js && node scripts/pack_release_zips.cjs",
+    "build": "node -e \"const fs=require('fs'),path=require('path');for(const p of ['public/ashk-ghalam-erp-cpanel-release.zip','dist/ashk-ghalam-erp-cpanel-release.zip'])try{fs.unlinkSync(p)}catch{};for(const dir of ['public/downloads','dist'])try{for(const f of fs.readdirSync(dir))if(f.endsWith('.zip'))fs.unlinkSync(path.join(dir,f))}catch{}\" && vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js && npm run build:worker && node scripts/pack_release_zips.cjs",
     "build:worker": "esbuild agent/worker.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/agent-worker.js",
     "start": "node dist/server.js",
     "preview": "vite preview",
@@ -33,6 +33,7 @@
     "node-cron": "^4.6.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-pageflip": "^2.0.3",
     "react-router-dom": "^6.28.0",
     "recharts": "^2.15.0",
     "three": "^0.185.1"

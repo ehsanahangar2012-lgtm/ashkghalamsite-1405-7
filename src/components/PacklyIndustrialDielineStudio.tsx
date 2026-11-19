@@ -22,6 +22,7 @@ import { calculateMaterialCompensation } from '../services/materialCompensationE
 import { calculateGangingLayout } from '../services/impositionService';
 import { buildAutoCadDxfString, buildCff2String } from '../utils/dielineExport';
 import { Project } from '../types';
+import { DimensionInput } from './DimensionInput';
 
 interface PacklyIndustrialDielineStudioProps {
   onSaveProject?: (p: Partial<Project>) => void;
@@ -298,18 +299,22 @@ export const PacklyIndustrialDielineStudio: React.FC<PacklyIndustrialDielineStud
                 <label className="text-[10px] text-slate-400 font-bold block mb-1">
                   {axis === 'L' ? 'طول (L)' : axis === 'W' ? 'عرض (W)' : 'ارتفاع (H)'}
                 </label>
-                <input
-                  type="number"
-                  min={20}
-                  max={1200}
+                <DimensionInput
+                  label=""
                   value={dims[axis]}
-                  onChange={(e) =>
+                  unit="mm"
+                  minMm={20}
+                  maxMm={1200}
+                  onChange={(valInMm) =>
                     setDims((prev) => ({
                       ...prev,
-                      [axis]: Math.max(15, Number(e.target.value) || 15),
+                      [axis]: valInMm,
                     }))
                   }
-                  className="w-full bg-[#04060b] border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center text-white focus:border-sky-500 outline-none"
+                  convertMmToUnit={(v) => Math.round(v)}
+                  convertUnitToMm={(v) => v}
+                  className="w-full"
+                  inputClassName="w-full bg-[#04060b] border border-slate-700 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-center text-white focus:border-sky-500 outline-none selection:bg-sky-500/40 selection:text-white"
                 />
               </div>
             ))}

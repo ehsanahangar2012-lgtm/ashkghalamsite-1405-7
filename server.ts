@@ -20,12 +20,15 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const APP_VERSION = '3.14.0';
+const APP_VERSION = '3.19.0';
 const CATALOGS_FILE = path.join(__dirname, 'catalogs.json');
 const INQUIRIES_FILE = path.join(__dirname, 'inquiries.json');
 const SETTINGS_FILE = path.join(__dirname, 'settings.json');
 const POSTS_FILE = path.join(__dirname, 'posts.json');
 const SEO_STATE_FILE = path.join(__dirname, 'seo-state.json');
+const FLIPBOOKS_FILE = path.join(__dirname, 'flipbooks.json');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const FLIPBOOK_UPLOADS_DIR = path.join(UPLOADS_DIR, 'flipbooks');
 
 function readJsonFile<T>(filePath: string, fallback: T): T {
   try {
@@ -41,8 +44,13 @@ function readJsonFile<T>(filePath: string, fallback: T): T {
   }
 }
 
-function writeJsonFile(filePath: string, data: unknown): void {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+function writeJsonFile(filePath: string, data: unknown, compact = false): void {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  const serialized = compact ? JSON.stringify(data) : JSON.stringify(data, null, 2);
+  fs.writeFileSync(filePath, serialized, 'utf-8');
 }
 
 function verifySecret(provided: string | undefined, expected: string): boolean {
@@ -100,6 +108,36 @@ function injectSeoMetaIntoHtml(html: string, reqPath: string): string {
         description,
       };
     }
+  } else if (reqPath.startsWith('/pages/')) {
+    const slug = decodeURIComponent(reqPath.replace('/pages/', '').split('?')[0]);
+    const settings = readJsonFile<Record<string, any>>(SETTINGS_FILE, {});
+    const pages = Array.isArray(settings.customPages) ? settings.customPages : [];
+    const page = pages.find((p: any) => String(p.slug) === slug || String(p.id) === slug);
+    if (page && page.isPublished !== false) {
+      title = `${page.title} | اشک قلم`;
+      description = page.subtitle || (typeof page.content === 'string' ? page.content.slice(0, 155) : page.title);
+      canonical = `${baseUrl}/pages/${encodeURIComponent(String(page.slug || page.id))}`;
+    }
+  } else if (reqPath.startsWith('/products/')) {
+    const slug = decodeURIComponent(reqPath.replace('/products/', '').split('?')[0]);
+    const settings = readJsonFile<Record<string, any>>(SETTINGS_FILE, {});
+    const prods = Array.isArray(settings.managedProducts) ? settings.managedProducts : [];
+    const prod = prods.find((p: any) => String(p.slug) === slug || String(p.id) === slug);
+    if (prod && prod.isPublished !== false) {
+      title = `${prod.title} | محصولات اشک قلم`;
+      description = prod.description || prod.title;
+      canonical = `${baseUrl}/products/${encodeURIComponent(String(prod.slug || prod.id))}`;
+    }
+  } else if (reqPath.startsWith('/services/')) {
+    const slug = decodeURIComponent(reqPath.replace('/services/', '').split('?')[0]);
+    const settings = readJsonFile<Record<string, any>>(SETTINGS_FILE, {});
+    const svcs = Array.isArray(settings.managedServices) ? settings.managedServices : [];
+    const svc = svcs.find((s: any) => String(s.slug) === slug || String(s.id) === slug);
+    if (svc && svc.isPublished !== false) {
+      title = `${svc.title} | خدمات اشک قلم`;
+      description = svc.description || svc.title;
+      canonical = `${baseUrl}/services/${encodeURIComponent(String(svc.slug || svc.id))}`;
+    }
   }
 
   if (!title) return html;
@@ -146,7 +184,7 @@ function getServerGemini(): GoogleGenAI | null {
 async function startServer() {
   const app = express();
   app.use(cors());
-  app.use(express.json({ limit: '20mb' }));
+  app.use(express.json({ limit: '50mb' }));
 
   // Health Endpoint
   app.get('/api/health', (_req, res) => {
@@ -158,27 +196,71 @@ async function startServer() {
     });
   });
 
-  // Dynamic Sitemap & Robots endpoints
+  // Dynamic Sitemap & Robots endpoints (works both in flat cPanel root & nested dist)
   app.get('/sitemap.xml', (_req, res) => {
-    const file = path.join(__dirname, 'public', 'sitemap.xml');
-    if (!fs.existsSync(file)) {
+    const candidates = [
+      path.join(__dirname, 'sitemap.xml'),
+      path.join(__dirname, 'public', 'sitemap.xml'),
+      path.join(__dirname, 'dist', 'sitemap.xml'),
+    ];
+    let file = candidates.find((p) => fs.existsSync(p));
+    if (!file) {
       buildSitemapAndRobots();
+      file = candidates.find((p) => fs.existsSync(p));
     }
-    if (fs.existsSync(file)) {
+    if (file) {
       return res.type('application/xml').sendFile(file);
     }
     return res.status(404).send('Sitemap unavailable');
   });
 
   app.get('/robots.txt', (_req, res) => {
-    const file = path.join(__dirname, 'public', 'robots.txt');
-    if (!fs.existsSync(file)) {
+    const candidates = [
+      path.join(__dirname, 'robots.txt'),
+      path.join(__dirname, 'public', 'robots.txt'),
+      path.join(__dirname, 'dist', 'robots.txt'),
+    ];
+    let file = candidates.find((p) => fs.existsSync(p));
+    if (!file) {
       buildSitemapAndRobots();
+      file = candidates.find((p) => fs.existsSync(p));
     }
-    if (fs.existsSync(file)) {
+    if (file) {
       return res.type('text/plain').sendFile(file);
     }
     return res.type('text/plain').send('User-agent: *\nAllow: /\n');
+  });
+
+  // Persistent catalog categories (stored in settings.json alongside site settings)
+  const DEFAULT_CATALOG_CATEGORIES = [
+    'کارتن‌های صنعتی و صادراتی',
+    'هاردباکس و لوکس',
+    'ای‌کامرس و پستی',
+    'دارویی و بهداشتی',
+    'کاتالوگ دیجیتال محصول',
+  ];
+
+  app.get('/api/catalog-categories', (_req, res) => {
+    const settings = readJsonFile<Record<string, any>>(SETTINGS_FILE, {});
+    const allCatalogs = readJsonFile<any[]>(CATALOGS_FILE, []);
+    const fromCatalogs = allCatalogs.map((c) => String(c?.category || '').trim()).filter(Boolean);
+    const saved = Array.isArray(settings.catalogCategories) ? settings.catalogCategories : DEFAULT_CATALOG_CATEGORIES;
+    const merged = Array.from(new Set([...saved, ...fromCatalogs]));
+    res.json(merged);
+  });
+
+  app.post('/api/catalog-categories', (req, res) => {
+    const categories = req.body?.categories;
+    if (!Array.isArray(categories)) {
+      return res.status(400).json({ error: 'لیست دسته‌بندی‌ها نامعتبر است.' });
+    }
+    const clean = Array.from(
+      new Set(categories.map((c: unknown) => String(c || '').trim()).filter(Boolean))
+    );
+    const settings = readJsonFile<Record<string, any>>(SETTINGS_FILE, {});
+    settings.catalogCategories = clean;
+    writeJsonFile(SETTINGS_FILE, settings);
+    return res.json({ ok: true, categories: clean });
   });
 
   // Real Catalogs CRUD backed by catalogs.json
@@ -189,28 +271,56 @@ async function startServer() {
   });
 
   app.post('/api/catalogs', (req, res) => {
-    const item = req.body;
-    if (!item || !item.title) {
-      return res.status(400).json({ error: 'عنوان کاتالوگ الزامی است.' });
+    try {
+      const item = req.body;
+      if (!item || !item.title) {
+        return res.status(400).json({ error: 'عنوان کاتالوگ الزامی است.' });
+      }
+      const all = readJsonFile<any[]>(CATALOGS_FILE, []);
+      const id = item.id || Date.now();
+      const record = {
+        ...item,
+        id,
+        slug: item.slug || `catalog-${id}`,
+        isPublished: item.isPublished ?? true,
+        updatedAt: new Date().toISOString(),
+      };
+      const idx = all.findIndex((c) => String(c.id) === String(id));
+      if (idx >= 0) {
+        all[idx] = record;
+      } else {
+        all.unshift(record);
+      }
+      writeJsonFile(CATALOGS_FILE, all);
+      buildSitemapAndRobots();
+      return res.json(record);
+    } catch (err) {
+      console.error('Failed saving catalog:', err);
+      return res.status(500).json({ error: 'خطا در ذخیره‌سازی فایل کاتالوگ در سرور.' });
     }
+  });
+
+  app.patch('/api/catalogs/:id/status', (req, res) => {
+    const targetId = req.params.id;
     const all = readJsonFile<any[]>(CATALOGS_FILE, []);
-    const id = item.id || Date.now();
-    const record = {
-      ...item,
-      id,
-      slug: item.slug || `catalog-${id}`,
-      isPublished: item.isPublished ?? true,
+    const idx = all.findIndex((c) => String(c.id) === String(targetId));
+    if (idx < 0) {
+      return res.status(404).json({ error: 'کاتالوگ مورد نظر یافت نشد.' });
+    }
+    const nextPublished = typeof req.body?.isPublished === 'boolean' ? req.body.isPublished : !all[idx].isPublished;
+    const nextCategory = typeof req.body?.category === 'string' && req.body.category.trim()
+      ? req.body.category.trim()
+      : all[idx].category;
+
+    all[idx] = {
+      ...all[idx],
+      isPublished: nextPublished,
+      category: nextCategory,
       updatedAt: new Date().toISOString(),
     };
-    const idx = all.findIndex((c) => String(c.id) === String(id));
-    if (idx >= 0) {
-      all[idx] = record;
-    } else {
-      all.unshift(record);
-    }
     writeJsonFile(CATALOGS_FILE, all);
     buildSitemapAndRobots();
-    return res.json(record);
+    return res.json(all[idx]);
   });
 
   app.delete('/api/catalogs/:id', (req, res) => {
@@ -454,6 +564,239 @@ async function startServer() {
     }
   });
 
+  // Multimodal Gemini Product Image Analysis for Digital Flipbook Catalog
+  app.post('/api/catalog/analyze-image', async (req, res) => {
+    const ai = getServerGemini();
+    if (!ai) {
+      return res.status(503).json({
+        code: 'MISSING_API_KEY',
+        error: 'کلید GEMINI_API_KEY در متغیر محیطی سرور تنظیم نشده است. لطفاً آن را در بخش Secrets اضافه کنید.',
+      });
+    }
+
+    const rawBase64 = String(req.body?.imageBase64 || '').trim();
+    const mimeType = String(req.body?.mimeType || 'image/webp').trim();
+    const fileName = String(req.body?.fileName || '').trim();
+
+    if (!rawBase64 || !mimeType.startsWith('image/')) {
+      return res.status(400).json({
+        code: 'INVALID_IMAGE',
+        error: 'تصویر ارسالی نامعتبر است یا فرمت آن پشتیبانی نمی‌شود.',
+      });
+    }
+
+    // Strip data URI prefix if sent
+    const base64Data = rawBase64.includes(',') ? rawBase64.split(',')[1] : rawBase64;
+    if (!base64Data || base64Data.length < 32) {
+      return res.status(400).json({
+        code: 'INVALID_IMAGE',
+        error: 'داده تصویر ناقص یا خالی است.',
+      });
+    }
+
+    const promptText = `این تصویر یک محصول برای کاتالوگ دیجیتال است${fileName ? ` (نام فایل: ${fileName})` : ''}.
+لطفاً تصویر را با دقت بررسی کرده و موارد زیر را به زبان فارسی روان، تجاری و حرفه‌ای تولید کن:
+1. title: یک عنوان پیشنهادی کوتاه، جذاب و دقیق برای محصول (حداکثر ۶۰ کاراکتر)
+2. description: توضیح کوتاه و کاربردی محصول برای درج در صفحه کاتالوگ (۲ تا ۳ جمله، حدود ۱۰۰ تا ۲۰۰ کاراکتر)
+3. category: یک دسته‌بندی اصلی مناسب محصول (مثلاً: لوازم خانگی، مد و پوشاک، دیجیتال، اکسسوری، دکوراسیون، ...)
+4. tags: آرایه‌ای شامل ۳ تا ۵ برچسب/کلیدواژه کوتاه و مرتبط فارسی (بدون کاراکتر #)`;
+
+    const callGemini = async () => {
+      return ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType,
+                data: base64Data,
+              },
+            },
+            { text: promptText },
+          ],
+        },
+        config: {
+          systemInstruction:
+            'شما متخصص تدوین کاتالوگ محصولات و تجارت الکترونیک هستید. خروجی را دقیقاً مطابق اسکیما و به زبان فارسی استاندارد برگردانید.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING, description: 'عنوان پیشنهادی کوتاه محصول به فارسی' },
+              description: { type: Type.STRING, description: 'توضیح کوتاه و حرفه‌ای محصول به فارسی' },
+              category: { type: Type.STRING, description: 'نام دسته‌بندی محصول به فارسی' },
+              tags: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: '۳ تا ۵ برچسب مرتبط فارسی',
+              },
+            },
+            required: ['title', 'description', 'category', 'tags'],
+          },
+        },
+      });
+    };
+
+    try {
+      let response;
+      try {
+        response = await callGemini();
+      } catch (firstErr: any) {
+        const msg = String(firstErr?.message || firstErr || '');
+        const status = firstErr?.status || firstErr?.httpStatusCode;
+        // Brief exponential backoff retry only for transient 5xx/network errors
+        if (status >= 500 || msg.includes('fetch') || msg.includes('ECONNRESET')) {
+          await new Promise((r) => setTimeout(r, 900));
+          response = await callGemini();
+        } else {
+          throw firstErr;
+        }
+      }
+
+      const rawText = (response.text || '').trim();
+      if (!rawText) {
+        return res.status(502).json({
+          code: 'EMPTY_RESPONSE',
+          error: 'پاسخی از سرویس هوش مصنوعی دریافت نشد. لطفاً دوباره تلاش کنید.',
+        });
+      }
+
+      const parsed = JSON.parse(rawText);
+      return res.json({
+        title: String(parsed.title || 'محصول بدون عنوان').trim(),
+        description: String(parsed.description || '').trim(),
+        category: String(parsed.category || 'عمومی').trim(),
+        tags: Array.isArray(parsed.tags)
+          ? parsed.tags.map((t: unknown) => String(t).replace(/^#+/, '').trim()).filter(Boolean).slice(0, 6)
+          : [],
+      });
+    } catch (err: any) {
+      const errMsg = String(err?.message || err || '');
+      const status = Number(err?.status || err?.statusCode || 0);
+
+      if (status === 429 || errMsg.includes('RESOURCE_EXHAUSTED') || errMsg.includes('429') || errMsg.includes('quota')) {
+        return res.status(429).json({
+          code: 'RATE_LIMIT',
+          error: 'محدودیت نرخ درخواست (Rate Limit) سرویس هوش مصنوعی پر شده است. لطفاً چند ثانیه صبر کرده و دوباره تلاش کنید.',
+        });
+      }
+      if (
+        status === 401 ||
+        status === 403 ||
+        errMsg.includes('API_KEY_INVALID') ||
+        errMsg.includes('PERMISSION_DENIED') ||
+        errMsg.includes('API key not valid')
+      ) {
+        return res.status(403).json({
+          code: 'INVALID_API_KEY',
+          error: 'کلید API جمینی نامعتبر است یا دسترسی لازم را ندارد. لطفاً کلید را در تنظیمات Secrets بررسی کنید.',
+        });
+      }
+      if (status === 400 || errMsg.includes('INVALID_ARGUMENT') || errMsg.includes('Unable to process input image')) {
+        return res.status(400).json({
+          code: 'INVALID_IMAGE',
+          error: 'تصویر برای تحلیل هوش مصنوعی قابل پردازش نیست. لطفاً تصویر دیگری با فرمت PNG، JPG یا WebP انتخاب کنید.',
+        });
+      }
+      return res.status(500).json({
+        code: 'ANALYSIS_FAILED',
+        error: `خطا در تحلیل تصویر: ${errMsg || 'خطای نامشخص سرور'}`,
+      });
+    }
+  });
+
+  // Upload individual flipbook image asset as a static file so /api/flipbooks stays lightweight (<5KB JSON)
+  app.post('/api/flipbooks/upload-image', (req, res) => {
+    try {
+      const dataUrl = String(req.body?.dataUrl || '').trim();
+      const match = dataUrl.match(/^data:image\/(webp|jpeg|jpg|png|gif);base64,(.+)$/i);
+      if (!match) {
+        return res.status(400).json({ error: 'فرمت تصویر نامعتبر است.' });
+      }
+      const ext = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
+      const buffer = Buffer.from(match[2], 'base64');
+      if (!buffer || buffer.length === 0) {
+        return res.status(400).json({ error: 'داده تصویر خالی است.' });
+      }
+      if (!fs.existsSync(FLIPBOOK_UPLOADS_DIR)) {
+        fs.mkdirSync(FLIPBOOK_UPLOADS_DIR, { recursive: true });
+      }
+      const fileName = `fb-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
+      const targetPath = path.join(FLIPBOOK_UPLOADS_DIR, fileName);
+      fs.writeFileSync(targetPath, buffer);
+      return res.json({ ok: true, url: `/uploads/flipbooks/${fileName}`, bytes: buffer.length });
+    } catch (err) {
+      console.error('Failed saving flipbook image:', err);
+      return res.status(500).json({ error: 'ذخیره فایل تصویر روی سرور با خطا مواجه شد.' });
+    }
+  });
+
+  // Published Flipbooks CRUD (powers live WordPress iframe embeds at /embed/:id)
+  app.get('/api/flipbooks', (_req, res) => {
+    const list = readJsonFile<any[]>(FLIPBOOKS_FILE, []);
+    const summaries = list.map(({ pages, ...rest }) => ({
+      ...rest,
+      pageCount: Array.isArray(pages) ? pages.length : 0,
+    }));
+    res.json(summaries);
+  });
+
+  app.get('/api/flipbooks/:id', (req, res) => {
+    const list = readJsonFile<any[]>(FLIPBOOKS_FILE, []);
+    const found = list.find((item) => String(item.id) === String(req.params.id));
+    if (!found) {
+      return res.status(404).json({ error: 'کاتالوگ مورد نظر یافت نشد.' });
+    }
+    return res.json(found);
+  });
+
+  app.post('/api/flipbooks', (req, res) => {
+    try {
+      const project = req.body;
+      if (!project || !Array.isArray(project.pages)) {
+        return res.status(400).json({ error: 'ساختار پروژه کاتالوگ نامعتبر است.' });
+      }
+      const list = readJsonFile<any[]>(FLIPBOOKS_FILE, []);
+      const id = String(project.publishedId || project.id || `cat-${Date.now()}`);
+
+      // Normalize pages so duplicate originalDataUrl data-URIs are never stored redundantly
+      const normalizedPages = project.pages.map((p: any) => {
+        const primaryUrl = p?.optimizedDataUrl || p?.originalDataUrl || '';
+        return {
+          ...p,
+          originalDataUrl: primaryUrl.startsWith('data:') ? '' : (p?.originalDataUrl || primaryUrl),
+          optimizedDataUrl: primaryUrl,
+        };
+      });
+
+      const record = {
+        ...project,
+        pages: normalizedPages,
+        id,
+        publishedId: id,
+        updatedAt: new Date().toISOString(),
+      };
+      const idx = list.findIndex((item) => String(item.id) === id);
+      if (idx >= 0) {
+        list[idx] = record;
+      } else {
+        list.unshift(record);
+      }
+      writeJsonFile(FLIPBOOKS_FILE, list.slice(0, 30), true);
+      return res.json({ ok: true, id });
+    } catch (err) {
+      console.error('Failed saving flipbook:', err);
+      return res.status(500).json({ error: 'ذخیره پروژه کاتالوگ روی سرور با خطا مواجه شد.' });
+    }
+  });
+
+  app.delete('/api/flipbooks/:id', (req, res) => {
+    const list = readJsonFile<any[]>(FLIPBOOKS_FILE, []);
+    const next = list.filter((item) => String(item.id) !== String(req.params.id));
+    writeJsonFile(FLIPBOOKS_FILE, next, true);
+    res.json({ ok: true, count: next.length });
+  });
+
   // Real Inquiries persistence backed by inquiries.json
   app.get('/api/inquiries', (_req, res) => {
     const list = readJsonFile<any[]>(INQUIRIES_FILE, []);
@@ -509,6 +852,117 @@ async function startServer() {
   const isProduction = process.env.NODE_ENV === 'production';
   const PORT = isProduction ? Number(process.env.PORT) || 3000 : 3000;
 
+  if (!fs.existsSync(FLIPBOOK_UPLOADS_DIR)) {
+    try {
+      fs.mkdirSync(FLIPBOOK_UPLOADS_DIR, { recursive: true });
+    } catch {
+      // ignore if read-only
+    }
+  }
+  app.use('/uploads', express.static(UPLOADS_DIR));
+
+  const downloadsCandidates = [
+    path.join(__dirname, 'public', 'downloads'),
+    path.join(__dirname, '..', 'public', 'downloads'),
+    path.join(__dirname, 'downloads'),
+  ];
+
+  const resolveLatestReleaseZip = (): { filePath: string; fileName: string; sizeBytes: number; version: string } | null => {
+    for (const dir of downloadsCandidates) {
+      try {
+        if (!fs.existsSync(dir)) continue;
+        const files = fs
+          .readdirSync(dir)
+          .filter((f) => f.endsWith('.zip'))
+          .map((f) => {
+            const full = path.join(dir, f);
+            const st = fs.statSync(full);
+            return { fileName: f, filePath: full, sizeBytes: st.size, mtimeMs: st.mtimeMs };
+          })
+          .sort((a, b) => b.mtimeMs - a.mtimeMs);
+        if (files.length > 0) {
+          const best = files[0];
+          const vMatch = best.fileName.match(/v(\d+\.\d+\.\d+)/i);
+          return {
+            filePath: best.filePath,
+            fileName: best.fileName,
+            sizeBytes: best.sizeBytes,
+            version: vMatch ? vMatch[1] : APP_VERSION,
+          };
+        }
+      } catch {
+        // try next candidate
+      }
+    }
+    return null;
+  };
+
+  app.get('/api/release/latest', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const latest = resolveLatestReleaseZip();
+    if (!latest) {
+      return res.json({
+        available: false,
+        version: APP_VERSION,
+        fileName: `ashk-ghalam-v${APP_VERSION}-cpanel.zip`,
+      });
+    }
+    return res.json({
+      available: true,
+      version: latest.version,
+      fileName: latest.fileName,
+      sizeBytes: latest.sizeBytes,
+      sizeMb: Number((latest.sizeBytes / (1024 * 1024)).toFixed(2)),
+      downloadUrl: '/api/release/download',
+      staticUrl: `/downloads/${encodeURIComponent(latest.fileName)}`,
+    });
+  });
+
+  app.get('/api/release/download', (_req, res) => {
+    const latest = resolveLatestReleaseZip();
+    if (!latest) {
+      return res.status(404).json({ error: 'فایل بیلد ZIP روی سرور یافت نشد.' });
+    }
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Content-Type', 'application/zip');
+    return res.download(latest.filePath, latest.fileName);
+  });
+
+  app.get('/downloads/:fileName', (req, res, next) => {
+    const requested = path.basename(String(req.params.fileName || ''));
+    if (!requested.endsWith('.zip')) return next();
+    for (const dir of downloadsCandidates) {
+      const candidate = path.join(dir, requested);
+      if (fs.existsSync(candidate)) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.setHeader('Content-Type', 'application/zip');
+        return res.download(candidate, requested);
+      }
+    }
+    const latest = resolveLatestReleaseZip();
+    if (latest) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Content-Type', 'application/zip');
+      return res.download(latest.filePath, latest.fileName);
+    }
+    return res.status(404).json({ error: 'فایل زیپ درخواستی یافت نشد.' });
+  });
+
+  const downloadsDir = downloadsCandidates.find((p) => fs.existsSync(p));
+  if (downloadsDir) {
+    app.use(
+      '/downloads',
+      express.static(downloadsDir, {
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.zip')) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+            res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
+          }
+        },
+      })
+    );
+  }
+
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -520,7 +974,9 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(__dirname, 'dist');
+    const distPath = fs.existsSync(path.join(__dirname, 'index.html'))
+      ? __dirname
+      : path.join(__dirname, 'dist');
     const distIndexHtmlPath = path.join(distPath, 'index.html');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useContent } from '../contexts/ContentContext';
 import { BlogPost, AppView } from '../types';
-import { Badge, Button } from './UIComponents';
+import { Badge, Button, BackButton } from './UIComponents';
 import { Clock, User, Calendar, ArrowLeft, ChevronRight, Share2, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { findBySlugOrId, toSlug } from '../utils/slugUtils';
@@ -63,14 +63,8 @@ export const Blog: React.FC = () => {
         />
 
         {/* Breadcrumb / Back button */}
-        <div className="flex items-center justify-between mb-6">
-          <button 
-            onClick={() => navigate('/blog')}
-            className="flex items-center gap-2 text-gray-500 hover:text-primary-600 transition-colors text-sm font-bold cursor-pointer"
-          >
-            <ChevronRight className="w-4 h-4 rotate-180" />
-            <span>بازگشت به فهرست مقالات</span>
-          </button>
+        <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+          <BackButton label="بازگشت به مقالات" to="/blog" variant="auto" />
           
           <div className="flex items-center gap-2 text-xs text-gray-400">
             <Link to="/" className="hover:text-primary-600">خانه</Link>
@@ -153,6 +147,10 @@ export const Blog: React.FC = () => {
         customDescription="آخرین مقالات آموزشی درباره استانداردهای چاپ افست ۵ رنگ، بسته‌بندی هوشمند، ساخت دایلاین و تکنولوژی‌های جدید."
         noIndex={false}
       />
+
+      <div className="mb-4 flex items-center justify-between">
+        <BackButton label="بازگشت" fallbackPath="/" variant="auto" />
+      </div>
 
       <div className="text-center mb-12">
         <h1 className="text-3xl md:text-4xl font-black text-gray-900 dark:text-white mb-4">

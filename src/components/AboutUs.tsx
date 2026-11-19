@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Printer, Box, Phone, Mail, MapPin, Sparkles, Clock, Cpu, FileText } from 'lucide-react';
 import { useContent } from '../contexts/ContentContext';
 import { AppView } from '../types';
+import { BackButton } from './UIComponents';
 
 export const AboutUs: React.FC<{ onNavigate?: (view: AppView) => void }> = ({ onNavigate }) => {
   const { siteContent } = useContent();
@@ -32,6 +33,9 @@ export const AboutUs: React.FC<{ onNavigate?: (view: AppView) => void }> = ({ on
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 space-y-12 font-sans dir-rtl text-right">
+      <div className="flex items-center justify-between -mb-6">
+        <BackButton label="بازگشت" fallbackPath="/" variant="auto" />
+      </div>
       {/* Hero Header */}
       <div className="relative rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-8 sm:p-12 overflow-hidden shadow-2xl border border-indigo-900/40">
         <div className="relative z-10 max-w-3xl">

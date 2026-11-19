@@ -1,20 +1,96 @@
 import * as THREE from 'three';
 
+export type HeroBoardSurfaceType = 'glossy' | 'kraft' | 'velvet' | 'linen';
+
 export interface MaterialPalette {
   id: string;
   label: string;
   color: string;
+  innerColor: string;
   roughness: number;
   metalness: number;
+  clearcoat: number;
+  clearcoatRoughness: number;
+  sheen: number;
+  sheenRoughness: number;
+  sheenColor: string;
   bumpScale: number;
+  normalScale: number;
+  envMapIntensity: number;
+  surfaceType: HeroBoardSurfaceType;
   isVelvet?: boolean;
 }
 
 export const BOARD_MATERIALS: MaterialPalette[] = [
-  { id: 'sbs', label: 'ایندربرد سفید SBS', color: '#f2f0eb', roughness: 0.52, metalness: 0.03, bumpScale: 0.004 },
-  { id: 'kraft', label: 'کرافت طبیعی', color: '#c89b66', roughness: 0.86, metalness: 0.02, bumpScale: 0.012 },
-  { id: 'carbon', label: 'کربن مخملی', color: '#141824', roughness: 0.72, metalness: 0.08, bumpScale: 0.008, isVelvet: true },
-  { id: 'royal', label: 'سرمه‌ای سلطنتی', color: '#132342', roughness: 0.58, metalness: 0.06, bumpScale: 0.006 },
+  {
+    id: 'sbs',
+    label: 'ایندربرد سفید SBS',
+    color: '#f5f2eb',
+    innerColor: '#e6e0d5',
+    roughness: 0.34,
+    metalness: 0.02,
+    clearcoat: 0.72,
+    clearcoatRoughness: 0.14,
+    sheen: 0.12,
+    sheenRoughness: 0.55,
+    sheenColor: '#ffffff',
+    bumpScale: 0.004,
+    normalScale: 0.25,
+    envMapIntensity: 1.15,
+    surfaceType: 'glossy',
+  },
+  {
+    id: 'kraft',
+    label: 'کرافت طبیعی',
+    color: '#c79963',
+    innerColor: '#aa7b49',
+    roughness: 0.86,
+    metalness: 0.01,
+    clearcoat: 0.0,
+    clearcoatRoughness: 0.9,
+    sheen: 0.22,
+    sheenRoughness: 0.82,
+    sheenColor: '#f5dec0',
+    bumpScale: 0.016,
+    normalScale: 0.85,
+    envMapIntensity: 0.9,
+    surfaceType: 'kraft',
+  },
+  {
+    id: 'carbon',
+    label: 'کربن مخملی',
+    color: '#141926',
+    innerColor: '#dfd6c7',
+    roughness: 0.82,
+    metalness: 0.03,
+    clearcoat: 0.04,
+    clearcoatRoughness: 0.72,
+    sheen: 0.95,
+    sheenRoughness: 0.52,
+    sheenColor: '#94a3b8',
+    bumpScale: 0.01,
+    normalScale: 0.55,
+    envMapIntensity: 1.1,
+    surfaceType: 'velvet',
+    isVelvet: true,
+  },
+  {
+    id: 'royal',
+    label: 'سرمه‌ای سلطنتی',
+    color: '#112244',
+    innerColor: '#ece5d8',
+    roughness: 0.54,
+    metalness: 0.04,
+    clearcoat: 0.24,
+    clearcoatRoughness: 0.42,
+    sheen: 0.48,
+    sheenRoughness: 0.58,
+    sheenColor: '#60a5fa',
+    bumpScale: 0.014,
+    normalScale: 0.78,
+    envMapIntensity: 1.2,
+    surfaceType: 'linen',
+  },
 ];
 
 export interface FoilPalette {
@@ -27,10 +103,265 @@ export interface FoilPalette {
 }
 
 export const FOIL_MATERIALS: FoilPalette[] = [
-  { id: 'gold24k', label: 'طلای ۲۴ عیار', color: '#e5b84b', emissive: '#3a2606', roughness: 0.14, metalness: 0.96 },
-  { id: 'silver', label: 'نقره‌ای کروم', color: '#dce3ec', emissive: '#1e2430', roughness: 0.1, metalness: 0.98 },
-  { id: 'rosegold', label: 'مس رزگلد', color: '#d98c72', emissive: '#331810', roughness: 0.16, metalness: 0.94 },
+  { id: 'gold24k', label: 'طلای ۲۴ عیار', color: '#ecc154', emissive: '#3f2804', roughness: 0.12, metalness: 0.98 },
+  { id: 'silver', label: 'نقره‌ای کروم', color: '#e2e8f0', emissive: '#1e2633', roughness: 0.09, metalness: 0.99 },
+  { id: 'rosegold', label: 'مس رزگلد', color: '#df9176', emissive: '#38190e', roughness: 0.14, metalness: 0.96 },
 ];
+
+function heightCanvasToNormalCanvas(heightCanvas: HTMLCanvasElement, strength = 2.2): HTMLCanvasElement {
+  const w = heightCanvas.width;
+  const h = heightCanvas.height;
+  const hCtx = heightCanvas.getContext('2d');
+  const nCanvas = document.createElement('canvas');
+  nCanvas.width = w;
+  nCanvas.height = h;
+  const nCtx = nCanvas.getContext('2d');
+  if (!hCtx || !nCtx) return nCanvas;
+
+  const src = hCtx.getImageData(0, 0, w, h).data;
+  const out = nCtx.createImageData(w, h);
+  const dst = out.data;
+
+  const sample = (x: number, y: number) => {
+    const cx = ((x % w) + w) % w;
+    const cy = ((y % h) + h) % h;
+    return src[(cy * w + cx) * 4] / 255;
+  };
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = (sample(x + 1, y) - sample(x - 1, y)) * strength;
+      const dy = (sample(x, y + 1) - sample(x, y - 1)) * strength;
+      const nz = 1.0;
+      const invLen = 1 / Math.sqrt(dx * dx + dy * dy + nz * nz);
+      const idx = (y * w + x) * 4;
+      dst[idx] = Math.round((-dx * invLen * 0.5 + 0.5) * 255);
+      dst[idx + 1] = Math.round((-dy * invLen * 0.5 + 0.5) * 255);
+      dst[idx + 2] = Math.round((nz * invLen * 0.5 + 0.5) * 255);
+      dst[idx + 3] = 255;
+    }
+  }
+
+  nCtx.putImageData(out, 0, 0);
+  return nCanvas;
+}
+
+export interface HeroBoardTextureSet {
+  map: THREE.CanvasTexture;
+  normalMap: THREE.CanvasTexture;
+  roughnessMap: THREE.CanvasTexture;
+}
+
+export function createHeroBoardMaps(
+  surfaceType: HeroBoardSurfaceType,
+  maxAnisotropy: number
+): HeroBoardTextureSet {
+  const size = 512;
+  const rand = seededRand(
+    surfaceType.split('').reduce((acc, ch) => acc + ch.charCodeAt(0) * 41, 97)
+  );
+
+  const albedoCanvas = document.createElement('canvas');
+  albedoCanvas.width = size;
+  albedoCanvas.height = size;
+  const actx = albedoCanvas.getContext('2d')!;
+
+  const heightCanvas = document.createElement('canvas');
+  heightCanvas.width = size;
+  heightCanvas.height = size;
+  const hctx = heightCanvas.getContext('2d')!;
+
+  const roughCanvas = document.createElement('canvas');
+  roughCanvas.width = size;
+  roughCanvas.height = size;
+  const rctx = roughCanvas.getContext('2d')!;
+
+  actx.fillStyle = '#ffffff';
+  actx.fillRect(0, 0, size, size);
+  hctx.fillStyle = '#808080';
+  hctx.fillRect(0, 0, size, size);
+  rctx.fillStyle = '#cccccc';
+  rctx.fillRect(0, 0, size, size);
+
+  if (surfaceType === 'glossy') {
+    rctx.fillStyle = '#a8a8a8';
+    rctx.fillRect(0, 0, size, size);
+    for (let i = 0; i < 6500; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const v = 244 + Math.floor(rand() * 11);
+      actx.fillStyle = `rgb(${v},${v},${v})`;
+      actx.fillRect(x, y, 1.6, 1.6);
+
+      const hv = 123 + Math.floor(rand() * 10);
+      hctx.fillStyle = `rgb(${hv},${hv},${hv})`;
+      hctx.fillRect(x, y, 2, 2);
+    }
+    // Subtle satin calender streaks
+    actx.fillStyle = 'rgba(0,0,0,0.012)';
+    for (let y = 0; y < size; y += 3) {
+      if (rand() > 0.45) actx.fillRect(0, y, size, 1);
+    }
+  } else if (surfaceType === 'velvet') {
+    rctx.fillStyle = '#e0e0e0';
+    rctx.fillRect(0, 0, size, size);
+    for (let i = 0; i < 20000; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const v = 232 + Math.floor(rand() * 23);
+      actx.fillStyle = `rgb(${v},${v},${v})`;
+      actx.fillRect(x, y, 1.5, 1.5);
+
+      const hv = 104 + Math.floor(rand() * 48);
+      hctx.fillStyle = `rgb(${hv},${hv},${hv})`;
+      hctx.fillRect(x, y, 2, 2);
+
+      const rv = 195 + Math.floor(rand() * 48);
+      rctx.fillStyle = `rgb(${rv},${rv},${rv})`;
+      rctx.fillRect(x, y, 2, 2);
+    }
+  } else if (surfaceType === 'kraft') {
+    rctx.fillStyle = '#ececec';
+    rctx.fillRect(0, 0, size, size);
+    for (let i = 0; i < 18000; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const t = 212 + Math.floor(rand() * 42);
+      actx.fillStyle = `rgb(${t},${t - 4},${t - 9})`;
+      actx.fillRect(x, y, 1.8, 1.8);
+
+      const hv = 94 + Math.floor(rand() * 68);
+      hctx.fillStyle = `rgb(${hv},${hv},${hv})`;
+      hctx.fillRect(x, y, 2, 2);
+    }
+    for (let i = 0; i < 950; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const len = 8 + rand() * 24;
+      const ang = (rand() - 0.5) * 0.7;
+      const dark = rand() > 0.45;
+      actx.strokeStyle = dark ? 'rgba(92, 62, 34, 0.22)' : 'rgba(255, 240, 215, 0.18)';
+      actx.lineWidth = 0.8 + rand() * 1.1;
+      actx.beginPath();
+      actx.moveTo(x, y);
+      actx.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+      actx.stroke();
+
+      hctx.strokeStyle = dark ? 'rgba(65,65,65,0.34)' : 'rgba(205,205,205,0.28)';
+      hctx.lineWidth = 1.2;
+      hctx.beginPath();
+      hctx.moveTo(x, y);
+      hctx.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len);
+      hctx.stroke();
+    }
+    for (let i = 0; i < 220; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      actx.fillStyle = 'rgba(68, 43, 21, 0.36)';
+      actx.beginPath();
+      actx.arc(x, y, 0.8 + rand() * 1.4, 0, Math.PI * 2);
+      actx.fill();
+    }
+  } else {
+    // Luxury cross-hatched linen embossing
+    rctx.fillStyle = '#cfcfcf';
+    rctx.fillRect(0, 0, size, size);
+    const step = 8;
+    for (let y = 0; y < size; y += step) {
+      const even = y % (step * 2) === 0;
+      const shade = even ? 248 : 234;
+      actx.fillStyle = `rgb(${shade},${shade},${shade})`;
+      actx.fillRect(0, y, size, step / 2);
+
+      const hv = even ? 172 : 92;
+      hctx.fillStyle = `rgb(${hv},${hv},${hv})`;
+      hctx.fillRect(0, y, size, step / 2);
+    }
+    for (let x = 0; x < size; x += step) {
+      const even = x % (step * 2) === 0;
+      actx.fillStyle = even ? 'rgba(255,255,255,0.22)' : 'rgba(170,175,185,0.18)';
+      actx.fillRect(x, 0, step / 2, size);
+
+      hctx.fillStyle = even ? 'rgba(210,210,210,0.45)' : 'rgba(70,70,70,0.45)';
+      hctx.fillRect(x, 0, step / 2, size);
+
+      const rv = even ? 175 : 225;
+      rctx.fillStyle = `rgba(${rv},${rv},${rv},0.55)`;
+      rctx.fillRect(x, 0, step / 2, size);
+    }
+  }
+
+  const normalCanvas = heightCanvasToNormalCanvas(
+    heightCanvas,
+    surfaceType === 'glossy' ? 1.0 : surfaceType === 'velvet' ? 1.8 : 2.6
+  );
+
+  const wrap = (canvas: HTMLCanvasElement, isColor: boolean) => {
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    tex.anisotropy = maxAnisotropy;
+    tex.needsUpdate = true;
+    return tex;
+  };
+
+  return {
+    map: wrap(albedoCanvas, true),
+    normalMap: wrap(normalCanvas, false),
+    roughnessMap: wrap(roughCanvas, false),
+  };
+}
+
+export function createBrushedFoilMaps(maxAnisotropy: number): {
+  roughnessMap: THREE.CanvasTexture;
+  normalMap: THREE.CanvasTexture;
+} {
+  const size = 256;
+  const rand = seededRand(4049);
+  const rCanvas = document.createElement('canvas');
+  rCanvas.width = size;
+  rCanvas.height = size;
+  const rctx = rCanvas.getContext('2d')!;
+
+  const hCanvas = document.createElement('canvas');
+  hCanvas.width = size;
+  hCanvas.height = size;
+  const hctx = hCanvas.getContext('2d')!;
+
+  rctx.fillStyle = '#303030';
+  rctx.fillRect(0, 0, size, size);
+  hctx.fillStyle = '#808080';
+  hctx.fillRect(0, 0, size, size);
+
+  for (let y = 0; y < size; y++) {
+    const rv = 30 + Math.floor(rand() * 34);
+    rctx.fillStyle = `rgb(${rv},${rv},${rv})`;
+    rctx.fillRect(0, y, size, 1);
+
+    const hv = 114 + Math.floor(rand() * 28);
+    hctx.fillStyle = `rgb(${hv},${hv},${hv})`;
+    hctx.fillRect(0, y, size, 1);
+  }
+
+  const nCanvas = heightCanvasToNormalCanvas(hCanvas, 1.4);
+
+  const mk = (c: HTMLCanvasElement) => {
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.NoColorSpace;
+    t.wrapS = THREE.RepeatWrapping;
+    t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = maxAnisotropy;
+    t.needsUpdate = true;
+    return t;
+  };
+
+  return {
+    roughnessMap: mk(rCanvas),
+    normalMap: mk(nCanvas),
+  };
+}
 
 export function createBoardFiberTexture(maxAnisotropy: number): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
@@ -329,19 +660,19 @@ export function createStudioFloorTexture(maxAnisotropy: number): THREE.CanvasTex
   canvas.height = 1024;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = '#070b14';
+    ctx.fillStyle = '#020307';
     ctx.fillRect(0, 0, 1024, 1024);
 
-    // Subtle radial architectural glow
-    const grad = ctx.createRadialGradient(512, 512, 40, 512, 512, 500);
-    grad.addColorStop(0, 'rgba(229, 184, 75, 0.08)');
-    grad.addColorStop(0.45, 'rgba(56, 189, 248, 0.035)');
-    grad.addColorStop(1, 'rgba(7, 11, 20, 0)');
+    // Subtle deep studio spotlight falloff under turntable
+    const grad = ctx.createRadialGradient(512, 512, 30, 512, 512, 490);
+    grad.addColorStop(0, 'rgba(229, 184, 75, 0.045)');
+    grad.addColorStop(0.42, 'rgba(30, 58, 138, 0.022)');
+    grad.addColorStop(1, 'rgba(2, 3, 7, 0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 1024, 1024);
 
-    // Fine engineering grid
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.07)';
+    // Faint engineering grid
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.032)';
     ctx.lineWidth = 1;
     const step = 32;
     for (let i = 0; i <= 1024; i += step) {
@@ -356,7 +687,7 @@ export function createStudioFloorTexture(maxAnisotropy: number): THREE.CanvasTex
     }
 
     // Concentric calibration rings
-    ctx.strokeStyle = 'rgba(229, 184, 75, 0.16)';
+    ctx.strokeStyle = 'rgba(229, 184, 75, 0.085)';
     [160, 270, 390].forEach((r) => {
       ctx.beginPath();
       ctx.arc(512, 512, r, 0, Math.PI * 2);
@@ -364,7 +695,7 @@ export function createStudioFloorTexture(maxAnisotropy: number): THREE.CanvasTex
     });
 
     // Degree ticks around outer ring
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.11)';
     for (let deg = 0; deg < 360; deg += 5) {
       const rad = (deg * Math.PI) / 180;
       const r1 = 390;
