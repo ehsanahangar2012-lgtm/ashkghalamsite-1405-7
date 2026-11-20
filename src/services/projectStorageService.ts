@@ -25,12 +25,40 @@ function compactProjectForStorage(project: CatalogProject): CatalogProject {
 
 function dataUrlToBlob(dataUrl: string): { blob: Blob; ext: string } | null {
   try {
-    const match = dataUrl.match(/^data:image\/(webp|jpeg|jpg|png|gif);base64,(.+)$/i);
-    if (!match) return null;
-    const rawExt = match[1].toLowerCase();
-    const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
-    const mime = `image/${rawExt === 'jpg' ? 'jpeg' : rawExt}`;
-    const byteString = atob(match[2]);
+    const trimmed = dataUrl.trim();
+    const b64Marker = ';base64,';
+    const lower = trimmed.toLowerCase();
+    const markerIdx = lower.indexOf(b64Marker);
+    if (!lower.startsWith('data:image/') || markerIdx < 0) return null;
+
+    const rawSub = lower.slice('data:image/'.length, markerIdx).split(';')[0].trim();
+    let ext = 'webp';
+    let mime = 'image/webp';
+    if (rawSub === 'jpeg' || rawSub === 'jpg') {
+      ext = 'jpg';
+      mime = 'image/jpeg';
+    } else if (rawSub === 'png') {
+      ext = 'png';
+      mime = 'image/png';
+    } else if (rawSub === 'gif') {
+      ext = 'gif';
+      mime = 'image/gif';
+    } else if (rawSub === 'svg+xml' || rawSub === 'svg') {
+      ext = 'svg';
+      mime = 'image/svg+xml';
+    } else if (rawSub === 'webp') {
+      ext = 'webp';
+      mime = 'image/webp';
+    } else {
+      ext = 'webp';
+      mime = `image/${rawSub}`;
+    }
+
+    const base64Clean = trimmed.slice(markerIdx + b64Marker.length).replace(/\s+/g, '');
+    if (!base64Clean) return null;
+    const byteString = atob(base64Clean);
+    if (byteString.length === 0) return null;
+
     const ab = new ArrayBuffer(byteString.length);
     const ia = new Uint8Array(ab);
     for (let i = 0; i < byteString.length; i += 1) {
@@ -54,6 +82,7 @@ export async function uploadImageAssetToServer(
   }
 
   let lastStatus = 0;
+  let lastErrorMsg = '';
 
   // Primary path: standard multipart/form-data (tries /api/flipbooks/upload-image then /api.php?r=...)
   const converted = dataUrlToBlob(dataUrl);
@@ -61,16 +90,21 @@ export async function uploadImageAssetToServer(
     try {
       const formData = new FormData();
       formData.append('file', converted.blob, `page-${Date.now()}.${converted.ext}`);
-      const res = await apiFetch('flipbooks/upload-image', {
-        method: 'POST',
-        body: formData,
-      }, 25000);
+      const res = await apiFetch(
+        'flipbooks/upload-image',
+        {
+          method: 'POST',
+          body: formData,
+        },
+        30000
+      );
       lastStatus = res.status;
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
-        if (data?.ok && typeof data.url === 'string' && data.url) {
-          return data.url;
-        }
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok && typeof data.url === 'string' && data.url) {
+        return data.url;
+      }
+      if (data?.error && typeof data.error === 'string') {
+        lastErrorMsg = data.error;
       }
     } catch {
       // Fall through to WAF-safe Base64 / JSON fallback
@@ -79,14 +113,17 @@ export async function uploadImageAssetToServer(
 
   // Fallback path: JSON / Base64 payload_file upload (apiPostJson includes automatic /api.php + payload_file WAF bypass)
   try {
-    const { res, data } = await apiPostJson<{ ok?: boolean; url?: string }>(
+    const { res, data } = await apiPostJson<{ ok?: boolean; url?: string; error?: string }>(
       'flipbooks/upload-image',
       { dataUrl },
-      25000
+      30000
     );
     lastStatus = res.status;
     if (res.ok && data?.ok && typeof data.url === 'string' && data.url) {
       return data.url;
+    }
+    if (data?.error && typeof data.error === 'string') {
+      lastErrorMsg = data.error;
     }
   } catch {
     // Fall through to tighter compression retry
@@ -97,7 +134,7 @@ export async function uploadImageAssetToServer(
     try {
       const recompressed = await optimizeDataUrlToWebP(dataUrl, 0, {
         quality: 0.72,
-        maxDimension: 900,
+        maxDimension: 960,
       });
       if (recompressed?.optimizedDataUrl && recompressed.optimizedDataUrl.length < dataUrl.length) {
         return await uploadImageAssetToServer(recompressed.optimizedDataUrl, false);
@@ -109,7 +146,8 @@ export async function uploadImageAssetToServer(
 
   if (lastStatus > 0 && lastStatus !== 200) {
     throw new Error(
-      `آپلود تصویر کاتالوگ روی سرور با کد ${lastStatus} متوقف شد. دسترسی نوشتن پوشه uploads/flipbooks را در هاست بررسی کنید.`
+      lastErrorMsg ||
+        `آپلود تصویر کاتالوگ روی سرور با کد ${lastStatus} متوقف شد. دسترسی نوشتن پوشه uploads/flipbooks را در هاست بررسی کنید.`
     );
   }
   return dataUrl;
@@ -257,13 +295,22 @@ export async function publishProjectToServer(
     let height = page.height;
     let optimizedSizeBytes = page.optimizedSizeBytes;
 
-    if (src.startsWith('data:image/') && !src.startsWith('data:image/webp')) {
+    const isInlineSvgOrGif =
+      src.startsWith('data:image/svg+xml') || src.startsWith('data:image/gif');
+    if (
+      src.startsWith('data:image/') &&
+      !src.startsWith('data:image/webp') &&
+      !isInlineSvgOrGif &&
+      src.length > 260_000
+    ) {
       try {
         const opt = await optimizeDataUrlToWebP(src, page.originalSizeBytes || 0, optimization);
-        src = opt.optimizedDataUrl;
-        width = opt.width;
-        height = opt.height;
-        optimizedSizeBytes = opt.optimizedSizeBytes;
+        if (opt.optimizedDataUrl && opt.optimizedDataUrl.length < src.length) {
+          src = opt.optimizedDataUrl;
+          width = opt.width;
+          height = opt.height;
+          optimizedSizeBytes = opt.optimizedSizeBytes;
+        }
       } catch {
         // Keep original data URL if canvas compression is skipped
       }

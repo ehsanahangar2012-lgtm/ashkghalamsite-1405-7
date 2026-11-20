@@ -21,16 +21,70 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const APP_VERSION = '3.25.0';
-const CATALOGS_FILE = path.join(__dirname, 'catalogs.json');
-const INQUIRIES_FILE = path.join(__dirname, 'inquiries.json');
-const SETTINGS_FILE = path.join(__dirname, 'settings.json');
-const POSTS_FILE = path.join(__dirname, 'posts.json');
-const SEO_STATE_FILE = path.join(__dirname, 'seo-state.json');
-const FLIPBOOKS_FILE = path.join(__dirname, 'flipbooks.json');
-const MEDIA_META_FILE = path.join(__dirname, 'media-meta.json');
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const APP_ROOT_DIR =
+  path.basename(__dirname) === 'dist' && fs.existsSync(path.join(__dirname, '..', 'package.json'))
+    ? path.join(__dirname, '..')
+    : __dirname;
+const CATALOGS_FILE = path.join(APP_ROOT_DIR, 'catalogs.json');
+const INQUIRIES_FILE = path.join(APP_ROOT_DIR, 'inquiries.json');
+const SETTINGS_FILE = path.join(APP_ROOT_DIR, 'settings.json');
+const POSTS_FILE = path.join(APP_ROOT_DIR, 'posts.json');
+const SEO_STATE_FILE = path.join(APP_ROOT_DIR, 'seo-state.json');
+const FLIPBOOKS_FILE = path.join(APP_ROOT_DIR, 'flipbooks.json');
+const MEDIA_META_FILE = path.join(APP_ROOT_DIR, 'media-meta.json');
+const UPLOADS_DIR = path.join(APP_ROOT_DIR, 'uploads');
 const FLIPBOOK_UPLOADS_DIR = path.join(UPLOADS_DIR, 'flipbooks');
 const MEDIA_UPLOADS_DIR = path.join(UPLOADS_DIR, 'media');
+
+function detectImageFromBuffer(buf: Buffer): { ext: string; mime: string } | null {
+  if (!buf || buf.length < 12) return null;
+  // WebP: RIFF....WEBP
+  if (
+    buf.slice(0, 4).toString('ascii') === 'RIFF' &&
+    buf.slice(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return { ext: 'webp', mime: 'image/webp' };
+  }
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47 &&
+    buf[4] === 0x0d &&
+    buf[5] === 0x0a &&
+    buf[6] === 0x1a &&
+    buf[7] === 0x0a
+  ) {
+    return { ext: 'png', mime: 'image/png' };
+  }
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return { ext: 'jpg', mime: 'image/jpeg' };
+  }
+  // GIF: GIF87a or GIF89a
+  const head6 = buf.slice(0, 6).toString('ascii');
+  if (head6 === 'GIF87a' || head6 === 'GIF89a') {
+    return { ext: 'gif', mime: 'image/gif' };
+  }
+  // BMP: BM
+  if (buf[0] === 0x42 && buf[1] === 0x4d && buf.length >= 26) {
+    return { ext: 'bmp', mime: 'image/bmp' };
+  }
+  // AVIF / HEIF: ....ftypavif / ....ftypavis
+  if (buf.slice(4, 8).toString('ascii') === 'ftyp') {
+    const brand = buf.slice(8, 12).toString('ascii').toLowerCase();
+    if (brand === 'avif' || brand === 'avis') {
+      return { ext: 'avif', mime: 'image/avif' };
+    }
+  }
+  // SVG (XML/text)
+  const headText = buf.slice(0, 512).toString('utf-8').trimStart().toLowerCase();
+  if (headText.startsWith('<svg') || (headText.startsWith('<?xml') && headText.includes('<svg'))) {
+    return { ext: 'svg', mime: 'image/svg+xml' };
+  }
+  return null;
+}
 
 function readJsonFile<T>(filePath: string, fallback: T): T {
   try {
@@ -856,20 +910,6 @@ async function startServer() {
 
           if (filePart && filePart.value.length > 0) {
             buffer = filePart.value;
-            const fnExt = (filePart.filename || '').split('.').pop()?.toLowerCase() || '';
-            if (['webp', 'jpg', 'jpeg', 'png', 'gif'].includes(fnExt)) {
-              ext = fnExt === 'jpeg' ? 'jpg' : fnExt;
-            } else if (buffer.slice(0, 4).toString('ascii') === 'RIFF' && buffer.slice(8, 12).toString('ascii') === 'WEBP') {
-              ext = 'webp';
-            } else if (buffer[0] === 0x89 && buffer[1] === 0x50) {
-              ext = 'png';
-            } else if (buffer[0] === 0xff && buffer[1] === 0xd8) {
-              ext = 'jpg';
-            } else if (buffer.slice(0, 4).toString('ascii') === 'GIF8') {
-              ext = 'gif';
-            } else {
-              ext = 'webp';
-            }
           } else if (parts.payload_file) {
             const enc = parts._encoding?.value.toString('utf-8').trim().toLowerCase() || '';
             const rawText = parts.payload_file.value.toString('utf-8').trim();
@@ -893,21 +933,33 @@ async function startServer() {
           if (!dataUrl.toLowerCase().startsWith('data:image/') || markerIdx < 0) {
             return res.status(400).json({ error: 'فرمت تصویر نامعتبر است.' });
           }
-          const mimeRaw = dataUrl.slice('data:image/'.length, markerIdx).split(';')[0].trim().toLowerCase();
-          ext = mimeRaw === 'jpeg' ? 'jpg' : ['webp', 'jpg', 'png', 'gif'].includes(mimeRaw) ? mimeRaw : 'webp';
           buffer = Buffer.from(dataUrl.slice(markerIdx + b64Marker.length).replace(/\s+/g, ''), 'base64');
         }
 
         if (!buffer || buffer.length === 0) {
           return res.status(400).json({ error: 'داده تصویر خالی است.' });
         }
+
+        const detected = detectImageFromBuffer(buffer);
+        if (!detected) {
+          return res.status(400).json({
+            error: 'فایل تصویر معتبر نیست یا در حین انتقال خراب شده است. لطفاً تصویر سالم (JPG، PNG یا WebP) آپلود کنید.',
+          });
+        }
+        ext = detected.ext;
+
         if (!fs.existsSync(FLIPBOOK_UPLOADS_DIR)) {
           fs.mkdirSync(FLIPBOOK_UPLOADS_DIR, { recursive: true });
         }
         const fileName = `fb-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
         const targetPath = path.join(FLIPBOOK_UPLOADS_DIR, fileName);
         fs.writeFileSync(targetPath, buffer);
-        return res.json({ ok: true, url: `/uploads/flipbooks/${fileName}`, bytes: buffer.length });
+        return res.json({
+          ok: true,
+          url: `/uploads/flipbooks/${fileName}`,
+          bytes: buffer.length,
+          mime: detected.mime,
+        });
       } catch (err) {
         console.error('Failed saving flipbook image:', err);
         return res.status(500).json({ error: 'ذخیره فایل تصویر روی سرور با خطا مواجه شد.' });
@@ -1343,6 +1395,14 @@ async function startServer() {
           return res.status(400).json({ error: 'داده تصویر خالی است.' });
         }
 
+        const detected = detectImageFromBuffer(buffer);
+        if (!detected) {
+          return res.status(400).json({
+            error: 'فایل تصویر معتبر نیست یا در حین انتقال خراب شده است.',
+          });
+        }
+        ext = detected.ext;
+
         const fileName = `media-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
         const targetPath = path.join(MEDIA_UPLOADS_DIR, fileName);
         fs.writeFileSync(targetPath, buffer);
@@ -1633,13 +1693,47 @@ async function startServer() {
     if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
       return res.status(404).json({ error: 'فایل تصویر یافت نشد.' });
     }
+    const headBuf = Buffer.alloc(512);
+    let bytesRead = 0;
+    try {
+      const fd = fs.openSync(diskPath, 'r');
+      bytesRead = fs.readSync(fd, headBuf, 0, 512, 0);
+      fs.closeSync(fd);
+    } catch {
+      bytesRead = 0;
+    }
+    const detected = bytesRead > 0 ? detectImageFromBuffer(headBuf.slice(0, bytesRead)) : null;
     const ext = path.extname(diskPath).slice(1).toLowerCase();
-    res.setHeader('Content-Type', guessImageMime(ext));
+    res.setHeader('Content-Type', detected?.mime || guessImageMime(ext));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'public, max-age=31536000');
     return res.sendFile(diskPath);
   });
 
-  app.use('/uploads', express.static(UPLOADS_DIR));
+  app.use(
+    '/uploads',
+    express.static(UPLOADS_DIR, {
+      setHeaders: (res, filePath) => {
+        try {
+          const headBuf = Buffer.alloc(512);
+          const fd = fs.openSync(filePath, 'r');
+          const bytesRead = fs.readSync(fd, headBuf, 0, 512, 0);
+          fs.closeSync(fd);
+          const detected = bytesRead > 0 ? detectImageFromBuffer(headBuf.slice(0, bytesRead)) : null;
+          if (detected) {
+            res.setHeader('Content-Type', detected.mime);
+          }
+        } catch {
+          // keep express.static default mime
+        }
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+      },
+    })
+  );
+  // Prevent missing /uploads/* paths from falling through to SPA index.html (200 text/html)
+  app.use('/uploads', (_req, res) => {
+    return res.status(404).json({ error: 'فایل تصویر در سرور یافت نشد.' });
+  });
 
   const downloadsCandidates = [
     path.join(__dirname, 'public', 'downloads'),

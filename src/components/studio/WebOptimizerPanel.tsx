@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sliders, RefreshCw, Loader2, Check } from 'lucide-react';
+import { Sliders, RefreshCw, Loader2, Check, AlertCircle } from 'lucide-react';
 import { CatalogPage, OptimizationSettings } from '../../types/flipbook';
 import {
   optimizeDataUrlToWebP,
@@ -7,6 +7,7 @@ import {
   formatBytesFa,
   calculateSavingsPercent,
 } from '../../utils/imageOptimizer';
+import { uploadImageAssetToServer } from '../../services/projectStorageService';
 
 interface WebOptimizerPanelProps {
   optimization: OptimizationSettings;
@@ -25,6 +26,7 @@ export const WebOptimizerPanel: React.FC<WebOptimizerPanelProps> = ({
 }) => {
   const [reoptimizing, setReoptimizing] = useState(false);
   const [justApplied, setJustApplied] = useState(false);
+  const [optError, setOptError] = useState<string | null>(null);
 
   const totalOriginalBytes = pages.reduce((sum, p) => sum + (p.originalSizeBytes || 0), 0);
   const totalOptimizedBytes = pages.reduce((sum, p) => sum + (p.optimizedSizeBytes || 0), 0);
@@ -34,9 +36,13 @@ export const WebOptimizerPanel: React.FC<WebOptimizerPanelProps> = ({
     if (pages.length === 0 || reoptimizing) return;
     setReoptimizing(true);
     setJustApplied(false);
+    setOptError(null);
 
     try {
       const updated: CatalogPage[] = [];
+      let failedCount = 0;
+      let uploadedAny = false;
+
       for (const page of pages) {
         try {
           const source = page.optimizedDataUrl || page.originalDataUrl;
@@ -48,10 +54,15 @@ export const WebOptimizerPanel: React.FC<WebOptimizerPanelProps> = ({
             ? await optimizeDataUrlToWebP(source, page.originalSizeBytes, optimization)
             : await optimizeImageUrlToWebP(source, optimization);
 
+          const storedUrl = await uploadImageAssetToServer(result.optimizedDataUrl);
+          if (!storedUrl.startsWith('data:')) {
+            uploadedAny = true;
+          }
+
           updated.push({
             ...page,
-            originalDataUrl: result.optimizedDataUrl,
-            optimizedDataUrl: result.optimizedDataUrl,
+            originalDataUrl: storedUrl,
+            optimizedDataUrl: storedUrl,
             originalSizeBytes: page.originalSizeBytes || result.originalSizeBytes,
             optimizedSizeBytes: result.optimizedSizeBytes,
             originalWidth: page.originalWidth || result.originalWidth,
@@ -60,13 +71,24 @@ export const WebOptimizerPanel: React.FC<WebOptimizerPanelProps> = ({
             height: result.height,
           });
         } catch {
+          failedCount += 1;
           updated.push(page);
         }
       }
 
+      if (uploadedAny && typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ashk-media-synced'));
+      }
+
       onReplaceAllOptimizedPages(updated);
-      setJustApplied(true);
-      setTimeout(() => setJustApplied(false), 2500);
+      if (failedCount > 0) {
+        setOptError(
+          `تبدیل مجدد ${failedCount.toLocaleString('fa-IR')} صفحه با خطا مواجه شد و نسخه قبلی آن‌ها حفظ گردید.`
+        );
+      } else {
+        setJustApplied(true);
+        setTimeout(() => setJustApplied(false), 2500);
+      }
     } finally {
       setReoptimizing(false);
     }
@@ -161,6 +183,13 @@ export const WebOptimizerPanel: React.FC<WebOptimizerPanelProps> = ({
               : 'اعمال تنظیمات و تبدیل مجدد صفحات به WebP'}
           </span>
         </button>
+
+        {optError && (
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+            <span>{optError}</span>
+          </div>
+        )}
       </div>
 
       {/* Total Size Metrics */}

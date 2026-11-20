@@ -43,6 +43,8 @@ const Library = lazy(() => import('./components/Library').then(m => ({ default: 
 const SoftwareMarketplace = lazy(() => import('./components/SoftwareMarketplace').then(m => ({ default: m.SoftwareMarketplace })));
 const CustomPageView = lazy(() => import('./components/CustomPageView').then(m => ({ default: m.CustomPageView })));
 const DownloadReleasePage = lazy(() => import('./components/DownloadReleasePage').then(m => ({ default: m.DownloadReleasePage })));
+const PacklyIndustrialDielineStudio = lazy(() => import('./components/PacklyIndustrialDielineStudio').then(m => ({ default: m.PacklyIndustrialDielineStudio })));
+const BoxStudio = lazy(() => import('./components/BoxStudio').then(m => ({ default: m.BoxStudio })));
 
 import {
   Menu, X, Home, Grid, Users, Moon, Sun, MessageSquare,
@@ -1047,6 +1049,8 @@ const AppContent = () => {
             <Route path="/pages/:slug" element={<CustomPageView />} />
             <Route path="/pages" element={<CustomPageView />} />
             <Route path="/tools/dieline" element={<><SeoHead view={AppView.DIELINE_GENERATOR} canonicalPath="/tools/dieline" /><DielineGenerator onSaveProject={handleSaveProject} /></>} />
+            <Route path="/tools/industrial-studio" element={<><SeoHead view={AppView.DIELINE_GENERATOR} canonicalPath="/tools/industrial-studio" /><PacklyIndustrialDielineStudio onSaveProject={handleSaveProject} /></>} />
+            <Route path="/tools/box-studio" element={<><SeoHead view={AppView.DIELINE_GENERATOR} canonicalPath="/tools/box-studio" /><BoxStudio /></>} />
             <Route path="/dieline" element={<Navigate to="/tools/dieline" replace />} />
             <Route path="/tools/design-studio" element={<><SeoHead view={AppView.DESIGN_STUDIO} canonicalPath="/tools/design-studio" /><DesignStudio isDarkMode={isDarkMode} /></>} />
             <Route path="/design-studio" element={<Navigate to="/tools/design-studio" replace />} />

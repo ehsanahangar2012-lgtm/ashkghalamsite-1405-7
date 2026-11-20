@@ -1,266 +1,485 @@
-export interface DxfVectorEntity {
-  type: 'LINE';
-  start: { x: number; y: number };
-  end: { x: number; y: number };
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  layer: 'CUT' | 'CREASE' | 'PERFORATION' | 'GLUE' | 'BLEED';
-  partType: 'cut' | 'crease' | 'perforation' | 'glue' | 'bleed';
-  isCrease: boolean;
-  aciColor?: number;
-  rawLayer?: string;
-}
-
 export interface CustomDielineTemplate {
   id: string;
   name: string;
-  entities: DxfVectorEntity[];
+  entities: any[];
   anchors?: any;
   originalDims?: { L: number; W: number; H: number };
   width?: number;
   height?: number;
 }
 
-function classifyDxfLayer(rawLayer: string, aciColor: number): {
-  layer: DxfVectorEntity['layer'];
-  partType: DxfVectorEntity['partType'];
+type Point = { x: number; y: number };
+export interface DxfVectorEntity {
+  type: string;
+  layer: string;
+  start?: Point;
+  end?: Point;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  partType?: 'cut' | 'crease' | 'perforation' | 'glue' | 'bleed';
+  points?: Point[];
   isCrease: boolean;
-} {
-  const l = (rawLayer || '').toLowerCase();
-  if (l.includes('crease') || l.includes('fold') || l.includes('score') || l.includes('ta') || l.includes('blue') || aciColor === 3 || aciColor === 5) {
-    return { layer: 'CREASE', partType: 'crease', isCrease: true };
-  }
-  if (l.includes('perf') || l.includes('tear') || aciColor === 30 || aciColor === 2) {
-    return { layer: 'PERFORATION', partType: 'perforation', isCrease: true };
-  }
-  if (l.includes('glue') || l.includes('flap') || l.includes('chasb') || aciColor === 4) {
-    return { layer: 'GLUE', partType: 'glue', isCrease: false };
-  }
-  if (l.includes('bleed') || l.includes('margin') || aciColor === 6) {
-    return { layer: 'BLEED', partType: 'bleed', isCrease: false };
-  }
-  return { layer: 'CUT', partType: 'cut', isCrease: false };
 }
+type DxfEntity = DxfVectorEntity;
 
-function makeSegment(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  rawLayer: string,
-  aciColor: number
-): DxfVectorEntity | null {
-  if (!isFinite(x1) || !isFinite(y1) || !isFinite(x2) || !isFinite(y2)) return null;
-  if (Math.hypot(x2 - x1, y2 - y1) < 0.05) return null;
-  const cls = classifyDxfLayer(rawLayer, aciColor);
-  return {
-    type: 'LINE',
-    start: { x: x1, y: y1 },
-    end: { x: x2, y: y2 },
-    x1,
-    y1,
-    x2,
-    y2,
-    layer: cls.layer,
-    partType: cls.partType,
-    isCrease: cls.isCrease,
-    aciColor,
-    rawLayer,
-  };
-}
+const layerIsCrease = (layer: string) => /crease|fold|score|bend|falz|تا|خط.?تا/i.test(layer || '');
 
-/**
- * Full ASCII DXF Parser supporting LINE, LWPOLYLINE, POLYLINE/VERTEX, ARC, and CIRCLE.
- * Converts DXF CAD Y-up coordinates to SVG Y-down coordinates and normalizes near (0,0).
- */
-export const parseDxfToEntities = (dxfContent: string): DxfVectorEntity[] => {
-  if (!dxfContent || typeof dxfContent !== 'string') return [];
-
-  const rawLines = dxfContent.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
-  const pairs: { code: number; value: string }[] = [];
-  for (let i = 0; i + 1 < rawLines.length; i += 2) {
-    const code = parseInt(rawLines[i].trim(), 10);
-    const value = rawLines[i + 1].trim();
-    if (!isNaN(code)) {
-      pairs.push({ code, value });
-    }
+const dxfPairs = (source: string): Array<{ code: number; value: string }> => {
+  const lines = source.replace(/^\uFEFF/, '').split(/\r?\n/);
+  const pairs: Array<{ code: number; value: string }> = [];
+  for (let i = 0; i + 1 < lines.length; i += 2) {
+    const code = Number(lines[i].trim());
+    if (Number.isFinite(code)) pairs.push({ code, value: lines[i + 1].trim() });
   }
+  return pairs;
+};
 
-  // Locate ENTITIES section (if absent, parse whole file cleanly)
-  let startIdx = 0;
-  for (let i = 0; i < pairs.length - 1; i++) {
-    if (pairs[i].code === 2 && pairs[i].value.toUpperCase() === 'ENTITIES') {
-      startIdx = i + 1;
+const groupByCode = (pairs: Array<{ code: number; value: string }>, code: number) =>
+  pairs.filter(pair => pair.code === code).map(pair => Number(pair.value)).filter(Number.isFinite);
+
+/** Parse common 2D DXF entities and normalize recognized $INSUNITS coordinates to millimetres. Unitless/unknown files preserve source coordinates. */
+export const parseDxfToEntities = (dxfContent: string): DxfEntity[] => {
+  if (typeof dxfContent !== 'string' || !dxfContent.trim()) return [];
+  const pairs = dxfPairs(dxfContent);
+  // DXF $INSUNITS (header group 9 followed by group 70) is optional.
+  // Normalize common engineering units to mm so downstream geometry agrees
+  // with the app's dimension fields. Unitless/unknown files are not guessed.
+  let unitCode: number | null = null;
+  for (let i = 0; i < pairs.length; i++) {
+    if (pairs[i].code === 9 && pairs[i].value.toUpperCase() === '$INSUNITS') {
+      for (let j = i + 1; j < pairs.length && pairs[j].code !== 9 && pairs[j].code !== 0; j++) {
+        if (pairs[j].code === 70) {
+          const value = Number(pairs[j].value);
+          if (Number.isInteger(value)) unitCode = value;
+          break;
+        }
+      }
       break;
     }
   }
+  const unitScaleToMm: Record<number, number> = {
+    1: 25.4,       // inches
+    2: 304.8,      // feet
+    3: 1609344,    // miles
+    4: 1,          // millimetres
+    5: 10,         // centimetres
+    6: 1000,       // metres
+    7: 1000000,    // kilometres
+    8: 0.0000254,  // microinches
+    9: 0.0254,     // mils
+    10: 914.4,     // yards
+  };
+  const coordinateScale = unitCode === null ? 1 : (unitScaleToMm[unitCode] ?? 1);
+  let inEntities = false;
+  const sections: Array<{ type: string; pairs: Array<{ code: number; value: string }> }> = [];
+  let current: { type: string; pairs: Array<{ code: number; value: string }> } | null = null;
 
-  const entities: DxfVectorEntity[] = [];
-  let i = startIdx;
-
-  while (i < pairs.length) {
+  for (let i = 0; i < pairs.length; i++) {
     const p = pairs[i];
-    if (p.code === 0 && p.value.toUpperCase() === 'ENDSEC') break;
-
+    if (p.code === 0 && p.value === 'SECTION') {
+      const next = pairs[i + 1];
+      inEntities = next?.code === 2 && next.value.toUpperCase() === 'ENTITIES';
+      continue;
+    }
+    if (p.code === 0 && p.value === 'ENDSEC') {
+      if (current) sections.push(current);
+      current = null;
+      inEntities = false;
+      continue;
+    }
+    if (!inEntities) continue;
     if (p.code === 0) {
-      const entityType = p.value.toUpperCase();
-      i++;
+      if (current) sections.push(current);
+      current = { type: p.value.toUpperCase(), pairs: [] };
+    } else if (current) {
+      current.pairs.push(p);
+    }
+  }
+  if (current) sections.push(current);
 
-      let layer = 'CUT';
-      let aciColor = 1;
-      let x1 = 0, y1 = 0, x2 = 0, y2 = 0;
-      let cx = 0, cy = 0, radius = 0, startDeg = 0, endDeg = 360;
-      let polyClosed = false;
-      const polyPts: { x: number; y: number }[] = [];
-      let curX: number | null = null;
-
-      if (entityType === 'POLYLINE') {
-        while (i < pairs.length) {
-          const cp = pairs[i];
-          if (cp.code === 0) {
-            const sub = cp.value.toUpperCase();
-            if (sub === 'SEQEND') {
-              i++;
-              break;
-            }
-            if (sub === 'VERTEX') {
-              i++;
-              let vx = 0, vy = 0;
-              while (i < pairs.length && pairs[i].code !== 0) {
-                if (pairs[i].code === 10) vx = parseFloat(pairs[i].value) || 0;
-                if (pairs[i].code === 20) vy = parseFloat(pairs[i].value) || 0;
-                i++;
-              }
-              polyPts.push({ x: vx, y: -vy });
-              continue;
-            }
-            break;
-          }
-          if (cp.code === 8) layer = cp.value;
-          if (cp.code === 62) aciColor = parseInt(cp.value, 10) || 1;
-          if (cp.code === 70) polyClosed = (parseInt(cp.value, 10) & 1) === 1;
-          i++;
-        }
-      } else {
-        while (i < pairs.length && pairs[i].code !== 0) {
-          const { code, value } = pairs[i];
-          const num = parseFloat(value);
-          if (code === 8) layer = value;
-          else if (code === 62) aciColor = parseInt(value, 10) || 1;
-          else if (code === 10) {
-            if (entityType === 'LWPOLYLINE') {
-              curX = isNaN(num) ? 0 : num;
-            } else {
-              x1 = isNaN(num) ? 0 : num;
-              cx = x1;
-            }
-          } else if (code === 20) {
-            const ny = isNaN(num) ? 0 : -num;
-            if (entityType === 'LWPOLYLINE' && curX !== null) {
-              polyPts.push({ x: curX, y: ny });
-              curX = null;
-            } else {
-              y1 = ny;
-              cy = ny;
-            }
-          } else if (code === 11) x2 = isNaN(num) ? 0 : num;
-          else if (code === 21) y2 = isNaN(num) ? 0 : -num;
-          else if (code === 40) radius = isNaN(num) ? 0 : Math.abs(num);
-          else if (code === 50) startDeg = isNaN(num) ? 0 : num;
-          else if (code === 51) endDeg = isNaN(num) ? 360 : num;
-          else if (code === 70 && entityType === 'LWPOLYLINE') {
-            polyClosed = (parseInt(value, 10) & 1) === 1;
-          }
-          i++;
+  // Read named BLOCKS and flatten simple top-level INSERT instances into
+  // ENTITIES coordinates. This supports common line/polyline/arc/circle blocks;
+  // nested INSERTs and non-uniformly scaled curves are intentionally skipped.
+  type RawRecord = { type: string; pairs: Array<{ code: number; value: string }> };
+  const blockDefinitions = new Map<string, { base: Point; records: RawRecord[] }>();
+  for (let i = 0; i < pairs.length - 1; i++) {
+    if (pairs[i].code !== 0 || pairs[i].value !== 'SECTION' ||
+        pairs[i + 1].code !== 2 || pairs[i + 1].value.toUpperCase() !== 'BLOCKS') continue;
+    let j = i + 2;
+    while (j < pairs.length && !(pairs[j].code === 0 && pairs[j].value === 'ENDSEC')) {
+      if (pairs[j].code !== 0 || pairs[j].value !== 'BLOCK') { j++; continue; }
+      j++;
+      const header: Array<{ code: number; value: string }> = [];
+      while (j < pairs.length && pairs[j].code !== 0) header.push(pairs[j++]);
+      const name = header.find(pair => pair.code === 2)?.value;
+      const base = {
+        x: Number(header.find(pair => pair.code === 10)?.value ?? 0),
+        y: Number(header.find(pair => pair.code === 20)?.value ?? 0),
+      };
+      const records: RawRecord[] = [];
+      while (j < pairs.length && !(pairs[j].code === 0 && pairs[j].value === 'ENDBLK') &&
+             !(pairs[j].code === 0 && pairs[j].value === 'ENDSEC')) {
+        if (pairs[j].code !== 0) { j++; continue; }
+        const recordType = pairs[j++].value.toUpperCase();
+        const recordPairs: Array<{ code: number; value: string }> = [];
+        while (j < pairs.length && pairs[j].code !== 0) recordPairs.push(pairs[j++]);
+        if (recordType !== 'ENDBLK' && recordType !== 'BLOCK' && recordType !== 'SEQEND') {
+          records.push({ type: recordType, pairs: recordPairs });
         }
       }
+      if (name) blockDefinitions.set(name.toUpperCase(), { base, records });
+      if (pairs[j]?.value === 'ENDBLK') j++;
+    }
+    break;
+  }
 
-      if (entityType === 'LINE') {
-        const seg = makeSegment(x1, y1, x2, y2, layer, aciColor);
-        if (seg) entities.push(seg);
-      } else if ((entityType === 'LWPOLYLINE' || entityType === 'POLYLINE') && polyPts.length >= 2) {
-        for (let k = 0; k < polyPts.length - 1; k++) {
-          const seg = makeSegment(polyPts[k].x, polyPts[k].y, polyPts[k + 1].x, polyPts[k + 1].y, layer, aciColor);
-          if (seg) entities.push(seg);
-        }
-        if (polyClosed && polyPts.length > 2) {
-          const seg = makeSegment(
-            polyPts[polyPts.length - 1].x,
-            polyPts[polyPts.length - 1].y,
-            polyPts[0].x,
-            polyPts[0].y,
-            layer,
-            aciColor
-          );
-          if (seg) entities.push(seg);
-        }
-      } else if (entityType === 'CIRCLE' && radius > 0) {
-        const steps = 24;
-        for (let s = 0; s < steps; s++) {
-          const a1 = (s / steps) * Math.PI * 2;
-          const a2 = ((s + 1) / steps) * Math.PI * 2;
-          const seg = makeSegment(
-            cx + radius * Math.cos(a1),
-            cy - radius * Math.sin(a1),
-            cx + radius * Math.cos(a2),
-            cy - radius * Math.sin(a2),
-            layer,
-            aciColor
-          );
-          if (seg) entities.push(seg);
-        }
-      } else if (entityType === 'ARC' && radius > 0) {
-        let sweep = endDeg - startDeg;
-        if (sweep <= 0) sweep += 360;
-        const steps = Math.max(6, Math.round((sweep / 360) * 24));
-        for (let s = 0; s < steps; s++) {
-          const a1 = ((startDeg + (s / steps) * sweep) * Math.PI) / 180;
-          const a2 = ((startDeg + ((s + 1) / steps) * sweep) * Math.PI) / 180;
-          const seg = makeSegment(
-            cx + radius * Math.cos(a1),
-            cy - radius * Math.sin(a1),
-            cx + radius * Math.cos(a2),
-            cy - radius * Math.sin(a2),
-            layer,
-            aciColor
-          );
-          if (seg) entities.push(seg);
-        }
+  const expandedSections: RawRecord[] = [];
+  const transformPoint = (point: Point, base: Point, insertion: Point, sx: number, sy: number, angle: number): Point => {
+    const x = (point.x - base.x) * sx, y = (point.y - base.y) * sy;
+    return {
+      x: insertion.x + x * Math.cos(angle) - y * Math.sin(angle),
+      y: insertion.y + x * Math.sin(angle) + y * Math.cos(angle),
+    };
+  };
+  const transformBlockRecord = (
+    record: RawRecord, insertLayer: string, base: Point, insertion: Point,
+    sx: number, sy: number, angle: number
+  ): RawRecord | null => {
+    const pairsCopy = record.pairs.map(pair => ({ ...pair }));
+    const uniformScale = Math.abs(Math.abs(sx) - Math.abs(sy)) < 1e-8;
+    if ((record.type === 'ARC' || record.type === 'CIRCLE') && !uniformScale) return null;
+    if (!['LINE', 'LWPOLYLINE', 'POLYLINE', 'VERTEX', 'SEQEND', 'ARC', 'CIRCLE', 'SPLINE'].includes(record.type)) return null;
+    const layerPair = pairsCopy.find(pair => pair.code === 8);
+    if (layerPair?.value === '0') layerPair.value = insertLayer;
+    // Transform each coordinate pair (10,20) and (11,21); preserve all other groups.
+    for (let k = 0; k < pairsCopy.length; k++) {
+      const xCode = pairsCopy[k].code;
+      const yCode = xCode === 10 ? 20 : xCode === 11 ? 21 : -1;
+      if (yCode < 0) continue;
+      const yPair = pairsCopy.slice(k + 1).find(pair => pair.code === yCode);
+      if (!yPair) continue;
+      const transformed = transformPoint(
+        { x: Number(pairsCopy[k].value), y: Number(yPair.value) },
+        base, insertion, sx, sy, angle
+      );
+      pairsCopy[k].value = String(transformed.x);
+      yPair.value = String(transformed.y);
+    }
+    for (const pair of pairsCopy) {
+      if (pair.code === 40 && (record.type === 'ARC' || record.type === 'CIRCLE')) {
+        pair.value = String(Number(pair.value) * Math.abs(sx));
       }
-    } else {
-      i++;
+      if ((pair.code === 50 || pair.code === 51) && record.type === 'ARC') {
+        pair.value = String(Number(pair.value) + angle * 180 / Math.PI);
+      }
+      // DXF bulges survive rotation and uniform scale; non-uniform scales would
+      // turn circular arcs into ellipses and were excluded for curve records.
+    }
+    return { type: record.type, pairs: pairsCopy };
+  };
+
+  for (const entity of sections) {
+    if (entity.type !== 'INSERT') {
+      expandedSections.push(entity);
+      continue;
+    }
+    const p = entity.pairs;
+    const blockName = p.find(pair => pair.code === 2)?.value?.toUpperCase();
+    const block = blockName ? blockDefinitions.get(blockName) : undefined;
+    if (!block) continue;
+    const insertion = { x: groupByCode(p, 10)[0] ?? 0, y: groupByCode(p, 20)[0] ?? 0 };
+    const sx = groupByCode(p, 41)[0] ?? 1, sy = groupByCode(p, 42)[0] ?? sx;
+    const angle = (groupByCode(p, 50)[0] ?? 0) * Math.PI / 180;
+    const insertLayer = p.find(pair => pair.code === 8)?.value || '0';
+    for (const record of block.records) {
+      const transformed = transformBlockRecord(record, insertLayer, block.base, insertion, sx, sy, angle);
+      if (transformed) expandedSections.push(transformed);
     }
   }
 
-  if (entities.length === 0) return [];
-
-  // Normalize coordinate frame to start at (40, 40)
-  let minX = Infinity;
-  let minY = Infinity;
-  entities.forEach((e) => {
-    minX = Math.min(minX, e.x1, e.x2);
-    minY = Math.min(minY, e.y1, e.y2);
-  });
-
-  if (isFinite(minX) && isFinite(minY)) {
-    const offX = 40 - minX;
-    const offY = 40 - minY;
-    entities.forEach((e) => {
-      e.x1 = Number((e.x1 + offX).toFixed(3));
-      e.y1 = Number((e.y1 + offY).toFixed(3));
-      e.x2 = Number((e.x2 + offX).toFixed(3));
-      e.y2 = Number((e.y2 + offY).toFixed(3));
-      e.start = { x: e.x1, y: e.y1 };
-      e.end = { x: e.x2, y: e.y2 };
+  const result: DxfEntity[] = [];
+  const addLine = (a: Point, b: Point, layer: string) => {
+    if (![a.x, a.y, b.x, b.y].every(Number.isFinite) || (Math.abs(a.x-b.x) < 1e-9 && Math.abs(a.y-b.y) < 1e-9)) return;
+    const scaledStart = { x: a.x * coordinateScale, y: a.y * coordinateScale };
+    const scaledEnd = { x: b.x * coordinateScale, y: b.y * coordinateScale };
+    const isCrease = layerIsCrease(layer);
+    result.push({
+      type: 'LINE',
+      start: scaledStart,
+      end: scaledEnd,
+      x1: scaledStart.x,
+      y1: scaledStart.y,
+      x2: scaledEnd.x,
+      y2: scaledEnd.y,
+      layer,
+      partType: isCrease ? 'crease' : 'cut',
+      isCrease,
     });
-  }
+  };
 
-  return entities;
+  let polylineLayer = '0';
+  let polylinePoints: Point[] | null = null;
+  let polylineClosed = false;
+  const flushPolyline = () => {
+    if (polylinePoints && polylinePoints.length > 1) {
+      for (let i = 0; i < polylinePoints.length - 1; i++) {
+        addLine(polylinePoints[i], polylinePoints[i + 1], polylineLayer);
+      }
+      // DXF POLYLINE closure is stored on the POLYLINE header (group 70),
+      // not on the SEQEND. Honor it without duplicating an existing closing edge.
+      if (polylineClosed) {
+        const first = polylinePoints[0];
+        const last = polylinePoints[polylinePoints.length - 1];
+        if (Math.hypot(last.x - first.x, last.y - first.y) > 1e-9) {
+          addLine(last, first, polylineLayer);
+        }
+      }
+    }
+    polylinePoints = null;
+    polylineClosed = false;
+  };
+
+  for (const entity of expandedSections) {
+    const p = entity.pairs;
+    const layer = p.find(v => v.code === 8)?.value || '0';
+    if (entity.type === 'POLYLINE') {
+      flushPolyline();
+      polylineLayer = layer;
+      polylineClosed = (((groupByCode(p, 70)[0] || 0) & 1) === 1);
+      polylinePoints = [];
+      continue;
+    }
+    if (entity.type === 'VERTEX' && polylinePoints) {
+      const xs = groupByCode(p, 10), ys = groupByCode(p, 20);
+      if (xs.length && ys.length) polylinePoints.push({ x: xs[0], y: ys[0] });
+      continue;
+    }
+    if (entity.type === 'SEQEND') { flushPolyline(); continue; }
+    if (entity.type === 'LINE') {
+      const x1=groupByCode(p,10)[0], y1=groupByCode(p,20)[0];
+      const x2=groupByCode(p,11)[0], y2=groupByCode(p,21)[0];
+      if ([x1,y1,x2,y2].every(Number.isFinite)) addLine({x:x1,y:y1},{x:x2,y:y2},layer);
+      continue;
+    }
+    if (entity.type === 'LWPOLYLINE') {
+      // Keep group 42 bulge values attached to their vertex. DXF bulge is
+      // tan(includedAngle / 4); non-zero bulges describe circular arc segments.
+      const vertices: Array<{ point: Point; bulge: number }> = [];
+      let x: number | null = null;
+      let y: number | null = null;
+      let bulge = 0;
+      const flushVertex = () => {
+        if (x !== null && y !== null && Number.isFinite(x) && Number.isFinite(y)) {
+          vertices.push({ point: { x, y }, bulge });
+        }
+        x = null;
+        y = null;
+        bulge = 0;
+      };
+      for (const pair of p) {
+        if (pair.code === 10) {
+          flushVertex();
+          x = Number(pair.value);
+        } else if (pair.code === 20 && x !== null) {
+          y = Number(pair.value);
+        } else if (pair.code === 42 && x !== null) {
+          const parsedBulge = Number(pair.value);
+          bulge = Number.isFinite(parsedBulge) ? parsedBulge : 0;
+        }
+      }
+      flushVertex();
+      const closed = (((groupByCode(p, 70)[0] || 0) & 1) === 1);
+      const segmentCount = closed ? vertices.length : Math.max(0, vertices.length - 1);
+      for (let i = 0; i < segmentCount; i++) {
+        const current = vertices[i];
+        const next = vertices[(i + 1) % vertices.length];
+        const a = current.point, b = next.point;
+        if (Math.abs(current.bulge) < 1e-10) {
+          addLine(a, b, layer);
+          continue;
+        }
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const chord = Math.hypot(dx, dy);
+        if (chord < 1e-9) continue;
+        const theta = 4 * Math.atan(current.bulge);
+        const radius = chord * (1 + current.bulge * current.bulge) / (4 * Math.abs(current.bulge));
+        const offset = chord * (1 - current.bulge * current.bulge) / (4 * current.bulge);
+        const center = {
+          x: (a.x + b.x) / 2 - (dy / chord) * offset,
+          y: (a.y + b.y) / 2 + (dx / chord) * offset,
+        };
+        const startAngle = Math.atan2(a.y - center.y, a.x - center.x);
+        const steps = Math.max(2, Math.ceil(Math.abs(theta) / (Math.PI / 18)));
+        let previous = a;
+        for (let step = 1; step <= steps; step++) {
+          const angle = startAngle + theta * step / steps;
+          const point = step === steps ? b : {
+            x: center.x + radius * Math.cos(angle),
+            y: center.y + radius * Math.sin(angle),
+          };
+          addLine(previous, point, layer);
+          previous = point;
+        }
+      }
+      continue;
+    }
+    if (entity.type === 'SPLINE') {
+      const degree = Math.trunc(groupByCode(p, 71)[0] ?? 3);
+      const xs = groupByCode(p, 10), ys = groupByCode(p, 20);
+      const controlPoints = xs.map((x, index) => ({ x, y: ys[index] }))
+        .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+      const knots = groupByCode(p, 40);
+      const rawWeights = groupByCode(p, 41);
+      const closed = (((groupByCode(p, 70)[0] || 0) & 1) === 1);
+      if (degree < 1 || controlPoints.length < degree + 1 ||
+          knots.length < controlPoints.length + degree + 1) continue;
+      const lastDomain = controlPoints.length;
+      const startU = knots[degree];
+      const endU = knots[lastDomain];
+      if (!Number.isFinite(startU) || !Number.isFinite(endU) || endU <= startU) continue;
+      const evaluateSpline = (u: number): Point => {
+        const n = controlPoints.length - 1;
+        let span = n;
+        if (u < endU) {
+          for (let k = degree; k <= n; k++) {
+            if (u >= knots[k] && u < knots[k + 1]) { span = k; break; }
+          }
+        }
+        const d: Array<{ x: number; y: number; w: number }> = [];
+        for (let j = 0; j <= degree; j++) {
+          const index = span - degree + j;
+          const weight = rawWeights[index] > 0 && Number.isFinite(rawWeights[index]) ? rawWeights[index] : 1;
+          d[j] = {
+            x: controlPoints[index].x * weight,
+            y: controlPoints[index].y * weight,
+            w: weight,
+          };
+        }
+        for (let r = 1; r <= degree; r++) {
+          for (let j = degree; j >= r; j--) {
+            const knotIndex = span - degree + j;
+            const denominator = knots[knotIndex + degree - r + 1] - knots[knotIndex];
+            const alpha = Math.abs(denominator) < 1e-12 ? 0 : (u - knots[knotIndex]) / denominator;
+            d[j] = {
+              x: (1 - alpha) * d[j - 1].x + alpha * d[j].x,
+              y: (1 - alpha) * d[j - 1].y + alpha * d[j].y,
+              w: (1 - alpha) * d[j - 1].w + alpha * d[j].w,
+            };
+          }
+        }
+        const result = d[degree];
+        return result.w > 1e-12
+          ? { x: result.x / result.w, y: result.y / result.w }
+          : { x: Number.NaN, y: Number.NaN };
+      };
+      const steps = Math.max(16, controlPoints.length * 12);
+      let previous = evaluateSpline(startU);
+      for (let step = 1; step <= steps; step++) {
+        const u = startU + (endU - startU) * step / steps;
+        const point = evaluateSpline(u);
+        addLine(previous, point, layer);
+        previous = point;
+      }
+      if (closed) {
+        const first = evaluateSpline(startU);
+        if (Math.hypot(previous.x - first.x, previous.y - first.y) > 1e-8) {
+          addLine(previous, first, layer);
+        }
+      }
+      continue;
+    }
+    if (entity.type === 'ARC' || entity.type === 'CIRCLE') {
+      const cx=groupByCode(p,10)[0], cy=groupByCode(p,20)[0], radius=groupByCode(p,40)[0];
+      if (![cx,cy,radius].every(Number.isFinite) || radius <= 0) continue;
+      const start=entity.type === 'CIRCLE' ? 0 : (groupByCode(p,50)[0] || 0);
+      const end=entity.type === 'CIRCLE' ? 360 : (groupByCode(p,51)[0] || 0);
+      let sweep=(end-start+360)%360;
+      if (entity.type === 'CIRCLE') sweep=360;
+      const segments=Math.max(8,Math.ceil(sweep/10));
+      let previous: Point | null = null;
+      for(let i=0;i<=segments;i++){
+        const angle=(start+sweep*i/segments)*Math.PI/180;
+        const point={x:cx+radius*Math.cos(angle),y:cy+radius*Math.sin(angle)};
+        if(previous) addLine(previous,point,layer);
+        previous=point;
+      }
+    }
+  }
+  flushPolyline();
+  return result;
 };
 
-function clusterSortedCoords(coords: number[], tolerance = 2.5): number[] {
+/**
+ * Converts parsed DXF line entities to SVG paths. This intentionally preserves source
+ * coordinates rather than guessing how arbitrary imported artwork maps to L/W/H.
+ * The provided dimensions are used only as a safe fallback for empty/invalid bounds.
+ */
+export const scaleCustomDieline = (
+  templateOrEntities: any,
+  _l: number,
+  _w: number,
+  _h: number
+): {
+  cuts: string[];
+  creases: string[];
+  glues: string[];
+  bleeds: string[];
+  perforations: string[];
+  labels?: Array<{ x: number; y: number; text: string }>;
+  totalW: number;
+  totalH: number;
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+} => {
+  const entities: DxfEntity[] = Array.isArray(templateOrEntities)
+    ? templateOrEntities
+    : (Array.isArray(templateOrEntities?.entities) ? templateOrEntities.entities : []);
+  const cuts: string[] = [];
+  const creases: string[] = [];
+  const glues: string[] = [];
+  const bleeds: string[] = [];
+  const perforations: string[] = [];
+  const xs: number[] = [], ys: number[] = [];
+  entities.forEach((ent: any) => {
+    const start = ent?.start ?? (Number.isFinite(ent?.x1) && Number.isFinite(ent?.y1) ? { x: ent.x1, y: ent.y1 } : null);
+    const end = ent?.end ?? (Number.isFinite(ent?.x2) && Number.isFinite(ent?.y2) ? { x: ent.x2, y: ent.y2 } : null);
+    if ((ent?.type && ent.type !== 'LINE') || !start || !end) return;
+    if (![start.x, start.y, end.x, end.y].every((v: unknown) => typeof v === 'number' && Number.isFinite(v))) return;
+    xs.push(start.x, end.x); ys.push(start.y, end.y);
+    const path = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+    if (ent.partType === 'perforation') perforations.push(path);
+    else if (ent.partType === 'glue') glues.push(path);
+    else if (ent.partType === 'bleed') bleeds.push(path);
+    else if (ent.isCrease === true || layerIsCrease(ent.layer)) creases.push(path);
+    else cuts.push(path);
+  });
+  const minX = xs.length ? Math.min(...xs) : 0, maxX = xs.length ? Math.max(...xs) : Math.max(100, Number(_l) || 100);
+  const minY = ys.length ? Math.min(...ys) : 0, maxY = ys.length ? Math.max(...ys) : Math.max(100, Number(_h) || 100);
+  return {
+    cuts,
+    creases,
+    glues,
+    bleeds,
+    perforations,
+    labels: [{
+      x: (minX + maxX) / 2,
+      y: maxY + 22,
+      text: 'DXF واردشده: مقیاس و مختصات منبع حفظ شده‌اند؛ تغییر L/W/H این الگو را مقیاس‌بندی نمی‌کند',
+    }],
+    totalW: Math.max(1, maxX - minX),
+    totalH: Math.max(1, maxY - minY),
+    xMin: minX,
+    yMin: minY,
+    xMax: maxX,
+    yMax: maxY,
+  };
+};
+
+const clusterSortedCoords = (coords: number[], tolerance = 2.5): number[] => {
   if (coords.length === 0) return [];
   const sorted = [...coords].sort((a, b) => a - b);
   const clusters: number[] = [sorted[0]];
@@ -269,52 +488,33 @@ function clusterSortedCoords(coords: number[], tolerance = 2.5): number[] {
       clusters.push(sorted[i]);
     }
   }
-  return clusters.map((v) => Math.round(v * 100) / 100);
-}
+  return clusters.map(v => Math.round(v * 100) / 100);
+};
 
 export const analyzeTopology = (entities: any[], dims?: { L: number; W: number; H: number }, _options?: any) => {
-  const l = dims?.L || 150;
-  const w = dims?.W || 100;
-  const valid = Array.isArray(entities) ? entities : [];
+  const lines = Array.isArray(entities) ? entities.filter(e => e?.type === 'LINE' && e.start && e.end) : [];
+  const points = lines.flatMap(e => [e.start, e.end]).filter((p: any) => Number.isFinite(p.x) && Number.isFinite(p.y));
+  const minX = points.length ? Math.min(...points.map((p: any) => p.x)) : 0;
+  const maxX = points.length ? Math.max(...points.map((p: any) => p.x)) : (dims?.L || 100);
+  const minY = points.length ? Math.min(...points.map((p: any) => p.y)) : 0;
+  const maxY = points.length ? Math.max(...points.map((p: any) => p.y)) : (dims?.W || 100);
 
-  if (valid.length === 0) {
-    return {
-      outerBoundaryCount: 1,
-      creaseX: [0, Math.round(l * 0.25), Math.round(l * 0.5), Math.round(l * 0.75), l],
-      creaseY: [0, Math.round(w * 0.33), Math.round(w * 0.66), w],
-      creaseLinesCount: 0,
-      cutLinesCount: 0,
-      hasGlueTab: true,
-      bounds: { xMin: 0, yMin: 0, xMax: l, yMax: w, width: l, height: w },
-    };
-  }
-
-  let xMin = Infinity, yMin = Infinity, xMax = -Infinity, yMax = -Infinity;
   const vertCreaseXs: number[] = [];
   const horizCreaseYs: number[] = [];
   let creaseLinesCount = 0;
   let cutLinesCount = 0;
   let hasGlueTab = false;
 
-  valid.forEach((e: any) => {
-    const x1 = e.x1 ?? e.start?.x ?? 0;
-    const y1 = e.y1 ?? e.start?.y ?? 0;
-    const x2 = e.x2 ?? e.end?.x ?? 0;
-    const y2 = e.y2 ?? e.end?.y ?? 0;
-    xMin = Math.min(xMin, x1, x2);
-    yMin = Math.min(yMin, y1, y2);
-    xMax = Math.max(xMax, x1, x2);
-    yMax = Math.max(yMax, y1, y2);
-
-    const isCrease = e.isCrease || e.layer === 'CREASE' || e.partType === 'crease';
+  lines.forEach((e: any) => {
+    const isCrease = e.isCrease === true || layerIsCrease(e.layer);
     if (isCrease) {
       creaseLinesCount++;
-      if (Math.abs(x1 - x2) < 1.5 && Math.abs(y2 - y1) > 5) vertCreaseXs.push((x1 + x2) / 2);
-      if (Math.abs(y1 - y2) < 1.5 && Math.abs(x2 - x1) > 5) horizCreaseYs.push((y1 + y2) / 2);
+      if (Math.abs(e.start.x - e.end.x) < 1.5 && Math.abs(e.end.y - e.start.y) > 5) vertCreaseXs.push((e.start.x + e.end.x) / 2);
+      if (Math.abs(e.start.y - e.end.y) < 1.5 && Math.abs(e.end.x - e.start.x) > 5) horizCreaseYs.push((e.start.y + e.end.y) / 2);
     } else {
       cutLinesCount++;
     }
-    if (e.layer === 'GLUE' || e.partType === 'glue') {
+    if (e.partType === 'glue' || /glue|chasb/i.test(e.layer || '')) {
       hasGlueTab = true;
     }
   });
@@ -323,120 +523,16 @@ export const analyzeTopology = (entities: any[], dims?: { L: number; W: number; 
   const creaseY = clusterSortedCoords(horizCreaseYs);
 
   return {
-    outerBoundaryCount: 1,
-    creaseX: creaseX.length > 0 ? creaseX : [xMin, (xMin + xMax) / 2, xMax],
-    creaseY: creaseY.length > 0 ? creaseY : [yMin, (yMin + yMax) / 2, yMax],
+    outerBoundaryCount: points.length ? 1 : 0,
+    creaseX: creaseX.length > 0 ? creaseX : [minX, (minX + maxX) / 2, maxX],
+    creaseY: creaseY.length > 0 ? creaseY : [minY, (minY + maxY) / 2, maxY],
     creaseLinesCount,
     cutLinesCount,
     hasGlueTab: hasGlueTab || creaseX.length >= 4,
-    bounds: {
-      xMin: isFinite(xMin) ? xMin : 0,
-      yMin: isFinite(yMin) ? yMin : 0,
-      xMax: isFinite(xMax) ? xMax : l,
-      yMax: isFinite(yMax) ? yMax : w,
-      width: isFinite(xMax - xMin) ? xMax - xMin : l,
-      height: isFinite(yMax - yMin) ? yMax - yMin : w,
-    },
-  };
-};
-
-export const scaleCustomDieline = (templateOrEntities: any, l: number, w: number, h: number) => {
-  const cuts: string[] = [];
-  const creases: string[] = [];
-  const glues: string[] = [];
-  const bleeds: string[] = [];
-  const perforations: string[] = [];
-
-  const isArray = Array.isArray(templateOrEntities);
-  const entities: any[] = isArray ? templateOrEntities : templateOrEntities?.entities || [];
-  const origDims = !isArray ? templateOrEntities?.originalDims : undefined;
-
-  // Compute source bounding box
-  let sMinX = Infinity, sMinY = Infinity, sMaxX = -Infinity, sMaxY = -Infinity;
-  entities.forEach((ent: any) => {
-    const x1 = ent.x1 ?? ent.start?.x;
-    const y1 = ent.y1 ?? ent.start?.y;
-    const x2 = ent.x2 ?? ent.end?.x;
-    const y2 = ent.y2 ?? ent.end?.y;
-    if (isFinite(x1) && isFinite(y1) && isFinite(x2) && isFinite(y2)) {
-      sMinX = Math.min(sMinX, x1, x2);
-      sMinY = Math.min(sMinY, y1, y2);
-      sMaxX = Math.max(sMaxX, x1, x2);
-      sMaxY = Math.max(sMaxY, y1, y2);
-    }
-  });
-
-  const srcW = isFinite(sMaxX - sMinX) && sMaxX > sMinX ? sMaxX - sMinX : 200;
-  const srcH = isFinite(sMaxY - sMinY) && sMaxY > sMinY ? sMaxY - sMinY : 150;
-
-  let sx = 1;
-  let sy = 1;
-  if (origDims && origDims.L > 0 && origDims.W > 0 && origDims.H > 0) {
-    sx = (2 * (l + w) + 25) / (2 * (origDims.L + origDims.W) + 25);
-    sy = (h + w + 25) / (origDims.H + origDims.W + 25);
-  }
-
-  let outMinX = Infinity, outMinY = Infinity, outMaxX = -Infinity, outMaxY = -Infinity;
-  const fmt = (v: number) => (Math.round(v * 100) / 100).toString();
-
-  entities.forEach((ent: any) => {
-    const rawX1 = ent.x1 ?? ent.start?.x;
-    const rawY1 = ent.y1 ?? ent.start?.y;
-    const rawX2 = ent.x2 ?? ent.end?.x;
-    const rawY2 = ent.y2 ?? ent.end?.y;
-
-    if (isFinite(rawX1) && isFinite(rawY1) && isFinite(rawX2) && isFinite(rawY2)) {
-      const nx1 = 50 + (rawX1 - sMinX) * sx;
-      const ny1 = 40 + (rawY1 - sMinY) * sy;
-      const nx2 = 50 + (rawX2 - sMinX) * sx;
-      const ny2 = 40 + (rawY2 - sMinY) * sy;
-
-      outMinX = Math.min(outMinX, nx1, nx2);
-      outMinY = Math.min(outMinY, ny1, ny2);
-      outMaxX = Math.max(outMaxX, nx1, nx2);
-      outMaxY = Math.max(outMaxY, ny1, ny2);
-
-      const pathStr = `M ${fmt(nx1)},${fmt(ny1)} L ${fmt(nx2)},${fmt(ny2)}`;
-      const layer = (ent.layer || '').toUpperCase();
-      if (layer === 'CREASE' || ent.isCrease || ent.partType === 'crease') {
-        creases.push(pathStr);
-      } else if (layer === 'PERFORATION' || ent.partType === 'perforation') {
-        perforations.push(pathStr);
-      } else if (layer === 'GLUE' || ent.partType === 'glue') {
-        glues.push(pathStr);
-      } else if (layer === 'BLEED' || ent.partType === 'bleed') {
-        bleeds.push(pathStr);
-      } else {
-        cuts.push(pathStr);
-      }
-    }
-  });
-
-  const xMin = isFinite(outMinX) ? outMinX : 50;
-  const yMin = isFinite(outMinY) ? outMinY : 40;
-  const xMax = isFinite(outMaxX) ? outMaxX : xMin + srcW * sx;
-  const yMax = isFinite(outMaxY) ? outMaxY : yMin + srcH * sy;
-  const totalW = Math.max(100, xMax - xMin);
-  const totalH = Math.max(100, yMax - yMin);
-
-  return {
-    cuts,
-    creases,
-    glues,
-    bleeds,
-    perforations,
-    labels: [
-      {
-        x: (xMin + xMax) / 2,
-        y: (yMin + yMax) / 2,
-        text: `قالب سفارشی (${Math.round(totalW)} × ${Math.round(totalH)} mm)`,
-      },
-    ],
-    xMin,
-    yMin,
-    xMax,
-    yMax,
-    totalW,
-    totalH,
+    bounds: points.length ? {
+      minX, maxX, minY, maxY,
+      xMin: minX, xMax: maxX, yMin: minY, yMax: maxY,
+      width: maxX - minX, height: maxY - minY,
+    } : null,
   };
 };

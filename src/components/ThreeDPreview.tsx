@@ -11,6 +11,7 @@ import {
   SurfacePBRMaps,
   SurfacePresetId,
 } from './three/packagingTextures';
+import { resolveScaledBoardThickness } from '../services/dieline3dGeometry';
 
 export interface FlapDirections {
   topFlap?: number;
@@ -377,9 +378,10 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
       const presetId = resolveSurfacePreset(s.surfacePreset, s.paperType);
       const preset = PACKAGING_SURFACE_PRESETS.find((p) => p.id === presetId) || PACKAGING_SURFACE_PRESETS[0];
 
-      // Realistic wall thickness scaled cleanly for visual edge inspection
-      const minThick = preset.isCorrugated ? 2.4 : 1.3;
-      const th = Math.max(minThick, Math.min(7.5, (Number(s.materialThickness) || 0.45) * (preset.isCorrugated ? 2.2 : 4.2)));
+      // Preserve physical board caliper across carton sizes using shared caliper geometry helper
+      const scaledCaliper = resolveScaledBoardThickness(Number(s.materialThickness) || 0.45, preset.isCorrugated ? 1.2 : 1.0);
+      const minThick = preset.isCorrugated ? 1.2 : 0.45;
+      const th = Math.max(minThick, Math.min(7.5, scaledCaliper));
       baseW = bw;
       baseH = bh;
       baseD = bd;
@@ -683,10 +685,17 @@ export const ThreeDPreview: React.FC<ThreeDPreviewProps> = ({
     cameraPresetRef.current = (angle) => {
       const s = stateRef.current;
       const dist = Math.max(s.width || 200, s.height || 150, s.depth || 100) * 2.1 + 120;
-      if (angle === 'front') camera.position.set(0, 15, dist);
-      else if (angle === 'top') camera.position.set(0, dist, 10);
-      else if (angle === 'side') camera.position.set(dist, 15, 0);
-      else camera.position.set(dist * 0.72, dist * 0.56, dist * 0.85);
+      camera.far = Math.max(3200, dist * 8);
+      if (angle === 'top') {
+        camera.up.set(0, 0, -1);
+        camera.position.set(0, dist, 0.01);
+      } else {
+        camera.up.set(0, 1, 0);
+        if (angle === 'front') camera.position.set(0, 15, dist);
+        else if (angle === 'side') camera.position.set(dist, 15, 0);
+        else camera.position.set(dist * 0.72, dist * 0.56, dist * 0.85);
+      }
+      camera.updateProjectionMatrix();
       controls.target.set(0, 0, 0);
       controls.update();
     };

@@ -1,0 +1,29 @@
+name: Local CMS storage regression
+
+on:
+  push:
+    branches:
+      - upgrade/review-and-improvements
+    paths:
+      - 'src/services/localCmsStorage.ts'
+      - 'src/contexts/ContentContext.tsx'
+      - 'scripts/verify-local-cms-storage.ts'
+      - '.github/workflows/cms-storage-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cms-storage-regression:
+    name: Local CMS persistence checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify fallback, serialization, and quota handling
+        run: bun scripts/verify-local-cms-storage.ts

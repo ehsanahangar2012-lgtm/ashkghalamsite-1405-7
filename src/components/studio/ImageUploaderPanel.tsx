@@ -24,7 +24,48 @@ import {
   calculateSavingsPercent,
 } from '../../utils/imageOptimizer';
 import { uploadImageAssetToServer } from '../../services/projectStorageService';
+import { getUploadFallbackCandidates, isSupportedImageFile } from '../../utils/catalogAssets';
 import { MediaSelector } from '../AdminTools';
+
+const PageThumbImage: React.FC<{
+  primary?: string;
+  secondary?: string;
+  alt: string;
+  className: string;
+}> = ({ primary, secondary, alt, className }) => {
+  const candidates = React.useMemo(
+    () => getUploadFallbackCandidates(primary, secondary),
+    [primary, secondary]
+  );
+  const [idx, setIdx] = useState(0);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setIdx(0);
+    setFailed(false);
+  }, [primary, secondary]);
+
+  const src = candidates[idx] || '';
+  if (failed || !src) {
+    return (
+      <div className={`${className} flex items-center justify-center text-stone-400`}>
+        <ImageIcon className="w-4 h-4 opacity-60" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      onError={() => {
+        if (idx + 1 < candidates.length) setIdx((prev) => prev + 1);
+        else setFailed(true);
+      }}
+      className={className}
+    />
+  );
+};
 
 interface ImageUploaderPanelProps {
   pages: CatalogPage[];
@@ -94,9 +135,9 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
   }, []);
 
   const processFiles = async (fileList: FileList | File[]) => {
-    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    const files = Array.from(fileList).filter((f) => isSupportedImageFile(f));
     if (files.length === 0) {
-      setUploadError('لطفاً فقط فایل‌های تصویری معتبر (JPG، PNG، WebP) انتخاب کنید.');
+      setUploadError('لطفاً فقط فایل‌های تصویری معتبر (JPG، PNG، WebP، GIF یا SVG) انتخاب کنید.');
       return;
     }
 
@@ -104,7 +145,8 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
     setUploadError(null);
 
     const created: CatalogPage[] = [];
-    const failedNames: string[] = [];
+    const failedMessages: string[] = [];
+    let syncedAnyToServer = false;
 
     try {
       for (const file of files) {
@@ -113,8 +155,8 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
           const result = await optimizeFileToWebP(file, optimization);
           const meta = buildMetadataFromFileName(file.name);
           const storedUrl = await uploadImageAssetToServer(result.optimizedDataUrl);
-          if (typeof window !== 'undefined' && !storedUrl.startsWith('data:')) {
-            window.dispatchEvent(new Event('ashk-media-synced'));
+          if (!storedUrl.startsWith('data:')) {
+            syncedAnyToServer = true;
           }
           created.push({
             id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -133,19 +175,24 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
             height: result.height,
             aiStatus: 'done',
           });
-        } catch {
-          failedNames.push(file.name);
+        } catch (err: unknown) {
+          const reason = err instanceof Error && err.message ? err.message : 'خطای نامشخص در پردازش تصویر';
+          failedMessages.push(`${file.name} (${reason})`);
         }
       }
 
       if (!mountedRef.current) return;
 
+      if (syncedAnyToServer && typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ashk-media-synced'));
+      }
+
       if (created.length > 0) {
         onAddPages(created);
         setExpandedPageId(created[0].id);
       }
-      if (failedNames.length > 0) {
-        setUploadError(`پردازش این فایل‌ها با خطا مواجه شد: ${failedNames.join('، ')}`);
+      if (failedMessages.length > 0) {
+        setUploadError(`پردازش این فایل‌ها با خطا مواجه شد: ${failedMessages.join(' | ')}`);
       }
     } finally {
       if (mountedRef.current) {
@@ -332,8 +379,9 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
                     <GripVertical className="w-4 h-4" />
                   </div>
 
-                  <img
-                    src={page.optimizedDataUrl || page.originalDataUrl}
+                  <PageThumbImage
+                    primary={page.optimizedDataUrl}
+                    secondary={page.originalDataUrl}
                     alt={page.title}
                     className={`${
                       isLandscape ? 'w-14 h-11' : 'w-11 h-14'

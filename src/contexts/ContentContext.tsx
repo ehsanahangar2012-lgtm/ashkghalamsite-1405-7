@@ -15,6 +15,7 @@ import { createPackageSvgDataUrl } from '../utils/packagePreviewSvg';
 import { apiFetch, apiPostJson, apiRequestJson } from '../utils/apiClient';
 import { optimizeFileToWebP } from '../utils/imageOptimizer';
 import { isSupportedImageFile } from '../utils/catalogAssets';
+import { readLocalCmsState, writeLocalCmsState } from '../services/localCmsStorage';
 
 interface GlobalSettings {
   siteName: string;
@@ -382,13 +383,7 @@ function normalizeGlobalSettingsRecord(gs: GlobalSettings): GlobalSettings {
 }
 
 function readStorage<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+  return readLocalCmsState(key, fallback);
 }
 
 const ContentContext = createContext<ContentContextType>({
@@ -614,7 +609,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateSiteContent = (arg1: any, arg2?: any) => {
     setSiteContent((prev) => {
       const next = typeof arg1 === 'string' ? { ...prev, [arg1]: arg2 } : { ...prev, ...(arg1 || {}) };
-      localStorage.setItem('siteContent', JSON.stringify(next));
+      writeLocalCmsState('siteContent', next);
       return next;
     });
   };
@@ -622,7 +617,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateGlobalSettings = (updates: Partial<GlobalSettings>) => {
     setGlobalSettings((prev) => {
       const next = { ...prev, ...updates };
-      localStorage.setItem('globalSettings', JSON.stringify(next));
+      writeLocalCmsState('globalSettings', next);
       return next;
     });
   };
@@ -630,7 +625,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updatePricingFormula = (updates: Partial<PricingFormula>) => {
     setPricingFormula((prev) => {
       const next = { ...prev, ...updates };
-      localStorage.setItem('pricingFormula', JSON.stringify(next));
+      writeLocalCmsState('pricingFormula', next);
       return next;
     });
   };
@@ -638,21 +633,21 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateSeoConfig = (key: any, val?: any) => {
     setSeoConfigs((prev) => {
       const next = Array.isArray(key) ? key : val ? [...prev.filter((s) => s.view !== key && s.canonicalUrl !== key), val] : prev;
-      localStorage.setItem('seoConfigs', JSON.stringify(next));
+      writeLocalCmsState('seoConfigs', next);
       return next;
     });
   };
 
   const updateEmergencyConfig = (cfg: EmergencyConfig) => {
     setEmergencyConfig(cfg);
-    localStorage.setItem('emergencyConfig', JSON.stringify(cfg));
+    writeLocalCmsState('emergencyConfig', cfg);
   };
 
   const addBlogPost = (post: BlogPost) => {
     const withStatus: BlogPost = { ...post, status: post.status || 'published' };
     setBlogPosts((prev) => {
       const next = [withStatus, ...prev.filter((p) => p.id !== withStatus.id)];
-      localStorage.setItem('blogPosts', JSON.stringify(next));
+      writeLocalCmsState('blogPosts', next);
       return next;
     });
     apiPostJson('posts', withStatus).catch(() => {});
@@ -661,7 +656,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const removeBlogPost = (id: string) => {
     setBlogPosts((prev) => {
       const next = prev.filter((p) => p.id !== id);
-      localStorage.setItem('blogPosts', JSON.stringify(next));
+      writeLocalCmsState('blogPosts', next);
       return next;
     });
     apiFetch(`posts/${encodeURIComponent(id)}/delete`, { method: 'POST' }).catch(() => {});
@@ -670,7 +665,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateBlogPostStatus = async (id: string, status: 'draft' | 'published' | 'rejected') => {
     setBlogPosts((prev) => {
       const next = prev.map((p) => (p.id === id ? { ...p, status } : p));
-      localStorage.setItem('blogPosts', JSON.stringify(next));
+      writeLocalCmsState('blogPosts', next);
       return next;
     });
     try {
@@ -709,15 +704,21 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
           dataUrl = opt.optimizedDataUrl;
           width = opt.width;
           height = opt.height;
-          const b64 = dataUrl.split(',')[1] || '';
-          const bin = atob(b64);
-          const bytes = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i += 1) {
-            bytes[i] = bin.charCodeAt(i);
+          const mimeMatch = dataUrl.match(/^data:(image\/[a-z0-9.+-]+)(?:;[^,]*)?;base64,(.+)$/i);
+          if (mimeMatch) {
+            const actualMime = mimeMatch[1].toLowerCase();
+            const actualSub = actualMime.split('/')[1] || 'webp';
+            const actualExt =
+              actualSub === 'jpeg' ? 'jpg' : actualSub === 'svg+xml' ? 'svg' : actualSub;
+            const bin = atob(mimeMatch[2].replace(/\s+/g, ''));
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i += 1) {
+              bytes[i] = bin.charCodeAt(i);
+            }
+            uploadBlob = new Blob([bytes], { type: actualMime });
+            const stem = fileOrAsset.name.replace(/\.[^.]+$/, '') || 'media';
+            uploadName = `${stem}.${actualExt}`;
           }
-          uploadBlob = new Blob([bytes], { type: 'image/webp' });
-          const stem = fileOrAsset.name.replace(/\.[^.]+$/, '') || 'media';
-          uploadName = `${stem}.webp`;
         } catch {
           // Fall back to original file below
         }

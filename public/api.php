@@ -267,48 +267,80 @@ function getUploadTarget(string $subDir): ?array {
     return null;
 }
 
+function detectImageFromBinary(string $binary): ?array {
+    $len = strlen($binary);
+    if ($len < 12) {
+        return null;
+    }
+    if (substr($binary, 0, 4) === 'RIFF' && substr($binary, 8, 4) === 'WEBP') {
+        return ['ext' => 'webp', 'mime' => 'image/webp'];
+    }
+    if (substr($binary, 0, 8) === "\x89PNG\r\n\x1a\n") {
+        return ['ext' => 'png', 'mime' => 'image/png'];
+    }
+    if (substr($binary, 0, 3) === "\xFF\xD8\xFF") {
+        return ['ext' => 'jpg', 'mime' => 'image/jpeg'];
+    }
+    $head6 = substr($binary, 0, 6);
+    if ($head6 === 'GIF87a' || $head6 === 'GIF89a') {
+        return ['ext' => 'gif', 'mime' => 'image/gif'];
+    }
+    if (substr($binary, 0, 2) === 'BM' && $len >= 26) {
+        return ['ext' => 'bmp', 'mime' => 'image/bmp'];
+    }
+    if (substr($binary, 4, 4) === 'ftyp') {
+        $brand = strtolower(substr($binary, 8, 4));
+        if ($brand === 'avif' || $brand === 'avis') {
+            return ['ext' => 'avif', 'mime' => 'image/avif'];
+        }
+    }
+    $headText = strtolower(ltrim(substr($binary, 0, 512)));
+    if (strpos($headText, '<svg') === 0 || (strpos($headText, '<?xml') === 0 && strpos($headText, '<svg') !== false)) {
+        return ['ext' => 'svg', 'mime' => 'image/svg+xml'];
+    }
+    return null;
+}
+
 function decodeDataUrlImage(string $dataUrl): ?array {
     $trimmed = trim($dataUrl);
     if (stripos($trimmed, 'data:image/') !== 0) {
         return null;
     }
-    $parts = explode(';base64,', $trimmed, 2);
-    if (count($parts) !== 2) {
+    $markerPos = stripos($trimmed, ';base64,');
+    if ($markerPos === false) {
         return null;
     }
-    $mimePart = strtolower(substr($parts[0], strlen('data:image/')));
-    $mimeExt = trim(explode(';', $mimePart, 2)[0]);
-    if ($mimeExt === 'jpeg') $mimeExt = 'jpg';
-    if ($mimeExt === 'svg+xml') $mimeExt = 'svg';
-    if (!in_array($mimeExt, ['webp', 'jpg', 'png', 'gif', 'svg'], true)) {
-        return null;
-    }
-    $b64Clean = str_replace(["\r", "\n", ' ', "\t"], '', $parts[1]);
+    $b64Clean = str_replace(["\r", "\n", ' ', "\t"], '', substr($trimmed, $markerPos + 8));
     $binary = base64_decode($b64Clean, true);
     if ($binary === false || strlen($binary) === 0) {
         return null;
     }
-    return ['ext' => $mimeExt, 'binary' => $binary];
+    $detected = detectImageFromBinary($binary);
+    if ($detected === null) {
+        return null;
+    }
+    return ['ext' => $detected['ext'], 'mime' => $detected['mime'], 'binary' => $binary];
 }
 
 function detectImageExtension(string $origName, string $mime, ?string $filePath = null): string {
+    // Always trust actual binary magic bytes first so JPEG/PNG fallbacks are never saved as .webp
+    if ($filePath && is_file($filePath)) {
+        $head = (string) @file_get_contents($filePath, false, null, 0, 512);
+        $detected = detectImageFromBinary($head);
+        if ($detected !== null) {
+            return $detected['ext'];
+        }
+    }
     $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
-    if (in_array($ext, ['webp', 'jpg', 'jpeg', 'png', 'gif', 'svg'], true)) {
+    if (in_array($ext, ['webp', 'jpg', 'jpeg', 'png', 'gif', 'svg', 'avif'], true)) {
         return $ext === 'jpeg' ? 'jpg' : $ext;
     }
     if (strpos($mime, 'webp') !== false) return 'webp';
     if (strpos($mime, 'png') !== false) return 'png';
     if (strpos($mime, 'gif') !== false) return 'gif';
     if (strpos($mime, 'svg') !== false) return 'svg';
+    if (strpos($mime, 'avif') !== false) return 'avif';
     if (strpos($mime, 'jpeg') !== false || strpos($mime, 'jpg') !== false) return 'jpg';
-
-    if ($filePath && is_file($filePath)) {
-        $head = (string) @file_get_contents($filePath, false, null, 0, 16);
-        if (substr($head, 0, 4) === 'RIFF' && substr($head, 8, 4) === 'WEBP') return 'webp';
-        if (substr($head, 0, 4) === "\x89PNG") return 'png';
-        if (substr($head, 0, 3) === "\xFF\xD8\xFF") return 'jpg';
-        if (substr($head, 0, 4) === 'GIF8') return 'gif';
-    }
     return 'webp';
 }
 
@@ -394,15 +426,24 @@ if ($route === 'upload-file' && $method === 'GET') {
     foreach ($candidates as $filePath) {
         if (is_file($filePath) && is_readable($filePath)) {
             $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
-            if (!in_array($ext, ['webp', 'jpg', 'jpeg', 'png', 'gif', 'svg'], true)) {
+            if (!in_array($ext, ['webp', 'jpg', 'jpeg', 'png', 'gif', 'svg', 'avif', 'bmp'], true)) {
                 respondJson(['error' => 'فرمت فایل مجاز نیست.'], 403);
             }
-            $mime = 'image/jpeg';
-            if ($ext === 'webp') $mime = 'image/webp';
-            elseif ($ext === 'png') $mime = 'image/png';
-            elseif ($ext === 'gif') $mime = 'image/gif';
-            elseif ($ext === 'svg') $mime = 'image/svg+xml';
+            $head = (string) @file_get_contents($filePath, false, null, 0, 512);
+            $detected = detectImageFromBinary($head);
+            $mime = $detected['mime'] ?? 'image/jpeg';
+            if ($detected === null) {
+                if ($ext === 'webp') $mime = 'image/webp';
+                elseif ($ext === 'png') $mime = 'image/png';
+                elseif ($ext === 'gif') $mime = 'image/gif';
+                elseif ($ext === 'svg') $mime = 'image/svg+xml';
+                elseif ($ext === 'avif') $mime = 'image/avif';
+            }
+            while (ob_get_level() > 0) {
+                @ob_end_clean();
+            }
             header('Content-Type: ' . $mime);
+            header('X-Content-Type-Options: nosniff');
             header('Cache-Control: public, max-age=31536000');
             header('Content-Length: ' . filesize($filePath));
             readfile($filePath);
@@ -587,9 +628,12 @@ if ($route === 'flipbooks/upload-image' && $method === 'POST') {
 
     // Path A: Standard multipart/form-data (WAF/ModSecurity safe)
     if (!empty($_FILES['file']) && is_uploaded_file($_FILES['file']['tmp_name'])) {
-        $origName = (string) ($_FILES['file']['name'] ?? 'page.webp');
-        $mime = (string) ($_FILES['file']['type'] ?? '');
-        $ext = detectImageExtension($origName, $mime, $_FILES['file']['tmp_name']);
+        $tmpHead = (string) @file_get_contents($_FILES['file']['tmp_name'], false, null, 0, 512);
+        $detected = detectImageFromBinary($tmpHead);
+        if ($detected === null) {
+            respondJson(['error' => 'فایل تصویر معتبر نیست یا در حین انتقال خراب شده است.'], 400);
+        }
+        $ext = $detected['ext'];
         try {
             $rand = bin2hex(random_bytes(4));
         } catch (Throwable $e) {
@@ -602,7 +646,7 @@ if ($route === 'flipbooks/upload-image' && $method === 'POST') {
         }
         @chmod($targetPath, 0644);
         $size = (int) @filesize($targetPath);
-        respondJson(['ok' => true, 'url' => $urlPrefix . $fileName, 'bytes' => $size]);
+        respondJson(['ok' => true, 'url' => $urlPrefix . $fileName, 'bytes' => $size, 'mime' => $detected['mime']]);
     }
 
     // Path B: JSON dataUrl fallback (supports payload_file & _b64 & direct JSON)
@@ -1253,8 +1297,12 @@ if ($route === 'media/upload' && $method === 'POST') {
 
     if (!empty($_FILES['file']) && is_uploaded_file($_FILES['file']['tmp_name'])) {
         $origName = (string) ($_FILES['file']['name'] ?? 'image.webp');
-        $mime = (string) ($_FILES['file']['type'] ?? '');
-        $ext = detectImageExtension($origName, $mime, $_FILES['file']['tmp_name']);
+        $tmpHead = (string) @file_get_contents($_FILES['file']['tmp_name'], false, null, 0, 512);
+        $detected = detectImageFromBinary($tmpHead);
+        if ($detected === null) {
+            respondJson(['error' => 'فایل تصویر معتبر نیست یا در حین انتقال خراب شده است.'], 400);
+        }
+        $ext = $detected['ext'];
         $title = trim((string) ($_POST['title'] ?? pathinfo($origName, PATHINFO_FILENAME)));
         $category = trim((string) ($_POST['category'] ?? 'رسانه سایت'));
         $description = trim((string) ($_POST['description'] ?? ''));

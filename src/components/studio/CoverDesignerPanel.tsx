@@ -1,9 +1,47 @@
-import React, { useRef, useState } from 'react';
-import { ImagePlus, Trash2, Palette, BookMarked, RectangleHorizontal, RectangleVertical, Sparkles, Image as ImageIcon } from 'lucide-react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { ImagePlus, Trash2, Palette, BookMarked, RectangleHorizontal, RectangleVertical, Sparkles, Image as ImageIcon, AlertCircle, Loader2 } from 'lucide-react';
 import { CoverDesignConfig, FlipDirection, OptimizationSettings, PageOrientationMode } from '../../types/flipbook';
 import { COVER_TEMPLATES } from '../../data/demoCatalog';
 import { optimizeFileToWebP } from '../../utils/imageOptimizer';
+import { uploadImageAssetToServer } from '../../services/projectStorageService';
+import { getUploadFallbackCandidates } from '../../utils/catalogAssets';
 import { MediaSelector } from '../AdminTools';
+
+const CoverPreviewImg: React.FC<{ src?: string; alt: string; className: string }> = ({
+  src,
+  alt,
+  className,
+}) => {
+  const candidates = useMemo(() => getUploadFallbackCandidates(src), [src]);
+  const [idx, setIdx] = useState(0);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setIdx(0);
+    setFailed(false);
+  }, [src]);
+
+  const activeSrc = candidates[idx] || '';
+  if (failed || !activeSrc) {
+    return (
+      <div className={`${className} bg-stone-200 flex items-center justify-center text-stone-400`}>
+        <ImageIcon className="w-3.5 h-3.5" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={activeSrc}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      onError={() => {
+        if (idx + 1 < candidates.length) setIdx((prev) => prev + 1);
+        else setFailed(true);
+      }}
+      className={className}
+    />
+  );
+};
 
 interface CoverDesignerPanelProps {
   cover: CoverDesignConfig;
@@ -38,24 +76,44 @@ export const CoverDesignerPanel: React.FC<CoverDesignerPanelProps> = ({
   const [mediaTargetField, setMediaTargetField] = useState<
     'logoDataUrl' | 'frontCustomImageUrl' | 'backCustomImageUrl' | null
   >(null);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleImageUpload = async (
     file: File,
     field: 'logoDataUrl' | 'frontCustomImageUrl' | 'backCustomImageUrl'
   ) => {
+    setUploadingField(field);
+    setUploadError(null);
     try {
       const res = await optimizeFileToWebP(file, {
         quality: Math.max(0.8, optimization.quality),
         maxDimension: field === 'logoDataUrl' ? 500 : optimization.maxDimension,
       });
-      onChangeCover({ [field]: res.optimizedDataUrl });
-    } catch {
-      // ignore invalid file
+      const storedUrl = await uploadImageAssetToServer(res.optimizedDataUrl);
+      if (typeof window !== 'undefined' && !storedUrl.startsWith('data:')) {
+        window.dispatchEvent(new Event('ashk-media-synced'));
+      }
+      onChangeCover({ [field]: storedUrl });
+    } catch (err: unknown) {
+      setUploadError(
+        err instanceof Error && err.message
+          ? err.message
+          : 'آپلود تصویر جلد با خطا مواجه شد. لطفاً فایل تصویر معتبر (JPG، PNG یا WebP) انتخاب کنید.'
+      );
+    } finally {
+      setUploadingField(null);
     }
   };
 
   return (
     <div className="space-y-6" dir="rtl">
+      {uploadError && (
+        <div className="flex items-start gap-2.5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+          <span>{uploadError}</span>
+        </div>
+      )}
       {/* Page Orientation & Flip Direction */}
       {(onChangeOrientation || onChangeFlipDirection) && (
         <div className="rounded-xl border border-stone-200 bg-white p-5 space-y-4">
@@ -321,9 +379,14 @@ export const CoverDesignerPanel: React.FC<CoverDesignerPanelProps> = ({
                 e.target.value = '';
               }}
             />
-            {cover.logoDataUrl ? (
+            {uploadingField === 'logoDataUrl' ? (
+              <div className="flex items-center justify-center gap-1.5 py-2 text-[11px] text-amber-700 font-bold">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>در حال آپلود...</span>
+              </div>
+            ) : cover.logoDataUrl ? (
               <div className="flex items-center justify-between gap-2">
-                <img src={cover.logoDataUrl} alt="لوگو" className="h-8 max-w-[80px] object-contain" />
+                <CoverPreviewImg src={cover.logoDataUrl} alt="لوگو" className="h-8 max-w-[80px] object-contain" />
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
@@ -379,9 +442,14 @@ export const CoverDesignerPanel: React.FC<CoverDesignerPanelProps> = ({
                 e.target.value = '';
               }}
             />
-            {cover.frontCustomImageUrl ? (
+            {uploadingField === 'frontCustomImageUrl' ? (
+              <div className="flex items-center justify-center gap-1.5 py-2 text-[11px] text-amber-700 font-bold">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>در حال آپلود...</span>
+              </div>
+            ) : cover.frontCustomImageUrl ? (
               <div className="flex items-center justify-between gap-2">
-                <img
+                <CoverPreviewImg
                   src={cover.frontCustomImageUrl}
                   alt="جلد جلو"
                   className="h-8 w-12 rounded object-cover"
@@ -441,9 +509,14 @@ export const CoverDesignerPanel: React.FC<CoverDesignerPanelProps> = ({
                 e.target.value = '';
               }}
             />
-            {cover.backCustomImageUrl ? (
+            {uploadingField === 'backCustomImageUrl' ? (
+              <div className="flex items-center justify-center gap-1.5 py-2 text-[11px] text-amber-700 font-bold">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>در حال آپلود...</span>
+              </div>
+            ) : cover.backCustomImageUrl ? (
               <div className="flex items-center justify-between gap-2">
-                <img
+                <CoverPreviewImg
                   src={cover.backCustomImageUrl}
                   alt="جلد پشت"
                   className="h-8 w-12 rounded object-cover"

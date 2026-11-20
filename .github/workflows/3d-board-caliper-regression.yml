@@ -1,0 +1,29 @@
+name: 3D board caliper regression
+
+on:
+  push:
+    branches:
+      - upgrade/review-and-improvements
+    paths:
+      - 'src/services/dieline3dGeometry.ts'
+      - 'src/components/ThreeDPreview.tsx'
+      - 'scripts/verify-3d-board-caliper.ts'
+      - '.github/workflows/3d-board-caliper-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  board-caliper-regression:
+    name: 3D board thickness scaling
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify physical board caliper remains proportional
+        run: bun scripts/verify-3d-board-caliper.ts

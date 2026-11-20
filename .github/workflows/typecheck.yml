@@ -1,0 +1,32 @@
+name: TypeScript validation
+
+on:
+  push:
+    branches:
+      - upgrade/review-and-improvements
+    paths:
+      - 'src/**'
+      - '*.ts'
+      - '*.tsx'
+      - 'package.json'
+      - 'bun.lock'
+      - 'tsconfig.json'
+      - '.github/workflows/typecheck.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    name: TypeScript typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+      - name: Run TypeScript validation
+        run: bun run lint

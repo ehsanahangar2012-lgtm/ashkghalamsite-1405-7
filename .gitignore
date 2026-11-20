@@ -1,0 +1,17 @@
+# Dependencies & build output
+node_modules/
+dist/
+dist-ssr/
+
+# Local environment & logs
+.env
+.env.local
+.env.*.local
+logs/
+*.log
+
+# Editor / OS / temporary chat attachments / runtime uploads
+.DS_Store
+Thumbs.db
+public/assets/aistudio/
+uploads/

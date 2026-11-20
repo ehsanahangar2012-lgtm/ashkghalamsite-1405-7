@@ -31,13 +31,17 @@ interface PacklyIndustrialDielineStudioProps {
 }
 
 const STUDIO_MODELS = [
-  { id: 'ecma-a2020', code: 'ECMA A20.20', name: 'جعبه دارویی/آرایشی زبانه‌دار', dims: { L: 65, W: 45, H: 115 }, mat: 'inderboard-300' },
-  { id: 'snap-lock-123', code: 'ECMA A2110', name: 'جعبه لاک‌باتم ۱-۲-۳', dims: { L: 80, W: 55, H: 120 }, mat: 'inderboard-350' },
-  { id: 'fefco-0215', code: 'FEFCO 0215', name: 'کارتن ته‌قفلی اتوماتیک (Crash Lock)', dims: { L: 150, W: 100, H: 140 }, mat: 'corrugated-e' },
+  { id: 'ecma-a2020', code: 'ECMA A20.20 (RTE)', name: 'جعبه دارویی/آرایشی درب معکوس', dims: { L: 65, W: 45, H: 115 }, mat: 'inderboard-300' },
+  { id: 'ecma-ste', code: 'ECMA STE', name: 'جعبه دارویی درب هم‌جهت (Straight Tuck)', dims: { L: 65, W: 45, H: 115 }, mat: 'inderboard-300' },
+  { id: 'snap-lock-123', code: 'Snap-Lock 1-2-3', name: 'جعبه ته‌قفلی دستی ۱-۲-۳', dims: { L: 70, W: 70, H: 80 }, mat: 'inderboard-350' },
+  { id: 'fefco-0713', code: 'FEFCO 0713', name: 'جعبه ته‌اتوماتیک چسب‌خورده (Auto-Lock)', dims: { L: 90, W: 90, H: 180 }, mat: 'inderboard-350' },
+  { id: 'fefco-0215', code: 'FEFCO 0215', name: 'کارتن درب زبانه‌دار ته‌قفلی دستی', dims: { L: 150, W: 100, H: 140 }, mat: 'corrugated-e' },
   { id: 'fefco-0427', code: 'FEFCO 0427', name: 'جعبه پستی کیبوردی قفل‌دار', dims: { L: 220, W: 160, H: 60 }, mat: 'corrugated-e' },
   { id: 'fefco-pizza', code: 'FEFCO 0426', name: 'جعبه پیتزا با منافذ تهویه بخار', dims: { L: 300, W: 300, H: 42 }, mat: 'corrugated-e' },
   { id: 'fefco-0201', code: 'FEFCO 0201', name: 'کارتن مادر استاندارد (RSC)', dims: { L: 300, W: 220, H: 180 }, mat: 'corrugated-b' },
+  { id: 'fefco-0204', code: 'FEFCO 0204', name: 'کارتن چهاردر با هم‌پوشانی کامل داخلی', dims: { L: 300, W: 220, H: 180 }, mat: 'corrugated-b' },
   { id: 'fefco-0300', code: 'FEFCO 0300', name: 'جعبه تلسکوپی دو تکه درب و زیره', dims: { L: 210, W: 150, H: 65 }, mat: 'sbs-400' },
+  { id: 'fefco-0320', code: 'FEFCO 0320', name: 'کارتن تلسکوپی دو تکه نیم‌شکاف', dims: { L: 260, W: 190, H: 140 }, mat: 'corrugated-b' },
   { id: 'ecma-c1020', code: 'ECMA C10.20', name: 'جعبه کشویی ریلی دو تکه', dims: { L: 135, W: 95, H: 45 }, mat: 'sbs-300' },
   { id: 'ecma-a30', code: 'ECMA A30', name: 'جعبه آویز سوپرمارکتی (Euro-Slot)', dims: { L: 65, W: 40, H: 135 }, mat: 'inderboard-300' },
   { id: 'ecma-d50', code: 'ECMA D50', name: 'استند دیسپلی رومیزی (PDQ)', dims: { L: 180, W: 150, H: 160 }, mat: 'corrugated-e' },

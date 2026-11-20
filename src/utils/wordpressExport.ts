@@ -1,4 +1,5 @@
 import { CatalogProject } from '../types/flipbook';
+import { resolveAbsoluteAssetUrl } from './catalogAssets';
 
 function escapeHtml(value: string): string {
   return String(value || '')
@@ -83,9 +84,9 @@ export function generateStandaloneHtml(project: CatalogProject): string {
     primaryColor: project.cover.primaryColor,
     accentColor: project.cover.accentColor,
     textColor: project.cover.textColor,
-    logoDataUrl: project.cover.logoDataUrl || '',
-    frontCustomImageUrl: project.cover.frontCustomImageUrl || '',
-    backCustomImageUrl: project.cover.backCustomImageUrl || '',
+    logoDataUrl: resolveAbsoluteAssetUrl(project.cover.logoDataUrl),
+    frontCustomImageUrl: resolveAbsoluteAssetUrl(project.cover.frontCustomImageUrl),
+    backCustomImageUrl: resolveAbsoluteAssetUrl(project.cover.backCustomImageUrl),
     backHeadline: project.cover.backHeadline,
     backDescription: project.cover.backDescription,
     backContactInfo: project.cover.backContactInfo,
@@ -98,7 +99,7 @@ export function generateStandaloneHtml(project: CatalogProject): string {
       tags: p.tags,
       sku: p.sku || '',
       priceLabel: p.priceLabel || '',
-      img: p.optimizedDataUrl || p.originalDataUrl,
+      img: resolveAbsoluteAssetUrl(p.optimizedDataUrl || p.originalDataUrl),
     })),
   };
 

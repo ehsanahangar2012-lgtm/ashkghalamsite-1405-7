@@ -1,9 +1,9 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { CatalogItem } from '../../services/catalogService';
 import { useCatalog } from '../../contexts/CatalogContext';
 import { CatalogProject } from '../../types/flipbook';
-import { resolveCatalogCoverImage } from '../../utils/catalogAssets';
+import { resolveCatalogCoverImage, getUploadFallbackCandidates } from '../../utils/catalogAssets';
 
 const FlipbookViewer = lazy(() =>
   import('../studio/FlipbookViewer').then((m) => ({ default: m.FlipbookViewer }))
@@ -26,12 +26,14 @@ export const CatalogItemPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
   const [activeSheet, setActiveSheet] = useState<'flipbook' | 'cover' | 'cad' | 'specs'>('cover');
+  const [coverIdx, setCoverIdx] = useState(0);
   const [imgFailed, setImgFailed] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
     let cancelled = false;
     setLoading(true);
+    setCoverIdx(0);
     setImgFailed(false);
     setFlipbookProject(null);
     setFlipbookError(null);
@@ -95,7 +97,10 @@ export const CatalogItemPage: React.FC = () => {
   }
 
   const dossier = getCatalogDossier(catalog);
-  const coverSrc = resolveCatalogCoverImage(catalog.coverImage, catalog.id);
+  const coverCandidates = getUploadFallbackCandidates(
+    resolveCatalogCoverImage(catalog.coverImage, catalog.id)
+  );
+  const coverSrc = coverCandidates[coverIdx];
 
   const handleGoToInquiry = () => {
     saveInquiryPrefill({
@@ -206,7 +211,13 @@ export const CatalogItemPage: React.FC = () => {
                   src={coverSrc}
                   alt={catalog.title}
                   referrerPolicy="no-referrer"
-                  onError={() => setImgFailed(true)}
+                  onError={() => {
+                    if (coverIdx + 1 < coverCandidates.length) {
+                      setCoverIdx((prev) => prev + 1);
+                    } else {
+                      setImgFailed(true);
+                    }
+                  }}
                   className="w-full h-full object-cover"
                 />
               ) : (

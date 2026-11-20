@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 import { CatalogItem } from '../../services/catalogService';
 import { useCatalog } from '../../contexts/CatalogContext';
-import { resolveCatalogCoverImage } from '../../utils/catalogAssets';
+import { resolveCatalogCoverImage, getUploadFallbackCandidates } from '../../utils/catalogAssets';
 import {
   CatalogPage,
   CatalogProject,
@@ -131,10 +131,23 @@ const CatalogAdminCard = React.memo<CatalogAdminCardProps>(
     onRequestDelete,
     onConfirmDelete,
   }) => {
-    const coverSrc = useMemo(
+    const coverBase = useMemo(
       () => resolveCatalogCoverImage(c.coverImage, c.id),
       [c.coverImage, c.id]
     );
+    const coverCandidates = useMemo(
+      () => getUploadFallbackCandidates(coverBase),
+      [coverBase]
+    );
+    const [coverIdx, setCoverIdx] = useState(0);
+    const [coverFailed, setCoverFailed] = useState(false);
+
+    useEffect(() => {
+      setCoverIdx(0);
+      setCoverFailed(false);
+    }, [coverBase]);
+
+    const coverSrc = coverCandidates[coverIdx];
     const isPub = c.isPublished !== false;
 
     const categoryOptions = useMemo(
@@ -152,13 +165,20 @@ const CatalogAdminCard = React.memo<CatalogAdminCardProps>(
       >
         {/* Cover Thumbnail */}
         <div className="sm:w-40 aspect-[4/3] sm:aspect-auto bg-slate-900 border-b sm:border-b-0 sm:border-l border-slate-800 shrink-0 overflow-hidden flex items-center justify-center relative">
-          {coverSrc ? (
+          {coverSrc && !coverFailed ? (
             <img
               src={coverSrc}
               alt={c.title}
               loading="lazy"
               decoding="async"
               referrerPolicy="no-referrer"
+              onError={() => {
+                if (coverIdx + 1 < coverCandidates.length) {
+                  setCoverIdx((prev) => prev + 1);
+                } else {
+                  setCoverFailed(true);
+                }
+              }}
               className={`w-full h-full object-cover ${!isPub ? 'grayscale-[60%]' : ''}`}
             />
           ) : (

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { CoverDesignConfig } from '../../types/flipbook';
-import { getUploadFallbackUrl } from '../../utils/catalogAssets';
+import { getUploadFallbackCandidates } from '../../utils/catalogAssets';
 
 interface BookCoverRendererProps {
   side: 'front' | 'back';
@@ -11,25 +11,29 @@ interface BookCoverRendererProps {
 export const BookCoverRenderer = React.forwardRef<HTMLDivElement, BookCoverRendererProps>(
   ({ side, cover, pageCount }, ref) => {
     const customImage = side === 'front' ? cover.frontCustomImageUrl : cover.backCustomImageUrl;
-    const [bgSrc, setBgSrc] = useState<string | undefined>(customImage);
+    const bgCandidates = useMemo(() => getUploadFallbackCandidates(customImage), [customImage]);
+    const [bgIdx, setBgIdx] = useState(0);
     const [bgFailed, setBgFailed] = useState(false);
-    const [bgRetried, setBgRetried] = useState(false);
 
-    const [logoSrc, setLogoSrc] = useState<string | undefined>(cover.logoDataUrl);
+    const logoCandidates = useMemo(
+      () => getUploadFallbackCandidates(cover.logoDataUrl),
+      [cover.logoDataUrl]
+    );
+    const [logoIdx, setLogoIdx] = useState(0);
     const [logoFailed, setLogoFailed] = useState(false);
-    const [logoRetried, setLogoRetried] = useState(false);
 
     useEffect(() => {
-      setBgSrc(customImage);
+      setBgIdx(0);
       setBgFailed(false);
-      setBgRetried(false);
     }, [customImage]);
 
     useEffect(() => {
-      setLogoSrc(cover.logoDataUrl);
+      setLogoIdx(0);
       setLogoFailed(false);
-      setLogoRetried(false);
     }, [cover.logoDataUrl]);
+
+    const bgSrc = bgCandidates[bgIdx];
+    const logoSrc = logoCandidates[logoIdx];
 
     const hasBackdropImage = Boolean(bgSrc) && !bgFailed;
     const isFullImage = hasBackdropImage || cover.templateId === 'full-image';
@@ -50,27 +54,19 @@ export const BookCoverRenderer = React.forwardRef<HTMLDivElement, BookCoverRende
     const isArtisan = cover.templateId === 'artisan-warm' && !hasBackdropImage;
 
     const handleBgError = () => {
-      if (!bgRetried) {
-        const fb = getUploadFallbackUrl(bgSrc);
-        if (fb) {
-          setBgRetried(true);
-          setBgSrc(fb);
-          return;
-        }
+      if (bgIdx + 1 < bgCandidates.length) {
+        setBgIdx((prev) => prev + 1);
+      } else {
+        setBgFailed(true);
       }
-      setBgFailed(true);
     };
 
     const handleLogoError = () => {
-      if (!logoRetried) {
-        const fb = getUploadFallbackUrl(logoSrc);
-        if (fb) {
-          setLogoRetried(true);
-          setLogoSrc(fb);
-          return;
-        }
+      if (logoIdx + 1 < logoCandidates.length) {
+        setLogoIdx((prev) => prev + 1);
+      } else {
+        setLogoFailed(true);
       }
-      setLogoFailed(true);
     };
 
     const backdropLayer = hasBackdropImage && bgSrc ? (

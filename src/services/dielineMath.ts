@@ -1,37 +1,23 @@
+import { createRteEngine } from './rteGeometry';
+import { createAutoLockBottomEngine } from './dielineModels/autoLockBottom';
+import { createSnapLockBottomEngine } from './dielineModels/snapLockBottom';
 export interface DielineCalculationResult {
   sheetWidth: number;
   sheetHeight: number;
-  grossArea: number; // cm^2
-  netArea: number; // cm^2
+  grossArea: number;
+  netArea: number;
   wastePercentage: number;
-  cutLength: number; // cm
-  creaseLength: number; // cm
-  cutLengthMm: number;
-  creaseLengthMm: number;
-  perforationLengthMm: number;
-  glueTab?: number;
-  tuck?: number;
-  dustFlap?: number;
+  cutLength: number;
+  creaseLength: number;
+  cutLengthMm?: number;
+  creaseLengthMm?: number;
+  perforationLengthMm?: number;
+  glueTab: number;
+  tuck: number;
+  dustFlap: number;
   isSmallBoxActive?: boolean;
   slotWidthMm?: number;
   bendAllowanceMm?: number;
-}
-
-export interface DielineEngineParams {
-  L: number;
-  W: number;
-  H: number;
-  glueTab?: number;
-  tuck?: number;
-  dustFlap?: number;
-  x0?: number;
-  variant?: 'standard' | 'reinforced' | 'eco' | string;
-  thickness?: number;
-  autoLockAngle?: number;
-  autoLockGlueWidth?: number;
-  bleedMm?: number;
-  tuckStyle?: 'reverse' | 'straight';
-  includePerforations?: boolean;
 }
 
 export interface DielineLabel {
@@ -59,12 +45,225 @@ export interface DielineEngineeringMetrics {
   hasTearStrip: boolean;
 }
 
+export function measureSvgPathLengthMm(pathStr: string): number {
+  if (!pathStr || typeof pathStr !== 'string') return 0;
+  const tokens = pathStr.match(/[a-zA-Z]|[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g);
+  if (!tokens) return 0;
+  let i = 0, cmd = '', cx = 0, cy = 0, sx = 0, sy = 0, total = 0;
+  const num = () => (i < tokens.length && !isNaN(Number(tokens[i])) ? Number(tokens[i++]) : 0);
+  while (i < tokens.length) {
+    if (isNaN(Number(tokens[i]))) cmd = tokens[i++];
+    switch (cmd) {
+      case 'M': cx = num(); cy = num(); sx = cx; sy = cy; cmd = 'L'; break;
+      case 'm': cx += num(); cy += num(); sx = cx; sy = cy; cmd = 'l'; break;
+      case 'L': { const nx = num(), ny = num(); total += Math.hypot(nx - cx, ny - cy); cx = nx; cy = ny; break; }
+      case 'l': { const dx = num(), dy = num(); total += Math.hypot(dx, dy); cx += dx; cy += dy; break; }
+      case 'H': { const nx = num(); total += Math.abs(nx - cx); cx = nx; break; }
+      case 'V': { const ny = num(); total += Math.abs(ny - cy); cy = ny; break; }
+      case 'Q': {
+        const qx = num(), qy = num(), nx = num(), ny = num();
+        let px = cx, py = cy;
+        for (let s = 1; s <= 10; s++) {
+          const t = s / 10, u = 1 - t;
+          const bx = u * u * cx + 2 * u * t * qx + t * t * nx;
+          const by = u * u * cy + 2 * u * t * qy + t * t * ny;
+          total += Math.hypot(bx - px, by - py); px = bx; py = by;
+        }
+        cx = nx; cy = ny; break;
+      }
+      case 'C': {
+        const c1x = num(), c1y = num(), c2x = num(), c2y = num(), nx = num(), ny = num();
+        let px = cx, py = cy;
+        for (let s = 1; s <= 12; s++) {
+          const t = s / 12, u = 1 - t;
+          const bx = u * u * u * cx + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * nx;
+          const by = u * u * u * cy + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * ny;
+          total += Math.hypot(bx - px, by - py); px = bx; py = by;
+        }
+        cx = nx; cy = ny; break;
+      }
+      case 'A': {
+        const rx = Math.abs(num()), ry = Math.abs(num());
+        num(); num(); num();
+        const nx = num(), ny = num();
+        const chord = Math.hypot(nx - cx, ny - cy);
+        const r = Math.max(rx, ry, chord / 2);
+        const arcApprox = chord > 0 && r > 0 ? 2 * r * Math.asin(Math.min(1, chord / (2 * r))) : chord;
+        total += isFinite(arcApprox) ? arcApprox : chord;
+        cx = nx; cy = ny; break;
+      }
+      case 'Z': case 'z': total += Math.hypot(sx - cx, sy - cy); cx = sx; cy = sy; break;
+      default: i++; break;
+    }
+  }
+  return total;
+}
+
+export function measurePathListLengthMm(paths: string[]): number {
+  return Math.round((Array.isArray(paths) ? paths : []).reduce((acc, p) => acc + measureSvgPathLengthMm(p), 0));
+}
+
+/**
+ * Calculates metrics using the selected dieline engine's paths and bounds.
+ * Dimensions and path lengths are millimetres; areas are square metres.
+ * Waste is only a rough bounding-box estimate, not a nesting/yield result.
+ *
+ * Argument order is intentionally compatible with existing UI callers:
+ * (length, width, height, boardCaliper, templateId).
+ */
+export const calculateDielineParameters = (
+  l: number,
+  w: number,
+  h: number,
+  caliper: number = 3,
+  fefcoCode: string = 'fefco-0201',
+  requestedGlueTab?: number,
+  dimensionConvention: 'inside' | 'outside' = 'inside',
+  requestedSlotGap?: number
+): DielineCalculationResult => {
+  const normalizedCode = fefcoCode.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const aliases: Record<string, string> = {
+    'ecma-a20-20': 'ecma-a2020',
+    'ecma-a-20-20': 'ecma-a2020',
+    'ecma-reverse-tuck-end': 'ecma-a2020',
+    'fefco-0201-rsc': 'fefco-0201',
+  };
+  const candidateId = normalizedCode.startsWith('fefco-') || normalizedCode.startsWith('ecma-') || normalizedCode === 'default-rsc' || normalizedCode === 'snap-lock-123'
+    ? normalizedCode
+    : `fefco-${normalizedCode.replace(/^fefco-/, '')}`;
+  const engineId = aliases[candidateId] || candidateId;
+  const engine = STANDARD_DIELINE_ENGINES[engineId] || STANDARD_DIELINE_ENGINES['default-rsc'];
+  const safeL = Number.isFinite(l) ? Math.max(1, l) : 1;
+  const safeW = Number.isFinite(w) ? Math.max(1, w) : 1;
+  const safeH = Number.isFinite(h) ? Math.max(1, h) : 1;
+  const safeCaliper = Number.isFinite(caliper) ? Math.max(0.2, caliper) : 3;
+  const safeGlueTab = Number.isFinite(requestedGlueTab)
+    ? Math.max(5, Math.min(200, requestedGlueTab as number))
+    : Math.max(15, Math.min(35, safeL * 0.18));
+  const safeSlotGap = Number.isFinite(requestedSlotGap)
+    ? Math.max(1, Math.min(10, requestedSlotGap as number))
+    : Math.max(1, Math.min(6, safeCaliper * 1.5));
+  const geometry = engine({
+    L: safeL,
+    W: safeW,
+    H: safeH,
+    thickness: safeCaliper,
+    glueTab: safeGlueTab,
+    slotGap: safeSlotGap,
+    dimensionConvention,
+    x0: 0,
+  });
+
+  const pathLength = (path: string): number => {
+    const commands = path.match(/[MLZ][^MLZ]*/g) || [];
+    let current: [number, number] | null = null;
+    let first: [number, number] | null = null;
+    let length = 0;
+    for (const raw of commands) {
+      const command = raw[0];
+      if (command === 'Z') {
+        if (current && first) length += Math.hypot(current[0] - first[0], current[1] - first[1]);
+        current = first;
+        continue;
+      }
+      const values = raw.slice(1).match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)?.map(Number) || [];
+      for (let i = 0; i + 1 < values.length; i += 2) {
+        const point: [number, number] = [values[i], values[i + 1]];
+        if (command === 'M' && i === 0) {
+          current = point;
+          first = point;
+        } else if (current) {
+          length += Math.hypot(point[0] - current[0], point[1] - current[1]);
+          current = point;
+        }
+      }
+    }
+    return length;
+  };
+
+  const grossArea = (geometry.totalW * geometry.totalH) / 1_000_000;
+  // Estimate blank area from the actual panel/flap construction for the FEFCO 0200 slotted family.
+  // Other engines use a conservative box-surface proxy until their individual panel maps are modeled.
+  const isSlottedCase = ['default-rsc', 'fefco-0200', 'fefco-0201', 'fefco-0203', 'fefco-0204'].includes(engineId);
+  let blankAreaMm2: number;
+  if (isSlottedCase) {
+    const glue = safeGlueTab;
+    const panelL = dimensionConvention === 'inside' ? safeL + safeCaliper : safeL;
+    const panelW = dimensionConvention === 'inside' ? safeW + safeCaliper : safeW;
+    const panelH = dimensionConvention === 'inside' ? safeH + safeCaliper : safeH;
+    const slotGap = safeSlotGap;
+    const sidePanelArea = (2 * panelL + 2 * panelW + glue) * panelH;
+    const totalPanelSpan = 2 * panelL + 2 * panelW;
+    const halfFlapPerEdge = totalPanelSpan * Math.max(0, (panelW - slotGap) / 2);
+    const widthPanelsMeetArea = Math.max(0, 2 * panelL * panelW - slotGap * (panelL + panelW));
+    const fullFlapPerEdge = totalPanelSpan * Math.max(0, panelW - slotGap);
+    const flapArea = engineId === 'fefco-0204' ? widthPanelsMeetArea : halfFlapPerEdge;
+    const topFlaps = engineId === 'fefco-0200' ? 0 : engineId === 'fefco-0203' ? fullFlapPerEdge : flapArea;
+    const bottomFlaps = engineId === 'fefco-0203' ? fullFlapPerEdge : flapArea;
+    blankAreaMm2 = sidePanelArea + topFlaps + bottomFlaps;
+  } else {
+    blankAreaMm2 = 2 * safeL * safeW + 2 * safeL * safeH + 2 * safeW * safeH;
+  }
+  const netArea = Math.max(0, blankAreaMm2 / 1_000_000);
+  const wastePercentage = grossArea > 0
+    ? Math.max(0, Math.min(100, Math.round(((grossArea - Math.min(grossArea, netArea)) / grossArea) * 100)))
+    : 0;
+
+  const cutLenMm = Math.round(geometry.cuts.reduce((sum, path) => sum + pathLength(path), 0));
+  const creaseLenMm = Math.round(geometry.creases.reduce((sum, path) => sum + pathLength(path), 0));
+  return {
+    sheetWidth: geometry.totalW,
+    sheetHeight: geometry.totalH,
+    grossArea: Number(grossArea.toFixed(4)),
+    netArea: Number(netArea.toFixed(4)),
+    wastePercentage,
+    cutLength: cutLenMm,
+    creaseLength: creaseLenMm,
+    cutLengthMm: cutLenMm,
+    creaseLengthMm: creaseLenMm,
+    perforationLengthMm: measurePathListLengthMm(geometry.perforations || []),
+    glueTab: safeGlueTab,
+    tuck: Math.max(15, Math.min(30, safeL * 0.18)),
+    dustFlap: Math.max(12, Math.min(50, safeW * 0.42)),
+    slotWidthMm: safeSlotGap,
+    bendAllowanceMm: Number((safeCaliper * 0.5).toFixed(2)),
+  };
+};
+
+export interface DielineEngineParams {
+  L: number;
+  W: number;
+  H: number;
+  glueTab?: number;
+  tuck?: number;
+  dustFlap?: number;
+  x0?: number;
+  variant?: string;
+  thickness?: number;
+  slotGap?: number;
+  dimensionConvention?: 'inside' | 'outside';
+  lidHeight?: number;
+  /** Total plan-view size difference added to the lid over the base outside size (mm). */
+  lidClearance?: number;
+  autoLockAngle?: number;
+  autoLockGlueWidth?: number;
+  /** Snap-lock side-flap depth, independent from the top dust-flap depth (mm). */
+  bottomFlapDepth?: number;
+  /** Projection of the snap-lock tongue beyond its flap edge (mm). */
+  lockTongueDepth?: number;
+  bleedMm?: number;
+  tuckStyle?: 'reverse' | 'straight';
+  includePerforations?: boolean;
+}
+
 export interface DielineEngineResult {
   cuts: string[];
   creases: string[];
-  glues: string[];
-  bleeds: string[];
-  perforations: string[];
+  /** Visual adhesive areas for art setup; never treated as knife or crease paths. */
+  glueZones?: string[];
+  glues?: string[];
+  bleeds?: string[];
+  perforations?: string[];
   labels: DielineLabel[];
   xMin: number;
   yMin: number;
@@ -75,1588 +274,256 @@ export interface DielineEngineResult {
   metrics?: DielineEngineeringMetrics;
 }
 
-const f = (n: number): string => (Math.round(n * 100) / 100).toString();
-const pt = (x: number, y: number): string => `${f(x)},${f(y)}`;
-
-const getVariantMultipliers = (variant?: string) => {
-  if (variant === 'reinforced') {
-    return { glueMult: 1.25, tuckMult: 1.2, dustMult: 1.15 };
-  }
-  if (variant === 'eco') {
-    return { glueMult: 0.85, tuckMult: 0.88, dustMult: 0.82 };
-  }
-  return { glueMult: 1, tuckMult: 1, dustMult: 1 };
+// 1. FEFCO 0201 (RSC) and Standard Slotted Containers Engine
+// FEFCO 0201 flap height is based on half the box width (W/2), with a
+// material/slot clearance. The same flap depth is used across all four panels;
+// panel width changes the flap's span, not its fold depth.
+export const getRscFlapDepths = (_L: number, W: number, topRatio = 0.5, bottomRatio = 0.5, clearance = 2) => {
+  const depth = (ratio: number) => ratio <= 0 ? 0 : Math.max(0, W * ratio - clearance);
+  return {
+    top: [depth(topRatio), depth(topRatio), depth(topRatio), depth(topRatio)],
+    bottom: [depth(bottomRatio), depth(bottomRatio), depth(bottomRatio), depth(bottomRatio)],
+  };
 };
 
-// =========================================================================
-// SVG VECTOR PATH LENGTH & BOUNDING EVALUATOR
-// =========================================================================
+const createRscEngine = (flapRatioTop = 0.5, flapRatioBottom = 0.5) => {
+  return ({ L, W, H, glueTab = 35, thickness = 1.6, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const G = Math.max(12, glueTab || 35);
+    // Caliper-aware opposing-flap relief: a starting allowance only, not a machine-calibrated rule.
+    const flapClearance = Math.max(1, Math.min(6, thickness * 1.5));
+    const depths = getRscFlapDepths(L, W, flapRatioTop, flapRatioBottom, flapClearance);
+    const topMax = Math.max(...depths.top);
+    const bottomMax = Math.max(...depths.bottom);
 
-export function measureSvgPathLengthMm(pathStr: string): number {
-  if (!pathStr || typeof pathStr !== 'string') return 0;
-  const tokens = pathStr.match(/[a-zA-Z]|[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g);
-  if (!tokens) return 0;
-
-  let i = 0;
-  let cmd = '';
-  let cx = 0;
-  let cy = 0;
-  let sx = 0;
-  let sy = 0;
-  let total = 0;
-
-  const num = () => {
-    if (i < tokens.length && !isNaN(Number(tokens[i]))) {
-      return Number(tokens[i++]);
-    }
-    return 0;
-  };
-
-  while (i < tokens.length) {
-    if (isNaN(Number(tokens[i]))) {
-      cmd = tokens[i++];
-    }
-    switch (cmd) {
-      case 'M': {
-        cx = num();
-        cy = num();
-        sx = cx;
-        sy = cy;
-        cmd = 'L';
-        break;
-      }
-      case 'm': {
-        cx += num();
-        cy += num();
-        sx = cx;
-        sy = cy;
-        cmd = 'l';
-        break;
-      }
-      case 'L': {
-        const nx = num();
-        const ny = num();
-        total += Math.hypot(nx - cx, ny - cy);
-        cx = nx;
-        cy = ny;
-        break;
-      }
-      case 'l': {
-        const dx = num();
-        const dy = num();
-        total += Math.hypot(dx, dy);
-        cx += dx;
-        cy += dy;
-        break;
-      }
-      case 'H': {
-        const nx = num();
-        total += Math.abs(nx - cx);
-        cx = nx;
-        break;
-      }
-      case 'V': {
-        const ny = num();
-        total += Math.abs(ny - cy);
-        cy = ny;
-        break;
-      }
-      case 'Q': {
-        const qx = num();
-        const qy = num();
-        const nx = num();
-        const ny = num();
-        // Subdivide quadratic Bezier into 10 segments
-        let px = cx;
-        let py = cy;
-        for (let s = 1; s <= 10; s++) {
-          const t = s / 10;
-          const u = 1 - t;
-          const bx = u * u * cx + 2 * u * t * qx + t * t * nx;
-          const by = u * u * cy + 2 * u * t * qy + t * t * ny;
-          total += Math.hypot(bx - px, by - py);
-          px = bx;
-          py = by;
-        }
-        cx = nx;
-        cy = ny;
-        break;
-      }
-      case 'C': {
-        const c1x = num();
-        const c1y = num();
-        const c2x = num();
-        const c2y = num();
-        const nx = num();
-        const ny = num();
-        let px = cx;
-        let py = cy;
-        for (let s = 1; s <= 12; s++) {
-          const t = s / 12;
-          const u = 1 - t;
-          const bx = u * u * u * cx + 3 * u * u * t * c1x + 3 * u * t * t * c2x + t * t * t * nx;
-          const by = u * u * u * cy + 3 * u * u * t * c1y + 3 * u * t * t * c2y + t * t * t * ny;
-          total += Math.hypot(bx - px, by - py);
-          px = bx;
-          py = by;
-        }
-        cx = nx;
-        cy = ny;
-        break;
-      }
-      case 'A': {
-        const rx = Math.abs(num());
-        const ry = Math.abs(num());
-        num(); // x-axis-rotation
-        num(); // large-arc
-        num(); // sweep
-        const nx = num();
-        const ny = num();
-        const chord = Math.hypot(nx - cx, ny - cy);
-        // Accurate elliptical arc approximation via chord/radius ratio
-        const r = Math.max(rx, ry, chord / 2);
-        const arcApprox = chord > 0 && r > 0 ? 2 * r * Math.asin(Math.min(1, chord / (2 * r))) : chord;
-        total += isFinite(arcApprox) ? arcApprox : chord;
-        cx = nx;
-        cy = ny;
-        break;
-      }
-      case 'Z':
-      case 'z': {
-        total += Math.hypot(sx - cx, sy - cy);
-        cx = sx;
-        cy = sy;
-        break;
-      }
-      default: {
-        i++;
-        break;
-      }
-    }
-  }
-  return total;
-}
-
-export function measurePathListLengthMm(paths: string[]): number {
-  return Math.round(paths.reduce((acc, p) => acc + measureSvgPathLengthMm(p), 0));
-}
-
-function buildBleedRectPath(xMin: number, yMin: number, xMax: number, yMax: number, bleedMm: number): string {
-  const b = Math.max(2, bleedMm);
-  return `M ${pt(xMin - b, yMin - b)} L ${pt(xMax + b, yMin - b)} L ${pt(xMax + b, yMax + b)} L ${pt(xMin - b, yMax + b)} Z`;
-}
-
-// Helper for curved elliptical tuck flap with friction-lock shoulder slits
-function buildTuckFlapGeometry(
-  xLeft: number,
-  xRight: number,
-  yCrease: number,
-  tuckDepth: number,
-  dir: -1 | 1, // -1 = top upward, +1 = bottom downward
-  thickness: number
-) {
-  const w = xRight - xLeft;
-  const r = Math.max(4, Math.min(tuckDepth * 0.65, w * 0.22, 16));
-  const yTip = yCrease + dir * tuckDepth;
-  const yArcStart = yTip - dir * r;
-  const shoulderSlit = Math.max(2.5, Math.min(5, w * 0.08));
-  const slitCutOut = Math.max(0.8, thickness * 0.8);
-
-  // Outer perimeter with smooth quadratic corners + friction-lock shoulder relief
-  const cut = [
-    `M ${pt(xLeft, yCrease)}`,
-    `L ${pt(xLeft + shoulderSlit, yCrease)}`,
-    `L ${pt(xLeft + shoulderSlit, yCrease + dir * slitCutOut)}`,
-    `L ${pt(xLeft + slitCutOut, yCrease + dir * slitCutOut)}`,
-    `L ${pt(xLeft + slitCutOut, yArcStart)}`,
-    `Q ${pt(xLeft + slitCutOut, yTip)} ${pt(xLeft + r, yTip)}`,
-    `L ${pt(xRight - r, yTip)}`,
-    `Q ${pt(xRight - slitCutOut, yTip)} ${pt(xRight - slitCutOut, yArcStart)}`,
-    `L ${pt(xRight - slitCutOut, yCrease + dir * slitCutOut)}`,
-    `L ${pt(xRight - shoulderSlit, yCrease + dir * slitCutOut)}`,
-    `L ${pt(xRight - shoulderSlit, yCrease)}`,
-    `L ${pt(xRight, yCrease)}`,
-  ].join(' ');
-
-  // Crease along middle excluding friction lock slits
-  const crease = `M ${pt(xLeft + shoulderSlit, yCrease)} L ${pt(xRight - shoulderSlit, yCrease)}`;
-  return { cut, crease };
-}
-
-// =========================================================================
-// 1. FEFCO 0200 / 0201 / 0203 (SLOTTED RSC / OPEN TOP / FOL) ENGINE
-// =========================================================================
-const createRscEngine = (flapRatioTop = 0.5, flapRatioBottom = 0.5, addTearStrip = false) => {
-  return ({
-    L,
-    W,
-    H,
-    glueTab = 35,
-    x0 = 50,
-    thickness = 3.0,
-    variant = 'standard',
-    bleedMm = 4,
-    includePerforations = true,
-  }: DielineEngineParams): DielineEngineResult => {
-    const mult = getVariantMultipliers(variant);
-    const t = Math.max(0.4, thickness || 3.0);
-    const G = Math.max(22, Math.round((glueTab || 35) * mult.glueMult));
-    const slotW = t >= 1.2 ? Math.max(3.5, Math.min(9, t * 1.6)) : 2.2;
-    const halfSlot = slotW / 2;
-
-    // Outside-to-crease bend allowance on thick corrugated boards
-    const bendAdj = t >= 1.2 ? t * 0.5 : 0;
-    const topFlapH = flapRatioTop > 0 ? Math.max(20, W * flapRatioTop + bendAdj) : 0;
-    const btmFlapH = flapRatioBottom > 0 ? Math.max(20, W * flapRatioBottom + bendAdj) : 0;
-
-    const y0 = 40;
-    const yTopCrease = y0 + topFlapH;
-    const yBtmCrease = yTopCrease + H;
-    const yBottom = yBtmCrease + btmFlapH;
+    // Body crease lines stay level; individual flap depths create the correct stepped outline.
+    const yTop = 40 + topMax;
+    const yBottom = yTop + H;
+    const yMin = yTop - topMax;
+    const yMax = yBottom + bottomMax;
 
     const xG = x0 + G;
     const xP1 = xG + L;
     const xP2 = xP1 + W;
     const xP3 = xP2 + L;
     const xP4 = xP3 + W;
+    const panelXs = [xG, xP1, xP2, xP3, xP4];
 
     const cuts: string[] = [];
     const creases: string[] = [];
-    const glues: string[] = [];
-    const perforations: string[] = [];
-    const labels: DielineLabel[] = [];
+    const labels: { x: number; y: number; text: string }[] = [];
 
-    const chamfer = Math.min(12, Math.max(5, G * 0.25));
+    // Glue flap and its trimmed outside corners.
+    cuts.push(`M ${x0 + 4} ${yTop} L ${x0} ${yTop + 4} L ${x0} ${yBottom - 4} L ${x0 + 4} ${yBottom}`);
+    cuts.push(`M ${x0 + 4} ${yTop} L ${xG} ${yTop}`);
+    cuts.push(`M ${x0 + 4} ${yBottom} L ${xG} ${yBottom}`);
+    creases.push(`M ${xG} ${yTop} L ${xG} ${yBottom}`);
 
-    // Glue Tab outer perimeter with 14° beveled lead-in & glue zone hatch
-    cuts.push(
-      `M ${pt(xG, yTopCrease)} L ${pt(x0 + 3, yTopCrease + chamfer)} L ${pt(x0, yTopCrease + chamfer + 4)} L ${pt(x0, yBtmCrease - chamfer - 4)} L ${pt(x0 + 3, yBtmCrease - chamfer)} L ${pt(xG, yBtmCrease)}`
-    );
-    creases.push(`M ${pt(xG, yTopCrease)} L ${pt(xG, yBtmCrease)}`);
+    // Draw the flap perimeter as unique knife segments. A hinge is a crease,
+    // never a cut; shared panel boundaries are emitted once to avoid duplicate knife paths.
+    for (let i = 0; i < 4; i++) {
+      const left = panelXs[i];
+      const right = panelXs[i + 1];
+      const topDepth = depths.top[i];
+      const bottomDepth = depths.bottom[i];
 
-    // Glue hatch zone
-    const gPad = 3;
-    glues.push(
-      `M ${pt(x0 + gPad, yTopCrease + chamfer + gPad)} L ${pt(xG - gPad, yTopCrease + gPad)} L ${pt(xG - gPad, yBtmCrease - gPad)} L ${pt(x0 + gPad, yBtmCrease - chamfer - gPad)} Z`
-    );
-
-    const panels = [
-      { a: xG, b: xP1, isFirst: true, isLast: false },
-      { a: xP1, b: xP2, isFirst: false, isLast: false },
-      { a: xP2, b: xP3, isFirst: false, isLast: false },
-      { a: xP3, b: xP4, isFirst: false, isLast: true },
-    ];
-
-    // Top Slotted Flaps with real die-cut V-relief slots
-    if (topFlapH > 0) {
-      panels.forEach((p) => {
-        const lx = p.isFirst ? p.a : p.a + halfSlot;
-        const rx = p.isLast ? p.b : p.b - halfSlot;
-        const notchDepth = Math.min(4, t * 0.8);
-        cuts.push(
-          `M ${pt(p.a, yTopCrease)} L ${pt(lx, yTopCrease - notchDepth)} L ${pt(lx + 1.5, y0)} L ${pt(rx - 1.5, y0)} L ${pt(rx, yTopCrease - notchDepth)} L ${pt(p.b, yTopCrease)}`
-        );
-        creases.push(`M ${pt(lx, yTopCrease)} L ${pt(rx, yTopCrease)}`);
-      });
-    } else {
-      cuts.push(`M ${pt(xG, yTopCrease)} L ${pt(xP4, yTopCrease)}`);
+      if (topDepth > 0) {
+        const outerY = yTop - topDepth;
+        cuts.push(`M ${left} ${outerY} L ${right} ${outerY}`);
+      } else {
+        // On an open-top blank this body edge is exposed perimeter, not a hinge.
+        cuts.push(`M ${left} ${yTop} L ${right} ${yTop}`);
+      }
+      if (bottomDepth > 0) {
+        const outerY = yBottom + bottomDepth;
+        cuts.push(`M ${left} ${outerY} L ${right} ${outerY}`);
+      }
     }
 
-    // Bottom Slotted Flaps
-    if (btmFlapH > 0) {
-      panels.forEach((p) => {
-        const lx = p.isFirst ? p.a : p.a + halfSlot;
-        const rx = p.isLast ? p.b : p.b - halfSlot;
-        const notchDepth = Math.min(4, t * 0.8);
-        cuts.push(
-          `M ${pt(p.a, yBtmCrease)} L ${pt(lx, yBtmCrease + notchDepth)} L ${pt(lx + 1.5, yBottom)} L ${pt(rx - 1.5, yBottom)} L ${pt(rx, yBtmCrease + notchDepth)} L ${pt(p.b, yBtmCrease)}`
-        );
-        creases.push(`M ${pt(lx, yBtmCrease)} L ${pt(rx, yBtmCrease)}`);
-      });
-    } else {
-      cuts.push(`M ${pt(xG, yBtmCrease)} L ${pt(xP4, yBtmCrease)}`);
+    // Left/right edges and the four panel seams. Each seam is one continuous
+    // cut to the deepest adjoining flap; this separates flaps without drawing
+    // the same segment twice when adjacent flaps have equal depth.
+    for (let seam = 0; seam <= 4; seam++) {
+      const leftDepthTop = seam > 0 ? depths.top[seam - 1] : 0;
+      const rightDepthTop = seam < 4 ? depths.top[seam] : 0;
+      const topDepth = Math.max(leftDepthTop, rightDepthTop);
+      if (topDepth > 0) {
+        cuts.push(`M ${panelXs[seam]} ${yTop} L ${panelXs[seam]} ${yTop - topDepth}`);
+      }
+
+      const leftDepthBottom = seam > 0 ? depths.bottom[seam - 1] : 0;
+      const rightDepthBottom = seam < 4 ? depths.bottom[seam] : 0;
+      const bottomDepth = Math.max(leftDepthBottom, rightDepthBottom);
+      if (bottomDepth > 0) {
+        cuts.push(`M ${panelXs[seam]} ${yBottom} L ${panelXs[seam]} ${yBottom + bottomDepth}`);
+      }
     }
 
-    // Right edge cut (with minor tuck-slot tongue extension on RSC)
-    cuts.push(`M ${pt(xP4, yTopCrease)} L ${pt(xP4, yBtmCrease)}`);
+    // Outer right wall cut; the three interior panel boundaries are creases.
+    cuts.push(`M ${xP4} ${yTop} L ${xP4} ${yBottom}`);
+    if (topMax > 0) creases.push(`M ${xG} ${yTop} L ${xP4} ${yTop}`);
+    if (bottomMax > 0) creases.push(`M ${xG} ${yBottom} L ${xP4} ${yBottom}`);
+    creases.push(`M ${xP1} ${yTop} L ${xP1} ${yBottom}`);
+    creases.push(`M ${xP2} ${yTop} L ${xP2} ${yBottom}`);
+    creases.push(`M ${xP3} ${yTop} L ${xP3} ${yBottom}`);
 
-    // Body Vertical Creases
-    creases.push(`M ${pt(xP1, yTopCrease)} L ${pt(xP1, yBtmCrease)}`);
-    creases.push(`M ${pt(xP2, yTopCrease)} L ${pt(xP2, yBtmCrease)}`);
-    creases.push(`M ${pt(xP3, yTopCrease)} L ${pt(xP3, yBtmCrease)}`);
-
-    // Optional easy-open tear strip perforation
-    if ((addTearStrip || includePerforations) && H > 50) {
-      const yTear = yTopCrease + Math.min(22, H * 0.22);
-      perforations.push(`M ${pt(xG, yTear)} L ${pt(xP4, yTear)}`);
-    }
-
-    const yMid = (yTopCrease + yBtmCrease) / 2;
-    labels.push({ x: (xG + xP1) / 2, y: yMid, text: `${Math.round(L)}mm`, lineW: L });
-    labels.push({ x: (xP1 + xP2) / 2, y: yMid, text: `${Math.round(W)}mm`, lineW: W });
-    labels.push({ x: (xP2 + xP3) / 2, y: yMid, text: `${Math.round(L)}mm`, lineW: L });
-    labels.push({ x: (xP3 + xP4) / 2, y: yMid, text: `${Math.round(W)}mm`, lineW: W });
-    labels.push({ x: (x0 + xG) / 2, y: yMid, text: `چسب ${Math.round(G)}` });
-    labels.push({ x: xP1 + W / 2, y: yMid + 18, text: `H:${Math.round(H)}mm`, lineH: H });
-
-    const bleeds = [buildBleedRectPath(x0, y0, xP4, yBottom, bleedMm)];
+    const yMid = (yTop + yBottom) / 2;
+    labels.push({ x: (xG + xP1) / 2, y: yMid, text: `طول ${Math.round(L)}mm` });
+    labels.push({ x: (xP1 + xP2) / 2, y: yMid, text: `عرض ${Math.round(W)}mm` });
+    labels.push({ x: (xP2 + xP3) / 2, y: yMid, text: `طول ${Math.round(L)}mm` });
+    labels.push({ x: (xP3 + xP4) / 2, y: yMid, text: `عرض ${Math.round(W)}mm` });
+    labels.push({ x: (x0 + xG) / 2, y: yMid, text: `لبه چسب ${Math.round(G)}mm` });
 
     return {
       cuts,
       creases,
-      glues,
-      bleeds,
-      perforations,
       labels,
       xMin: x0,
-      yMin: y0,
+      yMin,
       xMax: xP4,
-      yMax: yBottom,
+      yMax,
       totalW: xP4 - x0,
-      totalH: yBottom - y0,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: measurePathListLengthMm(perforations),
-        glueAreaSqMm: Math.round(G * (H - chamfer)),
-        netBlankAreaSqCm: Math.round(((2 * (L + W) * H + (topFlapH + btmFlapH) * 2 * (L + W)) / 100)),
-        grossBlankAreaSqCm: Math.round(((xP4 - x0) * (yBottom - y0)) / 100),
-        slotWidthMm: Number(slotW.toFixed(2)),
-        bendDeductionMm: Number((t * 0.5).toFixed(2)),
-        flapCount: (topFlapH > 0 ? 4 : 0) + (btmFlapH > 0 ? 4 : 0),
-        panelCount: 4,
-        isTwoPiece: false,
-        hasLockingSlots: false,
-        hasVentilation: false,
-        hasTearStrip: perforations.length > 0,
-      },
+      totalH: yMax - yMin,
     };
   };
 };
 
-// =========================================================================
-// 2. FEFCO 0427 / 0470 (ROLL END TUCK FRONT MAILER PRO) ENGINE
-// =========================================================================
-const createMailerEngine = (isTuckTabStyle = false) => {
-  return ({
-    L,
-    W,
-    H,
-    tuck = 28,
-    x0 = 50,
-    thickness = 1.6,
-    variant = 'standard',
-    bleedMm = 4,
-    includePerforations = true,
-  }: DielineEngineParams): DielineEngineResult => {
-    const mult = getVariantMultipliers(variant);
-    const t = Math.max(0.8, thickness || 1.6);
-    const T = Math.max(18, Math.round((tuck || 28) * mult.tuckMult));
-    const slotW = Math.max(3.0, Math.min(6.5, t * 1.9));
-    const y0 = 35;
+// 2. FEFCO 0427 (Mailer / Roll End Tuck Front) Engine
+const createMailerEngine = () => {
+  return ({ L, W, H, tuck = 30, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const T = Math.max(20, tuck || 30);
+    const y0 = 30;
 
-    // Mailer vertical flow: Tuck(T) -> Lid(L) -> BackWall(H) -> Base(L) -> FrontOuter(H) -> FrontInnerRoll(H - t)
+    // Mailer Box Components:
+    // Front Tuck (T) -> Top Lid (L) -> Back Wall (H) -> Bottom (L) -> Front Wall (H) -> Roll-over flap (H - 2)
     const yTuck = y0;
     const yLid = yTuck + T;
     const yBack = yLid + L;
-    const yBaseTop = yBack + H;
-    const yBaseBtm = yBaseTop + L;
-    const yFrontOuter = yBaseBtm + H;
-    const yFrontInner = yFrontOuter + Math.max(15, H - t * 1.2);
+    const yBottom = yBack + H;
+    const yFront = yBottom + L;
+    const yFrontFlap = yFront + H;
 
-    // Side double-wall roll wings
-    const wingDepth = Math.max(15, H - t * 1.2);
+    // Width-wise: Roll-over side walls
+    // Left Wing (H) -> Left Wall (H) -> Body (W) -> Right Wall (H) -> Right Wing (H)
     const xLWing = x0;
-    const xLWall = xLWing + wingDepth;
+    const xLWall = xLWing + H;
     const xBodyL = xLWall + H;
     const xBodyR = xBodyL + W;
     const xRWall = xBodyR + H;
-    const xRWing = xRWall + wingDepth;
-
-    // Lid dust flaps & cherry lock ears
-    const lidFlapW = Math.min(H * 0.85, Math.max(22, W * 0.25));
-    const xLidFlapL = xBodyL - lidFlapW;
-    const xLidFlapR = xBodyR + lidFlapW;
+    const xRWing = xRWall + H;
 
     const cuts: string[] = [];
     const creases: string[] = [];
-    const glues: string[] = [];
-    const perforations: string[] = [];
-    const labels: DielineLabel[] = [];
+    const labels: { x: number; y: number; text: string }[] = [];
 
-    // 1. Curved Tuck Flap + Cherry-Lock Ear Tabs
-    const r = Math.min(12, T * 0.48, W * 0.14);
-    const earW = Math.min(10, Math.max(5, lidFlapW * 0.35));
-    const earY = yLid - Math.min(14, T * 0.55);
+    // Outer Perimeter Cuts
+    // Top Tuck & Lid
+    cuts.push(`M ${xBodyL} ${yLid} L ${xBodyL + 8} ${yTuck} L ${xBodyR - 8} ${yTuck} L ${xBodyR} ${yLid}`);
+    
+    // Side Walls & Dust Flaps
+    cuts.push(`M ${xBodyL} ${yLid} L ${xBodyL} ${yBack}`);
+    cuts.push(`M ${xBodyR} ${yLid} L ${xBodyR} ${yBack}`);
+    
+    // Left roll-over side wall
+    cuts.push(`M ${xBodyL} ${yBack} L ${xLWing} ${yBack} L ${xLWing} ${yBottom} L ${xBodyL} ${yBottom}`);
+    // Right roll-over side wall
+    cuts.push(`M ${xBodyR} ${yBack} L ${xRWing} ${yBack} L ${xRWing} ${yBottom} L ${xBodyR} ${yBottom}`);
 
-    cuts.push(
-      `M ${pt(xBodyL, yLid)} L ${pt(xBodyL - earW, yLid - 2)} L ${pt(xBodyL - earW, earY)} L ${pt(xBodyL + 2, yLid - T * 0.45)} L ${pt(xBodyL + 2, yTuck + r)} Q ${pt(xBodyL + 2, yTuck)} ${pt(xBodyL + r + 2, yTuck)} L ${pt(xBodyR - r - 2, yTuck)} Q ${pt(xBodyR - 2, yTuck)} ${pt(xBodyR - 2, yTuck + r)} L ${pt(xBodyR - 2, yLid - T * 0.45)} L ${pt(xBodyR + earW, earY)} L ${pt(xBodyR + earW, yLid - 2)} L ${pt(xBodyR, yLid)}`
-    );
-    creases.push(`M ${pt(xBodyL + 3, yLid)} L ${pt(xBodyR - 3, yLid)}`);
+    // Front Wall & Roll-over flap
+    cuts.push(`M ${xBodyL} ${yBottom} L ${xBodyL} ${yFrontFlap} L ${xBodyR} ${yFrontFlap} L ${xBodyR} ${yBottom}`);
 
-    // 2. Lid tapered dust wings along back-to-lid section
-    const taperY = Math.min(12, L * 0.15);
-    cuts.push(
-      `M ${pt(xBodyL, yLid)} L ${pt(xLidFlapL + 6, yLid + taperY)} L ${pt(xLidFlapL, yBack - 4)} L ${pt(xBodyL, yBack)}`
-    );
-    cuts.push(
-      `M ${pt(xBodyR, yLid)} L ${pt(xLidFlapR - 6, yLid + taperY)} L ${pt(xLidFlapR, yBack - 4)} L ${pt(xBodyR, yBack)}`
-    );
-    creases.push(`M ${pt(xBodyL, yLid)} L ${pt(xBodyL, yBack)}`);
-    creases.push(`M ${pt(xBodyR, yLid)} L ${pt(xBodyR, yBack)}`);
-    creases.push(`M ${pt(xBodyL, yBack)} L ${pt(xBodyR, yBack)}`);
+    // Crease Lines
+    creases.push(`M ${xBodyL} ${yLid} L ${xBodyR} ${yLid}`); // Tuck fold
+    creases.push(`M ${xBodyL} ${yBack} L ${xBodyR} ${yBack}`); // Back fold
+    creases.push(`M ${xBodyL} ${yBottom} L ${xBodyR} ${yBottom}`); // Bottom back fold
+    creases.push(`M ${xBodyL} ${yFront} L ${xBodyR} ${yFront}`); // Front wall fold
+    creases.push(`M ${xBodyL} ${yBack} L ${xBodyL} ${yBottom}`); // Left side fold
+    creases.push(`M ${xLWall} ${yBack} L ${xLWall} ${yBottom}`); // Left wall double fold
+    creases.push(`M ${xBodyR} ${yBack} L ${xBodyR} ${yBottom}`); // Right side fold
+    creases.push(`M ${xRWall} ${yBack} L ${xRWall} ${yBottom}`); // Right wall double fold
 
-    // 3. Back wall side slits & shoulder reliefs
-    cuts.push(`M ${pt(xBodyL, yBack)} L ${pt(xBodyL, yBaseTop)}`);
-    cuts.push(`M ${pt(xBodyR, yBack)} L ${pt(xBodyR, yBaseTop)}`);
-    creases.push(`M ${pt(xBodyL, yBaseTop)} L ${pt(xBodyR, yBaseTop)}`);
-
-    // 4. Double-wall Left & Right Roll Wings with Locking Tabs
-    const tabLen = Math.min(28, L * 0.26);
-    const tabD = Math.min(8, t * 4);
-    const yTab1A = yBaseTop + L * 0.18;
-    const yTab1B = yTab1A + tabLen;
-    const yTab2B = yBaseBtm - L * 0.18;
-    const yTab2A = yTab2B - tabLen;
-
-    // Left Roll Wing with 2 locking tabs
-    cuts.push(
-      `M ${pt(xBodyL, yBaseTop)} L ${pt(xLWing + 6, yBaseTop + 3)} L ${pt(xLWing, yBaseTop + 8)} L ${pt(xLWing, yTab1A)} L ${pt(xLWing - tabD, yTab1A + 2)} L ${pt(xLWing - tabD, yTab1B - 2)} L ${pt(xLWing, yTab1B)} L ${pt(xLWing, yTab2A)} L ${pt(xLWing - tabD, yTab2A + 2)} L ${pt(xLWing - tabD, yTab2B - 2)} L ${pt(xLWing, yTab2B)} L ${pt(xLWing, yBaseBtm - 8)} L ${pt(xLWing + 6, yBaseBtm - 3)} L ${pt(xBodyL, yBaseBtm)}`
-    );
-    // Right Roll Wing with 2 locking tabs
-    cuts.push(
-      `M ${pt(xBodyR, yBaseTop)} L ${pt(xRWing - 6, yBaseTop + 3)} L ${pt(xRWing, yBaseTop + 8)} L ${pt(xRWing, yTab1A)} L ${pt(xRWing + tabD, yTab1A + 2)} L ${pt(xRWing + tabD, yTab1B - 2)} L ${pt(xRWing, yTab1B)} L ${pt(xRWing, yTab2A)} L ${pt(xRWing + tabD, yTab2A + 2)} L ${pt(xRWing + tabD, yTab2B - 2)} L ${pt(xRWing, yTab2B)} L ${pt(xRWing, yBaseBtm - 8)} L ${pt(xRWing - 6, yBaseBtm - 3)} L ${pt(xBodyR, yBaseBtm)}`
-    );
-
-    // Double score channels for 180-deg roll-over walls
-    creases.push(`M ${pt(xBodyL, yBaseTop)} L ${pt(xBodyL, yBaseBtm)}`);
-    creases.push(`M ${pt(xLWall, yBaseTop + 2)} L ${pt(xLWall, yBaseBtm - 2)}`);
-    creases.push(`M ${pt(xLWall - t * 1.3, yBaseTop + 2)} L ${pt(xLWall - t * 1.3, yBaseBtm - 2)}`);
-    creases.push(`M ${pt(xBodyR, yBaseTop)} L ${pt(xBodyR, yBaseBtm)}`);
-    creases.push(`M ${pt(xRWall, yBaseTop + 2)} L ${pt(xRWall, yBaseBtm - 2)}`);
-    creases.push(`M ${pt(xRWall + t * 1.3, yBaseTop + 2)} L ${pt(xRWall + t * 1.3, yBaseBtm - 2)}`);
-
-    // Die-cut Locking Slots in Base Panel (where roll-over tabs lock!)
-    const drawSlotRect = (sx: number, sy: number, sw: number, sh: number) =>
-      `M ${pt(sx, sy)} L ${pt(sx + sw, sy)} L ${pt(sx + sw, sy + sh)} L ${pt(sx, sy + sh)} Z`;
-
-    cuts.push(drawSlotRect(xBodyL + 1.5, yTab1A, slotW, tabLen));
-    cuts.push(drawSlotRect(xBodyL + 1.5, yTab2A, slotW, tabLen));
-    cuts.push(drawSlotRect(xBodyR - 1.5 - slotW, yTab1A, slotW, tabLen));
-    cuts.push(drawSlotRect(xBodyR - 1.5 - slotW, yTab2A, slotW, tabLen));
-
-    // 5. Front Wall + Roll-Over Locking Flap with Thumb Notch
-    const fChamfer = 4;
-    const thumbR = Math.min(16, Math.max(8, W * 0.08));
-    const xMid = (xBodyL + xBodyR) / 2;
-    cuts.push(
-      `M ${pt(xBodyL, yBaseBtm)} L ${pt(xBodyL + 2, yFrontOuter)} L ${pt(xBodyL + fChamfer, yFrontInner)} L ${pt(xMid - thumbR, yFrontInner)} A ${f(thumbR)},${f(thumbR)} 0 0 1 ${pt(xMid + thumbR, yFrontInner)} L ${pt(xBodyR - fChamfer, yFrontInner)} L ${pt(xBodyR - 2, yFrontOuter)} L ${pt(xBodyR, yBaseBtm)}`
-    );
-    creases.push(`M ${pt(xBodyL, yBaseBtm)} L ${pt(xBodyR, yBaseBtm)}`);
-    creases.push(`M ${pt(xBodyL + 2, yFrontOuter)} L ${pt(xBodyR - 2, yFrontOuter)}`);
-
-    if (isTuckTabStyle) {
-      // Extra front dust wings for FEFCO 0470
-      cuts.push(`M ${pt(xBodyL, yBaseBtm)} L ${pt(xLidFlapL + 5, yBaseBtm + 5)} L ${pt(xLidFlapL + 5, yFrontOuter - 4)} L ${pt(xBodyL + 2, yFrontOuter)}`);
-      cuts.push(`M ${pt(xBodyR, yBaseBtm)} L ${pt(xLidFlapR - 5, yBaseBtm + 5)} L ${pt(xLidFlapR - 5, yFrontOuter - 4)} L ${pt(xBodyR - 2, yFrontOuter)}`);
-    }
-
-    // Tear-strip perforation across front tuck zone for e-commerce unboxing
-    if (includePerforations) {
-      const yPerf = yLid + Math.min(18, L * 0.14);
-      perforations.push(`M ${pt(xBodyL + 8, yPerf)} L ${pt(xBodyR - 8, yPerf)}`);
-      perforations.push(`M ${pt(xBodyL + 8, yPerf + 7)} L ${pt(xBodyR - 8, yPerf + 7)}`);
-    }
-
-    const realXMin = Math.min(xLWing - tabD, xLidFlapL);
-    const realXMax = Math.max(xRWing + tabD, xLidFlapR);
-
-    labels.push({ x: xMid, y: (yBaseTop + yBaseBtm) / 2, text: `کفه ${Math.round(W)}×${Math.round(L)}`, lineW: W });
-    labels.push({ x: xMid, y: (yLid + yBack) / 2, text: `درب ${Math.round(W)}×${Math.round(L)}` });
-    labels.push({ x: xMid, y: (yBaseBtm + yFrontOuter) / 2, text: `دیواره H:${Math.round(H)}`, lineH: H });
-    labels.push({ x: (xLWall + xBodyL) / 2, y: (yBaseTop + yBaseBtm) / 2, text: `${Math.round(H)}` });
+    // Dimension labels
+    labels.push({ x: (xBodyL + xBodyR) / 2, y: (yBack + yBottom) / 2, text: `کفه جعبه: ${Math.round(W)} × ${Math.round(L)}mm` });
+    labels.push({ x: (xBodyL + xBodyR) / 2, y: (yTuck + yBack) / 2, text: `درب بالایی: ${Math.round(W)} × ${Math.round(L)}mm` });
+    labels.push({ x: (xBodyL + xBodyR) / 2, y: (yBottom + yFront) / 2, text: `دیواره جلو: ${Math.round(H)}mm` });
 
     return {
       cuts,
       creases,
-      glues,
-      bleeds: [buildBleedRectPath(realXMin, y0, realXMax, yFrontInner, bleedMm)],
-      perforations,
-      labels,
-      xMin: realXMin,
-      yMin: y0,
-      xMax: realXMax,
-      yMax: yFrontInner,
-      totalW: realXMax - realXMin,
-      totalH: yFrontInner - y0,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: measurePathListLengthMm(perforations),
-        glueAreaSqMm: 0, // Self-locking glue-free!
-        netBlankAreaSqCm: Math.round(((L * W * 2 + (H * 4) * (W + L)) / 100)),
-        grossBlankAreaSqCm: Math.round(((realXMax - realXMin) * (yFrontInner - y0)) / 100),
-        slotWidthMm: Number(slotW.toFixed(2)),
-        bendDeductionMm: Number((t * 0.5).toFixed(2)),
-        flapCount: 6,
-        panelCount: 6,
-        isTwoPiece: false,
-        hasLockingSlots: true,
-        hasVentilation: false,
-        hasTearStrip: perforations.length > 0,
-      },
-    };
-  };
-};
-
-// =========================================================================
-// 3. FEFCO 0426 (CLASSIC PIZZA BOX WITH STEAM VENTS & CORNER LOCKS)
-// =========================================================================
-const createPizzaBoxEngine = () => {
-  return ({
-    L,
-    W,
-    H,
-    x0 = 60,
-    thickness = 1.6,
-    bleedMm = 4,
-    includePerforations = true,
-  }: DielineEngineParams): DielineEngineResult => {
-    const t = Math.max(1.2, thickness || 1.6);
-    const y0 = 35;
-    const tuckWingH = Math.max(22, Math.min(45, H * 0.85));
-
-    const yLidTop = y0;
-    const yBackWallTop = yLidTop + L;
-    const yBaseTop = yBackWallTop + H;
-    const yBaseBtm = yBaseTop + L;
-    const yFrontWallBtm = yBaseBtm + H;
-
-    const xBaseL = x0 + H + 8;
-    const xBaseR = xBaseL + W;
-    const xLWall = xBaseL - H;
-    const xRWall = xBaseR + H;
-    const xLidWingL = xBaseL - tuckWingH;
-    const xLidWingR = xBaseR + tuckWingH;
-
-    const cuts: string[] = [];
-    const creases: string[] = [];
-    const perforations: string[] = [];
-    const labels: DielineLabel[] = [];
-
-    // Lid top edge with chamfered front tuck flap & tapered side tuck wings
-    const lidFrontLip = Math.max(22, Math.min(38, H * 0.85));
-    const yLidLip = y0 - lidFrontLip;
-    const bevel = 10;
-
-    cuts.push(
-      `M ${pt(xBaseL, yLidTop)} L ${pt(xBaseL + bevel, yLidLip)} L ${pt(xBaseR - bevel, yLidLip)} L ${pt(xBaseR, yLidTop)}`
-    );
-    creases.push(`M ${pt(xBaseL, yLidTop)} L ${pt(xBaseR, yLidTop)}`);
-
-    // Lid side tuck wings
-    cuts.push(
-      `M ${pt(xBaseL, yLidTop)} L ${pt(xLidWingL + 6, yLidTop + 8)} L ${pt(xLidWingL, yBackWallTop - 12)} L ${pt(xBaseL, yBackWallTop)}`
-    );
-    cuts.push(
-      `M ${pt(xBaseR, yLidTop)} L ${pt(xLidWingR - 6, yLidTop + 8)} L ${pt(xLidWingR, yBackWallTop - 12)} L ${pt(xBaseR, yBackWallTop)}`
-    );
-    creases.push(`M ${pt(xBaseL, yLidTop)} L ${pt(xBaseL, yBackWallTop)}`);
-    creases.push(`M ${pt(xBaseR, yLidTop)} L ${pt(xBaseR, yBackWallTop)}`);
-
-    // Rear wall with 2 circular steam ventilation holes + corner relief
-    cuts.push(`M ${pt(xBaseL, yBackWallTop)} L ${pt(xBaseL - 6, yBackWallTop)} L ${pt(xBaseL - 6, yBaseTop)} L ${pt(xBaseL, yBaseTop)}`);
-    cuts.push(`M ${pt(xBaseR, yBackWallTop)} L ${pt(xBaseR + 6, yBackWallTop)} L ${pt(xBaseR + 6, yBaseTop)} L ${pt(xBaseR, yBaseTop)}`);
-    creases.push(`M ${pt(xBaseL, yBackWallTop)} L ${pt(xBaseR, yBackWallTop)}`);
-    creases.push(`M ${pt(xBaseL, yBaseTop)} L ${pt(xBaseR, yBaseTop)}`);
-
-    // Steam ventilation cutouts (2 capsule/circle vents on rear wall)
-    const drawCircleCut = (cx: number, cy: number, r: number) =>
-      `M ${pt(cx - r, cy)} A ${f(r)},${f(r)} 0 1 0 ${pt(cx + r, cy)} A ${f(r)},${f(r)} 0 1 0 ${pt(cx - r, cy)} Z`;
-    const ventR = Math.max(5, Math.min(9, H * 0.22));
-    const ventY = (yBackWallTop + yBaseTop) / 2;
-    cuts.push(drawCircleCut(xBaseL + W * 0.25, ventY, ventR));
-    cuts.push(drawCircleCut(xBaseL + W * 0.75, ventY, ventR));
-
-    // Base Side walls + 45-degree corner locking flaps
-    const cornerFlapW = Math.max(24, H * 0.9);
-    // Left side wall + rear & front corner lock tabs
-    cuts.push(
-      `M ${pt(xBaseL, yBaseTop)} L ${pt(xLWall + 4, yBaseTop)} L ${pt(xLWall, yBaseTop + 6)} L ${pt(xLWall, yBaseBtm - 6)} L ${pt(xLWall + 4, yBaseBtm)} L ${pt(xBaseL, yBaseBtm)}`
-    );
-    // Right side wall
-    cuts.push(
-      `M ${pt(xBaseR, yBaseTop)} L ${pt(xRWall - 4, yBaseTop)} L ${pt(xRWall, yBaseTop + 6)} L ${pt(xRWall, yBaseBtm - 6)} L ${pt(xRWall - 4, yBaseBtm)} L ${pt(xBaseR, yBaseBtm)}`
-    );
-    creases.push(`M ${pt(xBaseL, yBaseTop)} L ${pt(xBaseL, yBaseBtm)}`);
-    creases.push(`M ${pt(xBaseR, yBaseTop)} L ${pt(xBaseR, yBaseBtm)}`);
-
-    // Front Wall + 45° Corner Lock Ears
-    cuts.push(
-      `M ${pt(xBaseL, yBaseBtm)} L ${pt(xBaseL - cornerFlapW, yBaseBtm + 5)} L ${pt(xBaseL - cornerFlapW + 6, yFrontWallBtm - 3)} L ${pt(xBaseL, yFrontWallBtm)} L ${pt(xBaseR, yFrontWallBtm)} L ${pt(xBaseR + cornerFlapW - 6, yFrontWallBtm - 3)} L ${pt(xBaseR + cornerFlapW, yBaseBtm + 5)} L ${pt(xBaseR, yBaseBtm)}`
-    );
-    creases.push(`M ${pt(xBaseL, yBaseBtm)} L ${pt(xBaseR, yBaseBtm)}`);
-    creases.push(`M ${pt(xBaseL, yBaseBtm)} L ${pt(xBaseL, yFrontWallBtm)}`);
-    creases.push(`M ${pt(xBaseR, yBaseBtm)} L ${pt(xBaseR, yFrontWallBtm)}`);
-
-    // Perforated lid easy-tear line
-    if (includePerforations) {
-      perforations.push(`M ${pt(xBaseL + 10, yBackWallTop - 2)} L ${pt(xBaseR - 10, yBackWallTop - 2)}`);
-    }
-
-    const xMin = Math.min(xLWall, xBaseL - cornerFlapW, xLidWingL);
-    const xMax = Math.max(xRWall, xBaseR + cornerFlapW, xLidWingR);
-
-    labels.push({ x: (xBaseL + xBaseR) / 2, y: (yBaseTop + yBaseBtm) / 2, text: `کفه پیتزا ${Math.round(W)}×${Math.round(L)}`, lineW: W });
-    labels.push({ x: (xBaseL + xBaseR) / 2, y: (yLidTop + yBackWallTop) / 2, text: `درب ${Math.round(W)}×${Math.round(L)}` });
-    labels.push({ x: (xBaseL + xBaseR) / 2, y: ventY - 10, text: `سوراخ تهویه بخار (Ø${Math.round(ventR * 2)})` });
-
-    return {
-      cuts,
-      creases,
-      glues: [],
-      bleeds: [buildBleedRectPath(xMin, yLidLip, xMax, yFrontWallBtm, bleedMm)],
-      perforations,
-      labels,
-      xMin,
-      yMin: yLidLip,
-      xMax,
-      yMax: yFrontWallBtm,
-      totalW: xMax - xMin,
-      totalH: yFrontWallBtm - yLidLip,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: measurePathListLengthMm(perforations),
-        glueAreaSqMm: 0,
-        netBlankAreaSqCm: Math.round(((W * L * 2 + 2 * H * (W + L)) / 100)),
-        grossBlankAreaSqCm: Math.round(((xMax - xMin) * (yFrontWallBtm - yLidLip)) / 100),
-        slotWidthMm: Number((t * 1.5).toFixed(2)),
-        bendDeductionMm: Number((t * 0.5).toFixed(2)),
-        flapCount: 6,
-        panelCount: 6,
-        isTwoPiece: false,
-        hasLockingSlots: true,
-        hasVentilation: true,
-        hasTearStrip: perforations.length > 0,
-      },
-    };
-  };
-};
-
-// =========================================================================
-// 4. FEFCO 0409 (FIVE-PANEL WRAP-AROUND BOOK / FRAME FOLDER)
-// =========================================================================
-const createWrapFolderEngine = () => {
-  return ({
-    L,
-    W,
-    H,
-    x0 = 50,
-    thickness = 1.6,
-    bleedMm = 4,
-    includePerforations = true,
-  }: DielineEngineParams): DielineEngineResult => {
-    const t = Math.max(0.8, thickness || 1.6);
-    const y0 = 35;
-    const spineScoreGap = Math.max(3, t * 1.8);
-    const overlapFlap = Math.max(25, Math.min(W * 0.5, 45));
-
-    const y1 = y0 + overlapFlap;
-    const y2 = y1 + H;
-    const y3 = y2 + W;
-    const y4 = y3 + H;
-    const y5 = y4 + W;
-
-    const sideBumper = Math.max(22, H + 12);
-    const xL = x0;
-    const xBodyL = xL + sideBumper;
-    const xBodyR = xBodyL + L;
-    const xR = xBodyR + sideBumper;
-
-    const cuts: string[] = [];
-    const creases: string[] = [];
-    const perforations: string[] = [];
-    const labels: DielineLabel[] = [];
-
-    // Top tuck-over + Multi-score variable height book wrap
-    cuts.push(
-      `M ${pt(xBodyL + 4, y0)} L ${pt(xBodyR - 4, y0)} L ${pt(xBodyR, y1)} L ${pt(xBodyR, y2)} L ${pt(xR - 5, y2 + 4)} L ${pt(xR, y2 + 10)} L ${pt(xR, y3 - 10)} L ${pt(xR - 5, y3 - 4)} L ${pt(xBodyR, y3)} L ${pt(xBodyR, y5)} L ${pt(xBodyL, y5)} L ${pt(xBodyL, y3)} L ${pt(xL + 5, y3 - 4)} L ${pt(xL, y3 - 10)} L ${pt(xL, y2 + 10)} L ${pt(xL + 5, y2 + 4)} L ${pt(xBodyL, y2)} L ${pt(xBodyL, y1)} Z`
-    );
-
-    // Multi-channel crease lines for variable wrap height
-    [y1, y2, y3, y4].forEach((yc) => {
-      creases.push(`M ${pt(xBodyL, yc)} L ${pt(xBodyR, yc)}`);
-      if (H > 20) {
-        creases.push(`M ${pt(xBodyL, yc + spineScoreGap)} L ${pt(xBodyR, yc + spineScoreGap)}`);
-      }
-    });
-    creases.push(`M ${pt(xBodyL, y2)} L ${pt(xBodyL, y3)}`);
-    creases.push(`M ${pt(xBodyR, y2)} L ${pt(xBodyR, y3)}`);
-    creases.push(`M ${pt(xL + sideBumper * 0.45, y2 + 4)} L ${pt(xL + sideBumper * 0.45, y3 - 4)}`);
-    creases.push(`M ${pt(xR - sideBumper * 0.45, y2 + 4)} L ${pt(xR - sideBumper * 0.45, y3 - 4)}`);
-
-    if (includePerforations) {
-      perforations.push(`M ${pt(xBodyL + 6, y1 - 8)} L ${pt(xBodyR - 6, y1 - 8)}`);
-    }
-
-    labels.push({ x: (xBodyL + xBodyR) / 2, y: (y2 + y3) / 2, text: `بدنه لفاف ${Math.round(L)}×${Math.round(W)}`, lineW: L });
-    labels.push({ x: (xBodyL + xBodyR) / 2, y: (y4 + y5) / 2, text: `پنل رویه ${Math.round(L)}×${Math.round(W)}` });
-
-    return {
-      cuts,
-      creases,
-      glues: [],
-      bleeds: [buildBleedRectPath(xL, y0, xR, y5, bleedMm)],
-      perforations,
-      labels,
-      xMin: xL,
-      yMin: y0,
-      xMax: xR,
-      yMax: y5,
-      totalW: xR - xL,
-      totalH: y5 - y0,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: measurePathListLengthMm(perforations),
-        glueAreaSqMm: 0,
-        netBlankAreaSqCm: Math.round(((L * W * 2 + sideBumper * 2 * W) / 100)),
-        grossBlankAreaSqCm: Math.round(((xR - xL) * (y5 - y0)) / 100),
-        slotWidthMm: Number(spineScoreGap.toFixed(2)),
-        bendDeductionMm: Number((t * 0.5).toFixed(2)),
-        flapCount: 4,
-        panelCount: 5,
-        isTwoPiece: false,
-        hasLockingSlots: false,
-        hasVentilation: false,
-        hasTearStrip: perforations.length > 0,
-      },
-    };
-  };
-};
-
-// =========================================================================
-// 5. ECMA A20.20 / ECMA A30 (FOLDING CARTON TUCK END + EURO HANG SLOT)
-// =========================================================================
-const createTuckEndEngine = (withEuroHangSlot = false) => {
-  return ({
-    L,
-    W,
-    H,
-    glueTab = 15,
-    tuck = 20,
-    dustFlap = 15,
-    x0 = 50,
-    thickness = 0.42,
-    variant = 'standard',
-    bleedMm = 3,
-    tuckStyle = 'reverse',
-  }: DielineEngineParams): DielineEngineResult => {
-    const mult = getVariantMultipliers(variant);
-    const t = Math.max(0.25, thickness || 0.42);
-    const G = Math.max(11, Math.round((glueTab || 15) * mult.glueMult));
-    const T = Math.max(14, Math.round((tuck || 20) * mult.tuckMult));
-    const DF = Math.max(12, Math.round(Math.min(W * 0.65, (dustFlap || 15) * mult.dustMult)));
-
-    const euroH = withEuroHangSlot ? Math.max(24, Math.min(34, W * 0.7)) : 0;
-    const y0 = 35;
-    const yTopTuck = y0 + euroH;
-    const yTopFlap = yTopTuck + T;
-    const yBodyTop = yTopFlap + W;
-    const yBodyBtm = yBodyTop + H;
-    const yBtmFlap = yBodyBtm + W;
-    const yBtmTuck = yBtmFlap + T;
-
-    const xG = x0 + G;
-    const xP1 = xG + L;
-    const xP2 = xP1 + W;
-    const xP3 = xP2 + L;
-    const xP4 = xP3 + W;
-
-    const cuts: string[] = [];
-    const creases: string[] = [];
-    const glues: string[] = [];
-    const perforations: string[] = [];
-    const labels: DielineLabel[] = [];
-
-    // 1. Chamfered Glue Tab + Glue Zone Hatch
-    const bevel = Math.min(8, Math.max(3, G * 0.35));
-    cuts.push(
-      `M ${pt(xG, yBodyTop)} L ${pt(x0 + 2, yBodyTop + bevel)} L ${pt(x0, yBodyTop + bevel + 2)} L ${pt(x0, yBodyBtm - bevel - 2)} L ${pt(x0 + 2, yBodyBtm - bevel)} L ${pt(xG, yBodyBtm)}`
-    );
-    creases.push(`M ${pt(xG, yBodyTop)} L ${pt(xG, yBodyBtm)}`);
-    glues.push(
-      `M ${pt(x0 + 2.5, yBodyTop + bevel + 2)} L ${pt(xG - 2, yBodyTop + 2)} L ${pt(xG - 2, yBodyBtm - 2)} L ${pt(x0 + 2.5, yBodyBtm - bevel - 2)} Z`
-    );
-
-    // 2. Top Panel: Panel 1 (or Euro Hang Header on Panel 3)
-    const topTuck = buildTuckFlapGeometry(xG, xP1, yTopFlap, T, -1, t);
-    cuts.push(`M ${pt(xG, yBodyTop)} L ${pt(xG, yTopFlap)}`);
-    cuts.push(topTuck.cut);
-    cuts.push(`M ${pt(xP1, yTopFlap)} L ${pt(xP1, yBodyTop)}`);
-    creases.push(`M ${pt(xG, yBodyTop)} L ${pt(xP1, yBodyTop)}`);
-    creases.push(topTuck.crease);
-
-    // Helper for anti-snag tapered trapezoidal Dust Flap with corner relief
-    const drawDustFlap = (xa: number, xb: number, yBase: number, dir: -1 | 1) => {
-      const dfW = xb - xa;
-      const taperIn = Math.min(5, dfW * 0.14);
-      const yEdge = yBase + dir * DF;
-      const relief = Math.min(2.5, DF * 0.16);
-      cuts.push(
-        `M ${pt(xa, yBase)} L ${pt(xa + 1.2, yBase + dir * relief)} L ${pt(xa + taperIn, yEdge)} L ${pt(xb - taperIn * 1.4, yEdge)} L ${pt(xb - 1.2, yBase + dir * relief)} L ${pt(xb, yBase)}`
-      );
-      creases.push(`M ${pt(xa + 1, yBase)} L ${pt(xb - 1, yBase)}`);
-    };
-
-    // Top Dust Flaps (Panel 2 & Panel 4)
-    drawDustFlap(xP1, xP2, yBodyTop, -1);
-    drawDustFlap(xP3, xP4, yBodyTop, -1);
-
-    // Panel 3 Top: Either Half-Moon Thumb Notch OR Euro-Slot Hang Tab (ecma-a30)
-    if (withEuroHangSlot) {
-      const xHangMid = (xP2 + xP3) / 2;
-      const yHangTop = yBodyTop - euroH;
-      cuts.push(
-        `M ${pt(xP2, yBodyTop)} L ${pt(xP2 + 3, yHangTop + 4)} Q ${pt(xP2 + 3, yHangTop)} ${pt(xP2 + 8, yHangTop)} L ${pt(xP3 - 8, yHangTop)} Q ${pt(xP3 - 3, yHangTop)} ${pt(xP3 - 3, yHangTop + 4)} L ${pt(xP3, yBodyTop)}`
-      );
-      creases.push(`M ${pt(xP2, yBodyTop)} L ${pt(xP3, yBodyTop)}`);
-      // Euro-slot Sombrero cutout inside hang header
-      const sw = Math.min(28, L * 0.52);
-      const sh = 7;
-      const ySlot = yBodyTop - euroH * 0.55;
-      cuts.push(
-        `M ${pt(xHangMid - sw / 2, ySlot)} L ${pt(xHangMid - 5, ySlot)} A 5,5 0 0 1 ${pt(xHangMid + 5, ySlot)} L ${pt(xHangMid + sw / 2, ySlot)} A ${f(sh / 2)},${f(sh / 2)} 0 0 1 ${pt(xHangMid + sw / 2, ySlot + sh)} L ${pt(xHangMid - sw / 2, ySlot + sh)} A ${f(sh / 2)},${f(sh / 2)} 0 0 1 ${pt(xHangMid - sw / 2, ySlot)} Z`
-      );
-    } else {
-      // Half-moon thumb notch on Panel 3 top opening edge
-      const xThumb = (xP2 + xP3) / 2;
-      const rThumb = Math.min(10, Math.max(5, L * 0.12));
-      cuts.push(
-        `M ${pt(xP2, yBodyTop)} L ${pt(xThumb - rThumb, yBodyTop)} A ${f(rThumb)},${f(rThumb)} 0 0 0 ${pt(xThumb + rThumb, yBodyTop)} L ${pt(xP3, yBodyTop)}`
-      );
-    }
-
-    // 3. Bottom Flaps (Reverse Tuck: Panel 3, Straight Tuck: Panel 1)
-    const btmTuckOnP1 = tuckStyle === 'straight';
-    if (btmTuckOnP1) {
-      const btmTuck = buildTuckFlapGeometry(xG, xP1, yBtmFlap, T, 1, t);
-      cuts.push(`M ${pt(xG, yBodyBtm)} L ${pt(xG, yBtmFlap)}`);
-      cuts.push(btmTuck.cut);
-      cuts.push(`M ${pt(xP1, yBtmFlap)} L ${pt(xP1, yBodyBtm)}`);
-      creases.push(`M ${pt(xG, yBodyBtm)} L ${pt(xP1, yBodyBtm)}`);
-      creases.push(btmTuck.crease);
-      cuts.push(`M ${pt(xP2, yBodyBtm)} L ${pt(xP3, yBodyBtm)}`);
-    } else {
-      // Reverse Tuck (standard pharmaceutical/cosmetic carton)
-      const xThumbB = (xG + xP1) / 2;
-      const rThumbB = Math.min(10, Math.max(5, L * 0.12));
-      cuts.push(
-        `M ${pt(xG, yBodyBtm)} L ${pt(xThumbB - rThumbB, yBodyBtm)} A ${f(rThumbB)},${f(rThumbB)} 0 0 0 ${pt(xThumbB + rThumbB, yBodyBtm)} L ${pt(xP1, yBodyBtm)}`
-      );
-      const btmTuck = buildTuckFlapGeometry(xP2, xP3, yBtmFlap, T, 1, t);
-      cuts.push(`M ${pt(xP2, yBodyBtm)} L ${pt(xP2, yBtmFlap)}`);
-      cuts.push(btmTuck.cut);
-      cuts.push(`M ${pt(xP3, yBtmFlap)} L ${pt(xP3, yBodyBtm)}`);
-      creases.push(`M ${pt(xP2, yBodyBtm)} L ${pt(xP3, yBodyBtm)}`);
-      creases.push(btmTuck.crease);
-    }
-
-    drawDustFlap(xP1, xP2, yBodyBtm, 1);
-    drawDustFlap(xP3, xP4, yBodyBtm, 1);
-
-    // Right perimeter cut + body vertical creases
-    cuts.push(`M ${pt(xP4, yBodyTop)} L ${pt(xP4, yBodyBtm)}`);
-    creases.push(`M ${pt(xP1, yBodyTop)} L ${pt(xP1, yBodyBtm)}`);
-    creases.push(`M ${pt(xP2, yBodyTop)} L ${pt(xP2, yBodyBtm)}`);
-    creases.push(`M ${pt(xP3, yBodyTop)} L ${pt(xP3, yBodyBtm)}`);
-
-    const actualYMin = withEuroHangSlot ? Math.min(yTopTuck, yBodyTop - euroH) : yTopTuck;
-    const yMid = (yBodyTop + yBodyBtm) / 2;
-    labels.push({ x: (xG + xP1) / 2, y: yMid, text: `${Math.round(L)}mm`, lineW: L });
-    labels.push({ x: (xP1 + xP2) / 2, y: yMid, text: `${Math.round(W)}mm`, lineW: W });
-    labels.push({ x: (xP2 + xP3) / 2, y: yMid, text: `H:${Math.round(H)}`, lineH: H });
-    labels.push({ x: (x0 + xG) / 2, y: yMid, text: `${Math.round(G)}` });
-
-    return {
-      cuts,
-      creases,
-      glues,
-      bleeds: [buildBleedRectPath(x0, actualYMin, xP4, yBtmTuck, bleedMm)],
-      perforations,
-      labels,
-      xMin: x0,
-      yMin: actualYMin,
-      xMax: xP4,
-      yMax: yBtmTuck,
-      totalW: xP4 - x0,
-      totalH: yBtmTuck - actualYMin,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: 0,
-        glueAreaSqMm: Math.round(G * (H - bevel)),
-        netBlankAreaSqCm: Math.round(((2 * (L + W) * H + 2 * L * (W + T) + 4 * W * DF) / 100)),
-        grossBlankAreaSqCm: Math.round(((xP4 - x0) * (yBtmTuck - actualYMin)) / 100),
-        slotWidthMm: Number(Math.max(0.71, t * 1.1).toFixed(2)),
-        bendDeductionMm: Number((t * 0.42).toFixed(2)),
-        flapCount: 6,
-        panelCount: 4,
-        isTwoPiece: false,
-        hasLockingSlots: true,
-        hasVentilation: false,
-        hasTearStrip: false,
-      },
-    };
-  };
-};
-
-// =========================================================================
-// 6. ECMA A2110 / FEFCO 0711 (TRUE 1-2-3 SNAP LOCK BOTTOM)
-// =========================================================================
-const createSnapLock123Engine = () => {
-  return ({
-    L,
-    W,
-    H,
-    glueTab = 16,
-    tuck = 20,
-    dustFlap = 16,
-    x0 = 50,
-    thickness = 0.42,
-    variant = 'standard',
-    bleedMm = 3,
-  }: DielineEngineParams): DielineEngineResult => {
-    const mult = getVariantMultipliers(variant);
-    const t = Math.max(0.25, thickness || 0.42);
-    const G = Math.max(12, Math.round((glueTab || 16) * mult.glueMult));
-    const T = Math.max(14, Math.round((tuck || 20) * mult.tuckMult));
-    const DF = Math.max(12, Math.round(Math.min(W * 0.65, (dustFlap || 16) * mult.dustMult)));
-
-    const y0 = 35;
-    const yTopTuck = y0;
-    const yTopFlap = yTopTuck + T;
-    const yBodyTop = yTopFlap + W;
-    const yBodyBtm = yBodyTop + H;
-
-    // 1-2-3 Snap Lock Bottom heights
-    const maleLockH = Math.max(20, W * 0.62);
-    const sideWingH = Math.max(18, W * 0.52);
-    const femalePocketH = Math.max(20, W * 0.56);
-    const yBottomMax = yBodyBtm + Math.max(maleLockH, sideWingH, femalePocketH);
-
-    const xG = x0 + G;
-    const xP1 = xG + L;
-    const xP2 = xP1 + W;
-    const xP3 = xP2 + L;
-    const xP4 = xP3 + W;
-
-    const cuts: string[] = [];
-    const creases: string[] = [];
-    const glues: string[] = [];
-    const labels: DielineLabel[] = [];
-
-    const bevel = Math.min(8, Math.max(3, G * 0.35));
-    cuts.push(
-      `M ${pt(xG, yBodyTop)} L ${pt(x0 + 2, yBodyTop + bevel)} L ${pt(x0, yBodyTop + bevel + 2)} L ${pt(x0, yBodyBtm - bevel - 2)} L ${pt(x0 + 2, yBodyBtm - bevel)} L ${pt(xG, yBodyBtm)}`
-    );
-    creases.push(`M ${pt(xG, yBodyTop)} L ${pt(xG, yBodyBtm)}`);
-    glues.push(
-      `M ${pt(x0 + 2.5, yBodyTop + bevel + 2)} L ${pt(xG - 2, yBodyTop + 2)} L ${pt(xG - 2, yBodyBtm - 2)} L ${pt(x0 + 2.5, yBodyBtm - bevel - 2)} Z`
-    );
-
-    // Top Tuck End + Dust Flaps + Thumb Notch
-    const topTuck = buildTuckFlapGeometry(xG, xP1, yTopFlap, T, -1, t);
-    cuts.push(`M ${pt(xG, yBodyTop)} L ${pt(xG, yTopFlap)}`);
-    cuts.push(topTuck.cut);
-    cuts.push(`M ${pt(xP1, yTopFlap)} L ${pt(xP1, yBodyTop)}`);
-    creases.push(`M ${pt(xG, yBodyTop)} L ${pt(xP1, yBodyTop)}`);
-    creases.push(topTuck.crease);
-
-    const drawTopDust = (xa: number, xb: number) => {
-      const taperIn = Math.min(5, (xb - xa) * 0.14);
-      cuts.push(
-        `M ${pt(xa, yBodyTop)} L ${pt(xa + 1, yBodyTop - 2)} L ${pt(xa + taperIn, yBodyTop - DF)} L ${pt(xb - taperIn * 1.3, yBodyTop - DF)} L ${pt(xb - 1, yBodyTop - 2)} L ${pt(xb, yBodyTop)}`
-      );
-      creases.push(`M ${pt(xa + 1, yBodyTop)} L ${pt(xb - 1, yBodyTop)}`);
-    };
-    drawTopDust(xP1, xP2);
-    drawTopDust(xP3, xP4);
-
-    const xThumb = (xP2 + xP3) / 2;
-    const rThumb = Math.min(10, Math.max(5, L * 0.12));
-    cuts.push(
-      `M ${pt(xP2, yBodyTop)} L ${pt(xThumb - rThumb, yBodyTop)} A ${f(rThumb)},${f(rThumb)} 0 0 0 ${pt(xThumb + rThumb, yBodyTop)} L ${pt(xP3, yBodyTop)}`
-    );
-
-    // --- AUTHENTIC 1-2-3 SNAP-LOCK BOTTOM ---
-    // Panel 1: Male Locking Flap with Central Hook Tongue
-    const p1Mid = (xG + xP1) / 2;
-    const tongueW = Math.max(18, L * 0.42);
-    const stepY = yBodyBtm + W * 0.44;
-    const tipY = yBodyBtm + maleLockH;
-    cuts.push(
-      `M ${pt(xG, yBodyBtm)} L ${pt(xG + 2, stepY)} L ${pt(p1Mid - tongueW / 2 - 4, stepY)} L ${pt(p1Mid - tongueW / 2, tipY)} L ${pt(p1Mid + tongueW / 2, tipY)} L ${pt(p1Mid + tongueW / 2 + 4, stepY)} L ${pt(xP1 - 2, stepY)} L ${pt(xP1, yBodyBtm)}`
-    );
-    creases.push(`M ${pt(xG, yBodyBtm)} L ${pt(xP1, yBodyBtm)}`);
-
-    // Panel 2 & 4: Chamfered Side Wing Flaps (45-deg locking shoulders)
-    const drawSideWing = (xa: number, xb: number) => {
-      const shoulder = (xb - xa) * 0.25;
-      cuts.push(
-        `M ${pt(xa, yBodyBtm)} L ${pt(xa + 1.5, yBodyBtm + sideWingH * 0.65)} L ${pt(xa + shoulder, yBodyBtm + sideWingH)} L ${pt(xb - shoulder, yBodyBtm + sideWingH)} L ${pt(xb - 1.5, yBodyBtm + sideWingH * 0.65)} L ${pt(xb, yBodyBtm)}`
-      );
-      creases.push(`M ${pt(xa + 1, yBodyBtm)} L ${pt(xb - 1, yBodyBtm)}`);
-    };
-    drawSideWing(xP1, xP2);
-    drawSideWing(xP3, xP4);
-
-    // Panel 3: Female Crescent Pocket Flap
-    const p3Mid = (xP2 + xP3) / 2;
-    const recW = tongueW * 0.92;
-    const yFemTip = yBodyBtm + femalePocketH;
-    const yPocketDip = yBodyBtm + W * 0.36;
-    cuts.push(
-      `M ${pt(xP2, yBodyBtm)} L ${pt(xP2 + 3, yFemTip)} L ${pt(p3Mid - recW / 2, yFemTip)} Q ${pt(p3Mid, yPocketDip)} ${pt(p3Mid + recW / 2, yFemTip)} L ${pt(xP3 - 3, yFemTip)} L ${pt(xP3, yBodyBtm)}`
-    );
-    creases.push(`M ${pt(xP2, yBodyBtm)} L ${pt(xP3, yBodyBtm)}`);
-
-    // Vertical cuts & creases
-    cuts.push(`M ${pt(xP4, yBodyTop)} L ${pt(xP4, yBodyBtm)}`);
-    creases.push(`M ${pt(xP1, yBodyTop)} L ${pt(xP1, yBodyBtm)}`);
-    creases.push(`M ${pt(xP2, yBodyTop)} L ${pt(xP2, yBodyBtm)}`);
-    creases.push(`M ${pt(xP3, yBodyTop)} L ${pt(xP3, yBodyBtm)}`);
-
-    const yMid = (yBodyTop + yBodyBtm) / 2;
-    labels.push({ x: (xG + xP1) / 2, y: yMid, text: `${Math.round(L)}mm`, lineW: L });
-    labels.push({ x: (xP1 + xP2) / 2, y: yMid, text: `${Math.round(W)}mm`, lineW: W });
-    labels.push({ x: (xP2 + xP3) / 2, y: yMid, text: `H:${Math.round(H)}`, lineH: H });
-    labels.push({ x: (xP2 + xP3) / 2, y: yBodyBtm + femalePocketH * 0.6, text: 'قفل ۱-۲-۳' });
-
-    return {
-      cuts,
-      creases,
-      glues,
-      bleeds: [buildBleedRectPath(x0, y0, xP4, yBottomMax, bleedMm)],
-      perforations: [],
       labels,
       xMin: x0,
       yMin: y0,
-      xMax: xP4,
-      yMax: yBottomMax,
-      totalW: xP4 - x0,
-      totalH: yBottomMax - y0,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: 0,
-        glueAreaSqMm: Math.round(G * (H - bevel)),
-        netBlankAreaSqCm: Math.round(((2 * (L + W) * H + L * (W + T) + 2 * W * DF + 2 * L * femalePocketH) / 100)),
-        grossBlankAreaSqCm: Math.round(((xP4 - x0) * (yBottomMax - y0)) / 100),
-        slotWidthMm: Number(Math.max(0.71, t * 1.1).toFixed(2)),
-        bendDeductionMm: Number((t * 0.42).toFixed(2)),
-        flapCount: 7,
-        panelCount: 4,
-        isTwoPiece: false,
-        hasLockingSlots: true,
-        hasVentilation: false,
-        hasTearStrip: false,
-      },
+      xMax: xRWing,
+      yMax: yFrontFlap,
+      totalW: xRWing - x0,
+      totalH: yFrontFlap - y0,
     };
   };
 };
 
-// =========================================================================
-// 7. FEFCO 0215 / 0713 (AUTO-LOCK CRASH BOTTOM WITH 45° GLUE FOLDS)
-// =========================================================================
-const createCrashLockEngine = (isSlottedTop = false) => {
-  return ({
-    L,
-    W,
-    H,
-    glueTab = 18,
-    tuck = 22,
-    dustFlap = 16,
-    x0 = 50,
-    thickness = 0.5,
-    variant = 'standard',
-    autoLockAngle = 45,
-    autoLockGlueWidth = 18,
-    bleedMm = 4,
-    includePerforations = false,
-  }: DielineEngineParams): DielineEngineResult => {
-    const mult = getVariantMultipliers(variant);
-    const t = Math.max(0.35, thickness || 0.5);
-    const G = Math.max(14, Math.round((glueTab || 18) * mult.glueMult));
-    const T = Math.max(16, Math.round((tuck || 22) * mult.tuckMult));
-    const DF = Math.max(14, Math.round(Math.min(W * 0.65, (dustFlap || 16) * mult.dustMult)));
-
-    const y0 = 35;
-    const yTopTuck = y0;
-    const yTopFlap = isSlottedTop ? y0 : yTopTuck + T;
-    const yBodyTop = isSlottedTop ? y0 + W * 0.5 : yTopFlap + W;
-    const yBodyBtm = yBodyTop + H;
-
-    // Crash lock bottom flap depth = W/2 + hook allowance (constrained strictly)
-    const angleRad = (Math.max(35, Math.min(55, autoLockAngle || 45)) * Math.PI) / 180;
-    const btmDepth = Math.max(22, W * 0.62);
-    const yBtmMax = yBodyBtm + btmDepth;
-
-    const xG = x0 + G;
-    const xP1 = xG + L;
-    const xP2 = xP1 + W;
-    const xP3 = xP2 + L;
-    const xP4 = xP3 + W;
-
-    const cuts: string[] = [];
-    const creases: string[] = [];
-    const glues: string[] = [];
-    const perforations: string[] = [];
-    const labels: DielineLabel[] = [];
-
-    const bevel = Math.min(8, Math.max(3, G * 0.35));
-    cuts.push(
-      `M ${pt(xG, yBodyTop)} L ${pt(x0 + 2, yBodyTop + bevel)} L ${pt(x0, yBodyTop + bevel + 2)} L ${pt(x0, yBodyBtm - bevel - 2)} L ${pt(x0 + 2, yBodyBtm - bevel)} L ${pt(xG, yBodyBtm)}`
-    );
-    creases.push(`M ${pt(xG, yBodyTop)} L ${pt(xG, yBodyBtm)}`);
-    glues.push(
-      `M ${pt(x0 + 2.5, yBodyTop + bevel + 2)} L ${pt(xG - 2, yBodyTop + 2)} L ${pt(xG - 2, yBodyBtm - 2)} L ${pt(x0 + 2.5, yBodyBtm - bevel - 2)} Z`
-    );
-
-    // Top configuration
-    if (isSlottedTop) {
-      const slotW = t >= 1.2 ? Math.max(3.5, t * 1.6) : 2.2;
-      const hs = slotW / 2;
-      [
-        { a: xG, b: xP1, first: true, last: false },
-        { a: xP1, b: xP2, first: false, last: false },
-        { a: xP2, b: xP3, first: false, last: false },
-        { a: xP3, b: xP4, first: false, last: true },
-      ].forEach((p) => {
-        const lx = p.first ? p.a : p.a + hs;
-        const rx = p.last ? p.b : p.b - hs;
-        cuts.push(`M ${pt(p.a, yBodyTop)} L ${pt(lx, yBodyTop - 2)} L ${pt(lx, y0)} L ${pt(rx, y0)} L ${pt(rx, yBodyTop - 2)} L ${pt(p.b, yBodyTop)}`);
-        creases.push(`M ${pt(lx, yBodyTop)} L ${pt(rx, yBodyTop)}`);
-      });
-    } else {
-      const topTuck = buildTuckFlapGeometry(xG, xP1, yTopFlap, T, -1, t);
-      cuts.push(`M ${pt(xG, yBodyTop)} L ${pt(xG, yTopFlap)}`);
-      cuts.push(topTuck.cut);
-      cuts.push(`M ${pt(xP1, yTopFlap)} L ${pt(xP1, yBodyTop)}`);
-      creases.push(`M ${pt(xG, yBodyTop)} L ${pt(xP1, yBodyTop)}`);
-      creases.push(topTuck.crease);
-
-      const drawTopDust = (xa: number, xb: number) => {
-        const taperIn = Math.min(5, (xb - xa) * 0.14);
-        cuts.push(
-          `M ${pt(xa, yBodyTop)} L ${pt(xa + 1, yBodyTop - 2)} L ${pt(xa + taperIn, yBodyTop - DF)} L ${pt(xb - taperIn * 1.3, yBodyTop - DF)} L ${pt(xb - 1, yBodyTop - 2)} L ${pt(xb, yBodyTop)}`
-        );
-        creases.push(`M ${pt(xa + 1, yBodyTop)} L ${pt(xb - 1, yBodyTop)}`);
-      };
-      drawTopDust(xP1, xP2);
-      drawTopDust(xP3, xP4);
-
-      const xThumb = (xP2 + xP3) / 2;
-      const rThumb = Math.min(10, Math.max(5, L * 0.12));
-      cuts.push(
-        `M ${pt(xP2, yBodyTop)} L ${pt(xThumb - rThumb, yBodyTop)} A ${f(rThumb)},${f(rThumb)} 0 0 0 ${pt(xThumb + rThumb, yBodyTop)} L ${pt(xP3, yBodyTop)}`
-      );
-    }
-
-    // --- TRUE AUTO-LOCK CRASH BOTTOM ---
-    const hookDepth = Math.min(8, btmDepth * 0.16);
-    const glueStripW = Math.min(autoLockGlueWidth || 18, W * 0.45);
-    const diagOffset1 = Math.min(L * 0.52, btmDepth / Math.tan(angleRad));
-
-    // Panel 1 (Major Hook Flap)
-    const p1HookX = xP1 - diagOffset1 * 0.45;
-    cuts.push(
-      `M ${pt(xG, yBodyBtm)} L ${pt(xG + 2, yBtmMax)} L ${pt(p1HookX, yBtmMax)} L ${pt(p1HookX + 4, yBtmMax - hookDepth)} L ${pt(xP1 - 6, yBtmMax - hookDepth)} L ${pt(xP1 - 2, yBodyBtm + 10)} L ${pt(xP1, yBodyBtm)}`
-    );
-    // Diagonal 45° auto-lock fold line + glue flap triangle zone
-    creases.push(`M ${pt(xG, yBodyBtm)} L ${pt(xG + diagOffset1 * 0.78, yBodyBtm + diagOffset1 * 0.78 * Math.tan(angleRad))}`);
-
-    // Panel 2 (Minor Diagonal Glue Flap)
-    const yMinor2 = yBodyBtm + Math.min(btmDepth * 0.85, W * 0.48);
-    cuts.push(
-      `M ${pt(xP1, yBodyBtm)} L ${pt(xP1 + 3, yMinor2)} L ${pt(xP2 - glueStripW * 0.5, yMinor2)} L ${pt(xP2, yBodyBtm)}`
-    );
-    creases.push(`M ${pt(xP1, yBodyBtm)} L ${pt(xP1 + Math.min(W * 0.75, (yMinor2 - yBodyBtm) / Math.tan(angleRad)), yMinor2)}`);
-    glues.push(
-      `M ${pt(xP1 + 4, yBodyBtm + 3)} L ${pt(xP1 + Math.min(W * 0.65, glueStripW), yBodyBtm + 3)} L ${pt(xP1 + 4, yMinor2 - 3)} Z`
-    );
-
-    // Panel 3 (Second Major Hook Flap)
-    const p3HookX = xP3 - diagOffset1 * 0.45;
-    cuts.push(
-      `M ${pt(xP2, yBodyBtm)} L ${pt(xP2 + 2, yBtmMax)} L ${pt(p3HookX, yBtmMax)} L ${pt(p3HookX + 4, yBtmMax - hookDepth)} L ${pt(xP3 - 6, yBtmMax - hookDepth)} L ${pt(xP3 - 2, yBodyBtm + 10)} L ${pt(xP3, yBodyBtm)}`
-    );
-    creases.push(`M ${pt(xP2, yBodyBtm)} L ${pt(xP2 + diagOffset1 * 0.78, yBodyBtm + diagOffset1 * 0.78 * Math.tan(angleRad))}`);
-
-    // Panel 4 (Second Minor Diagonal Glue Flap)
-    cuts.push(
-      `M ${pt(xP3, yBodyBtm)} L ${pt(xP3 + 3, yMinor2)} L ${pt(xP4 - glueStripW * 0.5, yMinor2)} L ${pt(xP4, yBodyBtm)}`
-    );
-    creases.push(`M ${pt(xP3, yBodyBtm)} L ${pt(xP3 + Math.min(W * 0.75, (yMinor2 - yBodyBtm) / Math.tan(angleRad)), yMinor2)}`);
-    glues.push(
-      `M ${pt(xP3 + 4, yBodyBtm + 3)} L ${pt(xP3 + Math.min(W * 0.65, glueStripW), yBodyBtm + 3)} L ${pt(xP3 + 4, yMinor2 - 3)} Z`
-    );
-
-    creases.push(`M ${pt(xG, yBodyBtm)} L ${pt(xP4, yBodyBtm)}`);
-    cuts.push(`M ${pt(xP4, yBodyTop)} L ${pt(xP4, yBodyBtm)}`);
-    creases.push(`M ${pt(xP1, yBodyTop)} L ${pt(xP1, yBodyBtm)}`);
-    creases.push(`M ${pt(xP2, yBodyTop)} L ${pt(xP2, yBodyBtm)}`);
-    creases.push(`M ${pt(xP3, yBodyTop)} L ${pt(xP3, yBodyBtm)}`);
-
-    if (includePerforations && H > 50) {
-      perforations.push(`M ${pt(xG, yBodyTop + 14)} L ${pt(xP4, yBodyTop + 14)}`);
-    }
-
-    const yMid = (yBodyTop + yBodyBtm) / 2;
-    labels.push({ x: (xG + xP1) / 2, y: yMid, text: `${Math.round(L)}mm`, lineW: L });
-    labels.push({ x: (xP1 + xP2) / 2, y: yMid, text: `${Math.round(W)}mm`, lineW: W });
-    labels.push({ x: (xP2 + xP3) / 2, y: yMid, text: `H:${Math.round(H)}`, lineH: H });
-    labels.push({ x: (xG + xP1) / 2, y: yBodyBtm + btmDepth * 0.55, text: `زاویه تا ${Math.round(autoLockAngle || 45)}°` });
-
-    return {
-      cuts,
-      creases,
-      glues,
-      bleeds: [buildBleedRectPath(x0, y0, xP4, yBtmMax, bleedMm)],
-      perforations,
-      labels,
-      xMin: x0,
-      yMin: y0,
-      xMax: xP4,
-      yMax: yBtmMax,
-      totalW: xP4 - x0,
-      totalH: yBtmMax - y0,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: measurePathListLengthMm(perforations),
-        glueAreaSqMm: Math.round(G * (H - bevel) + glueStripW * yMinor2 * 0.6),
-        netBlankAreaSqCm: Math.round(((2 * (L + W) * H + 2 * (L + W) * btmDepth) / 100)),
-        grossBlankAreaSqCm: Math.round(((xP4 - x0) * (yBtmMax - y0)) / 100),
-        slotWidthMm: Number(Math.max(1.0, t * 1.3).toFixed(2)),
-        bendDeductionMm: Number((t * 0.44).toFixed(2)),
-        flapCount: 8,
-        panelCount: 4,
-        isTwoPiece: false,
-        hasLockingSlots: true,
-        hasVentilation: false,
-        hasTearStrip: perforations.length > 0,
-      },
-    };
-  };
-};
-
-// =========================================================================
-// 8. FEFCO 0300 / 0301 (TWO-PIECE TELESCOPE LID & BASE TRAYS)
-// =========================================================================
+// 4. FEFCO 0300 (Telescope / Tray) Engine
+/**
+ * One-piece glued tray blank.
+ * L/W/H are inside dimensions by default; panel dimensions include a basic
+ * caliper allowance. Four rectangular corner tabs fold against the adjacent
+ * side walls. This is a generic tray construction, not a claim of a certified
+ * ECMA/FEFCO glued-tray code.
+ */
 const createTrayEngine = () => {
-  return ({ L, W, H, x0 = 50, thickness = 1.6, bleedMm = 4 }: DielineEngineParams): DielineEngineResult => {
-    const t = Math.max(0.5, thickness || 1.6);
+  return ({
+    L, W, H, x0 = 50, thickness = 0.45, glueTab = 25,
+    dimensionConvention = 'inside', variant = '',
+  }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 0.45);
+    const l = dimensionConvention === 'outside' ? Math.max(1, L - t) : L;
+    const w = dimensionConvention === 'outside' ? Math.max(1, W - t) : W;
+    const h = dimensionConvention === 'outside' ? Math.max(1, H - t) : H;
+    const panelL = l + t;
+    const panelW = w + t;
+    const wall = h + t;
+    const requestedTab = Number.isFinite(glueTab) ? glueTab : wall * 0.65;
+    const tab = Math.max(4, Math.min(requestedTab, wall * 0.9, panelL * 0.2, panelW * 0.45));
+    const cornerRelief = Math.min(tab * 0.35, wall * 0.25, 8);
+    const xL = x0 + wall;
+    const xR = xL + panelL;
     const y0 = 40;
-    const tabLen = Math.max(16, Math.min(28, H * 0.7));
-    const lidH = Math.max(22, Math.min(H, H * 0.72));
-    const clearance = Number((t * 2.6).toFixed(1)); // Lid must clear base exterior thickness!
-    const gapBetweenPieces = 26;
+    const yT = y0 + wall;
+    const yB = yT + panelW;
+    const xMin = xL - wall;
+    const xMax = xR + wall;
+    const yMin = yT - wall;
+    const yMax = yB + wall;
 
-    const cuts: string[] = [];
-    const creases: string[] = [];
-    const glues: string[] = [];
-    const labels: DielineLabel[] = [];
-
-    const buildSingleTray = (ox: number, oy: number, bw: number, bl: number, bh: number, labelPrefix: string) => {
-      const xL = ox;
-      const xBaseL = xL + bh;
-      const xBaseR = xBaseL + bw;
-      const xR = xBaseR + bh;
-
-      const yT = oy;
-      const yBaseT = yT + bh;
-      const yBaseB = yBaseT + bl;
-      const yB = yBaseB + bh;
-
-      // Top & Bottom flaps
-      cuts.push(`M ${pt(xBaseL, yBaseT)} L ${pt(xBaseL + 2, yT)} L ${pt(xBaseR - 2, yT)} L ${pt(xBaseR, yBaseT)}`);
-      cuts.push(`M ${pt(xBaseL, yBaseB)} L ${pt(xBaseL + 2, yB)} L ${pt(xBaseR - 2, yB)} L ${pt(xBaseR, yBaseB)}`);
-
-      // Left wall + Top/Bottom Corner Glue Flaps
-      cuts.push(
-        `M ${pt(xBaseL, yBaseT)} L ${pt(xBaseL - 2, yBaseT - tabLen)} L ${pt(xL + 4, yBaseT - tabLen + 3)} L ${pt(xL, yBaseT)} L ${pt(xL, yBaseB)} L ${pt(xL + 4, yBaseB + tabLen - 3)} L ${pt(xBaseL - 2, yBaseB + tabLen)} L ${pt(xBaseL, yBaseB)}`
-      );
-      // Right wall + Top/Bottom Corner Glue Flaps
-      cuts.push(
-        `M ${pt(xBaseR, yBaseT)} L ${pt(xBaseR + 2, yBaseT - tabLen)} L ${pt(xR - 4, yBaseT - tabLen + 3)} L ${pt(xR, yBaseT)} L ${pt(xR, yBaseB)} L ${pt(xR - 4, yBaseB + tabLen - 3)} L ${pt(xBaseR + 2, yBaseB + tabLen)} L ${pt(xBaseR, yBaseB)}`
-      );
-
-      // Base creases + corner flap creases
-      creases.push(`M ${pt(xBaseL, yBaseT)} L ${pt(xBaseR, yBaseT)}`);
-      creases.push(`M ${pt(xBaseL, yBaseB)} L ${pt(xBaseR, yBaseB)}`);
-      creases.push(`M ${pt(xL, yBaseT)} L ${pt(xBaseL, yBaseT)}`);
-      creases.push(`M ${pt(xBaseR, yBaseT)} L ${pt(xR, yBaseT)}`);
-      creases.push(`M ${pt(xL, yBaseB)} L ${pt(xBaseL, yBaseB)}`);
-      creases.push(`M ${pt(xBaseR, yBaseB)} L ${pt(xR, yBaseB)}`);
-      creases.push(`M ${pt(xBaseL, yBaseT)} L ${pt(xBaseL, yBaseB)}`);
-      creases.push(`M ${pt(xBaseR, yBaseT)} L ${pt(xBaseR, yBaseB)}`);
-
-      // Corner glue tabs highlight
-      glues.push(`M ${pt(xL + 3, yBaseT - tabLen + 5)} L ${pt(xBaseL - 3, yBaseT - tabLen + 3)} L ${pt(xBaseL - 3, yBaseT - 2)} L ${pt(xL + 3, yBaseT - 2)} Z`);
-      glues.push(`M ${pt(xBaseR + 3, yBaseT - tabLen + 3)} L ${pt(xR - 3, yBaseT - tabLen + 5)} L ${pt(xR - 3, yBaseT - 2)} L ${pt(xBaseR + 3, yBaseT - 2)} Z`);
-
-      labels.push({ x: (xBaseL + xBaseR) / 2, y: (yBaseT + yBaseB) / 2, text: `${labelPrefix} ${Math.round(bw)}×${Math.round(bl)}`, lineW: bw });
-      labels.push({ x: (xBaseL + xBaseR) / 2, y: yT + bh / 2, text: `دیواره ${Math.round(bh)}mm` });
-      return { xMax: xR, yMax: yB };
-    };
-
-    const baseBounds = buildSingleTray(x0, y0, L, W, H, 'کفه زیره');
-    const lidStartX = baseBounds.xMax + gapBetweenPieces;
-    const lidBounds = buildSingleTray(lidStartX, y0 + (H - lidH), L + clearance, W + clearance, lidH, `درب (+${clearance})`);
-
-    const xMax = lidBounds.xMax;
-    const yMax = Math.max(baseBounds.yMax, lidBounds.yMax);
-
+    // Corner glue tabs have diagonal shoulders to relieve the folded four-wall intersections.
+    const cuts = [
+      `M ${xMin} ${yT} L ${xL - tab} ${yT} L ${xL - tab} ${yMin + cornerRelief} L ${xL - tab + cornerRelief} ${yMin} L ${xR + tab - cornerRelief} ${yMin} L ${xR + tab} ${yMin + cornerRelief} L ${xR + tab} ${yT} L ${xMax} ${yT} L ${xMax} ${yB} L ${xR + tab} ${yB} L ${xR + tab} ${yMax - cornerRelief} L ${xR + tab - cornerRelief} ${yMax} L ${xL - tab + cornerRelief} ${yMax} L ${xL - tab} ${yMax - cornerRelief} L ${xL - tab} ${yB} L ${xMin} ${yB} Z`,
+    ];
+    const creases = [
+      `M ${xL} ${yT} L ${xR} ${yT}`,
+      `M ${xL} ${yB} L ${xR} ${yB}`,
+      `M ${xL} ${yT} L ${xL} ${yB}`,
+      `M ${xR} ${yT} L ${xR} ${yB}`,
+      `M ${xL} ${yMin} L ${xL} ${yT}`,
+      `M ${xR} ${yMin} L ${xR} ${yT}`,
+      `M ${xL} ${yB} L ${xL} ${yMax}`,
+      `M ${xR} ${yB} L ${xR} ${yMax}`,
+    ];
+    const labels = [{
+      x: (xL + xR) / 2,
+      y: (yT + yB) / 2,
+      text: `${variant ? variant + ' · ' : ''}${Math.round(L)} × ${Math.round(W)}mm · دیواره ${Math.round(H)}mm`,
+    }];
     return {
-      cuts,
-      creases,
-      glues,
-      bleeds: [buildBleedRectPath(x0, y0, xMax, yMax, bleedMm)],
-      perforations: [],
-      labels,
-      xMin: x0,
-      yMin: y0,
-      xMax,
-      yMax,
-      totalW: xMax - x0,
-      totalH: yMax - y0,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: 0,
-        glueAreaSqMm: Math.round(4 * tabLen * H),
-        netBlankAreaSqCm: Math.round(((L * W * 2 + 2 * (L + W) * (H + lidH)) / 100)),
-        grossBlankAreaSqCm: Math.round(((xMax - x0) * (yMax - y0)) / 100),
-        slotWidthMm: Number((t * 1.4).toFixed(2)),
-        bendDeductionMm: Number((t * 0.5).toFixed(2)),
-        flapCount: 8,
-        panelCount: 10,
-        isTwoPiece: true,
-        hasLockingSlots: false,
-        hasVentilation: false,
-        hasTearStrip: false,
-      },
+      cuts, creases, labels,
+      xMin, yMin, xMax, yMax,
+      totalW: xMax - xMin,
+      totalH: yMax - yMin,
     };
   };
 };
-
-// =========================================================================
-// 9. ECMA C10.20 (TWO-PIECE MATCHBOX / DRAWER + OUTER SLEEVE)
-// =========================================================================
-const createDrawerBoxEngine = () => {
-  return ({ L, W, H, glueTab = 16, x0 = 50, thickness = 0.45, bleedMm = 3 }: DielineEngineParams): DielineEngineResult => {
-    const t = Math.max(0.3, thickness || 0.45);
-    const G = Math.max(12, glueTab || 16);
-    const y0 = 35;
-
-    const cuts: string[] = [];
-    const creases: string[] = [];
-    const glues: string[] = [];
-    const labels: DielineLabel[] = [];
-
-    // Part 1 (Left): Inner Drawer Tray with Thumb Notch
-    const xBaseL = x0 + H;
-    const xBaseR = xBaseL + L;
-    const xTrayR = xBaseR + H;
-    const yTrayBaseT = y0 + H;
-    const yTrayBaseB = yTrayBaseT + W;
-    const yTrayBtm = yTrayBaseB + H;
-    const tabW = Math.max(14, H * 0.65);
-
-    cuts.push(`M ${pt(xBaseL, yTrayBaseT)} L ${pt(xBaseL + 2, y0)} L ${pt(xBaseR - 2, y0)} L ${pt(xBaseR, yTrayBaseT)}`);
-    cuts.push(`M ${pt(xBaseL, yTrayBaseB)} L ${pt(xBaseL + 2, yTrayBtm)} L ${pt(xBaseR - 2, yTrayBtm)} L ${pt(xBaseR, yTrayBaseB)}`);
-    cuts.push(`M ${pt(xBaseL, yTrayBaseT)} L ${pt(xBaseL - 2, yTrayBaseT - tabW)} L ${pt(x0 + 3, yTrayBaseT - tabW + 2)} L ${pt(x0, yTrayTrayCorner(yTrayBaseT))} L ${pt(x0, yTrayBaseB)} L ${pt(x0 + 3, yTrayBaseB + tabW - 2)} L ${pt(xBaseL - 2, yTrayBaseB + tabW)} L ${pt(xBaseL, yTrayBaseB)}`);
-    cuts.push(`M ${pt(xBaseR, yTrayBaseT)} L ${pt(xBaseR + 2, yTrayBaseT - tabW)} L ${pt(xTrayR - 3, yTrayBaseT - tabW + 2)} L ${pt(xTrayR, yTrayBaseT)} L ${pt(xTrayR, yTrayBaseB)} L ${pt(xTrayR - 3, yTrayBaseB + tabW - 2)} L ${pt(xBaseR + 2, yTrayBaseB + tabW)} L ${pt(xBaseR, yTrayBaseB)}`);
-
-    function yTrayTrayCorner(y: number) { return y; }
-
-    creases.push(`M ${pt(xBaseL, yTrayBaseT)} L ${pt(xBaseR, yTrayBaseT)}`);
-    creases.push(`M ${pt(xBaseL, yTrayBaseB)} L ${pt(xBaseR, yTrayBaseB)}`);
-    creases.push(`M ${pt(x0, yTrayBaseT)} L ${pt(xBaseL, yTrayBaseT)}`);
-    creases.push(`M ${pt(xBaseR, yTrayBaseT)} L ${pt(xTrayR, yTrayBaseT)}`);
-    creases.push(`M ${pt(x0, yTrayBaseB)} L ${pt(xBaseL, yTrayBaseB)}`);
-    creases.push(`M ${pt(xBaseR, yTrayBaseB)} L ${pt(xTrayR, yTrayBaseB)}`);
-    creases.push(`M ${pt(xBaseL, yTrayBaseT)} L ${pt(xBaseL, yTrayBaseB)}`);
-    creases.push(`M ${pt(xBaseR, yTrayBaseT)} L ${pt(xBaseR, yTrayBaseB)}`);
-
-    // Part 2 (Right): Outer Sliding Sleeve with Clearance & Half-Moon Pull Notch
-    const sleeveGap = 28;
-    const clearance = Number((t * 2.2 + 0.8).toFixed(1));
-    const sw = W + clearance;
-    const sh = H + clearance;
-    const sl = L + 1;
-    const xSl0 = xTrayR + sleeveGap;
-    const xSlG = xSl0 + G;
-    const xSl1 = xSlG + sl;
-    const xSl2 = xSl1 + sh;
-    const xSl3 = xSl2 + sl;
-    const xSl4 = xSl3 + sh;
-
-    const ySlT = y0 + 20;
-    const ySlB = ySlT + sw;
-    const notchR = Math.min(12, sw * 0.16);
-    const ySlMid = (ySlT + ySlB) / 2;
-
-    cuts.push(
-      `M ${pt(xSl0, ySlT + 3)} L ${pt(xSlG, ySlT)} L ${pt(xSl4, ySlT)} L ${pt(xSl4, ySlMid - notchR)} A ${f(notchR)},${f(notchR)} 0 0 0 ${pt(xSl4, ySlMid + notchR)} L ${pt(xSl4, ySlB)} L ${pt(xSlG, ySlB)} L ${pt(xSl0, ySlB - 3)} Z`
-    );
-    creases.push(`M ${pt(xSlG, ySlT)} L ${pt(xSlG, ySlB)}`);
-    creases.push(`M ${pt(xSl1, ySlT)} L ${pt(xSl1, ySlB)}`);
-    creases.push(`M ${pt(xSl2, ySlT)} L ${pt(xSl2, ySlB)}`);
-    creases.push(`M ${pt(xSl3, ySlT)} L ${pt(xSl3, ySlB)}`);
-    glues.push(`M ${pt(xSl0 + 2, ySlT + 4)} L ${pt(xSlG - 2, ySlT + 2)} L ${pt(xSlG - 2, ySlB - 2)} L ${pt(xSl0 + 2, ySlB - 4)} Z`);
-
-    labels.push({ x: (xBaseL + xBaseR) / 2, y: (yTrayBaseT + yTrayBaseB) / 2, text: `کشو داخلی ${Math.round(L)}×${Math.round(W)}`, lineW: L });
-    labels.push({ x: (xSlG + xSl1) / 2, y: ySlMid, text: `کاور کشویی (+${clearance})` });
-
-    const yMax = Math.max(yTrayBtm, ySlB);
-    return {
-      cuts,
-      creases,
-      glues,
-      bleeds: [buildBleedRectPath(x0, y0, xSl4, yMax, bleedMm)],
-      perforations: [],
-      labels,
-      xMin: x0,
-      yMin: y0,
-      xMax: xSl4,
-      yMax,
-      totalW: xSl4 - x0,
-      totalH: yMax - y0,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: 0,
-        glueAreaSqMm: Math.round(G * sw + 4 * tabW * H),
-        netBlankAreaSqCm: Math.round(((L * W + 2 * H * (L + W) + 2 * (sl + sh) * sw) / 100)),
-        grossBlankAreaSqCm: Math.round(((xSl4 - x0) * (yMax - y0)) / 100),
-        slotWidthMm: Number((t * 1.2).toFixed(2)),
-        bendDeductionMm: Number((t * 0.42).toFixed(2)),
-        flapCount: 6,
-        panelCount: 9,
-        isTwoPiece: true,
-        hasLockingSlots: false,
-        hasVentilation: false,
-        hasTearStrip: false,
-      },
-    };
-  };
-};
-
-// =========================================================================
-// 10. ECMA D50 (RETAIL COUNTERTOP PDQ DISPLAY WITH ANGLED CUTAWAY & HEADER)
-// =========================================================================
-const createDisplayStandEngine = () => {
-  return ({ L, W, H, glueTab = 18, x0 = 50, thickness = 1.6, bleedMm = 4 }: DielineEngineParams): DielineEngineResult => {
-    const t = Math.max(0.4, thickness || 1.6);
-    const G = Math.max(15, glueTab || 18);
-    const frontLipH = Math.max(25, Math.min(H * 0.42, 65));
-    const headerCrownH = Math.max(45, Math.min(H * 0.65, 110));
-
-    const y0 = 35;
-    const yHeader = y0;
-    const yBodyTop = yHeader + headerCrownH;
-    const yFrontTop = yBodyTop + (H - frontLipH);
-    const yBodyBtm = yBodyTop + H;
-    const yBtmFlap = yBodyBtm + W * 0.55;
-
-    const xG = x0 + G;
-    const xP1 = xG + L; // Front display panel
-    const xP2 = xP1 + W; // Right angled sidewall
-    const xP3 = xP2 + L; // Back tall panel + header crown
-    const xP4 = xP3 + W; // Left angled sidewall
-
-    const cuts: string[] = [];
-    const creases: string[] = [];
-    const glues: string[] = [];
-    const labels: DielineLabel[] = [];
-
-    // Glue tab
-    cuts.push(`M ${pt(xG, yFrontTop)} L ${pt(x0 + 3, yFrontTop + 5)} L ${pt(x0, yFrontTop + 9)} L ${pt(x0, yBodyBtm - 5)} L ${pt(xG, yBodyBtm)}`);
-    creases.push(`M ${pt(xG, yFrontTop)} L ${pt(xG, yBodyBtm)}`);
-    glues.push(`M ${pt(x0 + 3, yFrontTop + 7)} L ${pt(xG - 2, yFrontTop + 2)} L ${pt(xG - 2, yBodyBtm - 2)} L ${pt(x0 + 3, yBodyBtm - 4)} Z`);
-
-    // Angled PDQ Display Cutline across Front (Low) -> Right Side (Angled up) -> Back + Header Crown -> Left Side (Angled down)
-    const rCrown = Math.min(18, L * 0.14);
-    cuts.push(
-      `M ${pt(xG, yFrontTop)} L ${pt(xP1, yFrontTop)} L ${pt(xP2, yBodyTop)} L ${pt(xP2, yHeader + rCrown)} Q ${pt(xP2, yHeader)} ${pt(xP2 + rCrown, yHeader)} L ${pt(xP3 - rCrown, yHeader)} Q ${pt(xP3, yHeader)} ${pt(xP3, yHeader + rCrown)} L ${pt(xP3, yBodyTop)} L ${pt(xP4, yFrontTop)} L ${pt(xP4, yBodyBtm)}`
-    );
-    creases.push(`M ${pt(xP2, yBodyTop)} L ${pt(xP3, yBodyTop)}`);
-    creases.push(`M ${pt(xP1, yFrontTop)} L ${pt(xP1, yBodyBtm)}`);
-    creases.push(`M ${pt(xP2, yBodyTop)} L ${pt(xP2, yBodyBtm)}`);
-    creases.push(`M ${pt(xP3, yBodyTop)} L ${pt(xP3, yBodyBtm)}`);
-
-    // Slotted Bottom Flaps
-    const slotW = 3;
-    const hs = slotW / 2;
-    [
-      { a: xG, b: xP1, first: true, last: false },
-      { a: xP1, b: xP2, first: false, last: false },
-      { a: xP2, b: xP3, first: false, last: false },
-      { a: xP3, b: xP4, first: false, last: true },
-    ].forEach((p) => {
-      const lx = p.first ? p.a : p.a + hs;
-      const rx = p.last ? p.b : p.b - hs;
-      cuts.push(`M ${pt(p.a, yBodyBtm)} L ${pt(lx, yBtmFlap)} L ${pt(rx, yBtmFlap)} L ${pt(p.b, yBodyBtm)}`);
-      creases.push(`M ${pt(lx, yBodyBtm)} L ${pt(rx, yBodyBtm)}`);
-    });
-
-    labels.push({ x: (xP2 + xP3) / 2, y: (yHeader + yBodyTop) / 2, text: `تاج تبلیغاتی (${Math.round(headerCrownH)}mm)` });
-    labels.push({ x: (xG + xP1) / 2, y: (yFrontTop + yBodyBtm) / 2, text: `دیواره جلو ${Math.round(frontLipH)}mm` });
-    labels.push({ x: (xP2 + xP3) / 2, y: (yBodyTop + yBodyBtm) / 2, text: `پشت ${Math.round(L)}×${Math.round(H)}`, lineW: L, lineH: H });
-
-    return {
-      cuts,
-      creases,
-      glues,
-      bleeds: [buildBleedRectPath(x0, y0, xP4, yBtmFlap, bleedMm)],
-      perforations: [],
-      labels,
-      xMin: x0,
-      yMin: y0,
-      xMax: xP4,
-      yMax: yBtmFlap,
-      totalW: xP4 - x0,
-      totalH: yBtmFlap - y0,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: 0,
-        glueAreaSqMm: Math.round(G * frontLipH),
-        netBlankAreaSqCm: Math.round(((2 * (L + W) * (H * 0.75) + L * headerCrownH + 2 * (L + W) * W * 0.55) / 100)),
-        grossBlankAreaSqCm: Math.round(((xP4 - x0) * (yBtmFlap - y0)) / 100),
-        slotWidthMm: Number(Math.max(1, t * 1.4).toFixed(2)),
-        bendDeductionMm: Number((t * 0.45).toFixed(2)),
-        flapCount: 5,
-        panelCount: 5,
-        isTwoPiece: false,
-        hasLockingSlots: false,
-        hasVentilation: false,
-        hasTearStrip: false,
-      },
-    };
-  };
-};
-
-// =========================================================================
-// 11. ECMA B10 (SLEEVE / BELLY BAND) ENGINE
-// =========================================================================
+// 5. ECMA B10 (Sleeve / Band) Engine
 const createSleeveEngine = () => {
-  return ({ L, W, H, glueTab = 22, x0 = 50, thickness = 0.4, bleedMm = 3 }: DielineEngineParams): DielineEngineResult => {
-    const t = Math.max(0.25, thickness || 0.4);
-    const G = Math.max(14, glueTab || 22);
+  return ({ L, W, H, glueTab = 25, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const G = Math.max(15, glueTab || 25);
     const y0 = 40;
     const yBtm = y0 + H;
 
@@ -1666,32 +533,25 @@ const createSleeveEngine = () => {
     const xP3 = xP2 + L;
     const xP4 = xP3 + W;
 
-    const bevel = Math.min(6, G * 0.3);
-    const cuts = [
-      `M ${pt(xG, y0)} L ${pt(x0 + 2, y0 + bevel)} L ${pt(x0, y0 + bevel + 2)} L ${pt(x0, yBtm - bevel - 2)} L ${pt(x0 + 2, yBtm - bevel)} L ${pt(xG, yBtm)} L ${pt(xP4, yBtm)} L ${pt(xP4, y0)} Z`,
+    const cuts: string[] = [
+      `M ${x0} ${y0} L ${xP4} ${y0} L ${xP4} ${yBtm} L ${x0} ${yBtm} Z`
     ];
-    const creases = [
-      `M ${pt(xG, y0)} L ${pt(xG, yBtm)}`,
-      `M ${pt(xP1, y0)} L ${pt(xP1, yBtm)}`,
-      `M ${pt(xP2, y0)} L ${pt(xP2, yBtm)}`,
-      `M ${pt(xP3, y0)} L ${pt(xP3, yBtm)}`,
-    ];
-    const glues = [`M ${pt(x0 + 2, y0 + bevel + 2)} L ${pt(xG - 2, y0 + 2)} L ${pt(xG - 2, yBtm - 2)} L ${pt(x0 + 2, yBtm - bevel - 2)} Z`];
 
-    const yMid = (y0 + yBtm) / 2;
-    const labels: DielineLabel[] = [
-      { x: (xG + xP1) / 2, y: yMid, text: `طول ${Math.round(L)}mm`, lineW: L },
-      { x: (xP1 + xP2) / 2, y: yMid, text: `عرض ${Math.round(W)}mm`, lineW: W },
-      { x: (xP2 + xP3) / 2, y: yMid, text: `ارتفاع ${Math.round(H)}mm`, lineH: H },
-      { x: (x0 + xG) / 2, y: yMid, text: `${Math.round(G)}` },
+    const creases: string[] = [
+      `M ${xG} ${y0} L ${xG} ${yBtm}`,
+      `M ${xP1} ${y0} L ${xP1} ${yBtm}`,
+      `M ${xP2} ${y0} L ${xP2} ${yBtm}`,
+      `M ${xP3} ${y0} L ${xP3} ${yBtm}`,
+    ];
+
+    const labels = [
+      { x: (xG + xP1) / 2, y: (y0 + yBtm) / 2, text: `طول ${Math.round(L)}mm` },
+      { x: (xP1 + xP2) / 2, y: (y0 + yBtm) / 2, text: `عرض ${Math.round(W)}mm` },
     ];
 
     return {
       cuts,
       creases,
-      glues,
-      bleeds: [buildBleedRectPath(x0, y0, xP4, yBtm, bleedMm)],
-      perforations: [],
       labels,
       xMin: x0,
       yMin: y0,
@@ -1699,145 +559,441 @@ const createSleeveEngine = () => {
       yMax: yBtm,
       totalW: xP4 - x0,
       totalH: yBtm - y0,
-      metrics: {
-        cutLengthMm: measurePathListLengthMm(cuts),
-        creaseLengthMm: measurePathListLengthMm(creases),
-        perforationLengthMm: 0,
-        glueAreaSqMm: Math.round(G * (H - bevel)),
-        netBlankAreaSqCm: Math.round(((xP4 - x0) * H) / 100),
-        grossBlankAreaSqCm: Math.round(((xP4 - x0) * H) / 100),
-        slotWidthMm: Number(Math.max(0.71, t * 1.1).toFixed(2)),
-        bendDeductionMm: Number((t * 0.42).toFixed(2)),
-        flapCount: 1,
-        panelCount: 4,
-        isTwoPiece: false,
-        hasLockingSlots: false,
-        hasVentilation: false,
-        hasTearStrip: false,
-      },
     };
   };
 };
 
-// Instantiate engines
-const rscStandardEngine = createRscEngine(0.5, 0.5, false);
-const openTopEngine = createRscEngine(0, 0.5, false);
-const folEngine = createRscEngine(1.0, 1.0, false);
-const mailerEngine = createMailerEngine(false);
-const mailer0470Engine = createMailerEngine(true);
-const pizzaBoxEngine = createPizzaBoxEngine();
-const wrapFolderEngine = createWrapFolderEngine();
-const tuckEndEngine = createTuckEndEngine(false);
-const euroHangTuckEngine = createTuckEndEngine(true);
-const snapLock123Engine = createSnapLock123Engine();
-const crashLockSlottedEngine = createCrashLockEngine(true);
-const crashLockTuckEngine = createCrashLockEngine(false);
+
+/**
+ * Custom one-piece pizza / food carton. This is deliberately labelled as a
+ * custom 04-series-inspired construction, not as an exact FEFCO-numbered die.
+ * L/W are the base footprint; H is wall height; tuck is the front closure depth.
+ */
+const createPizzaBoxEngine = () => {
+  return ({ L, W, H, tuck = 24, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const wall = Math.max(12, H);
+    const T = Math.max(12, Math.min(tuck || 24, Math.min(L, W) * 0.35));
+    const xB = x0 + wall;
+    const yTuck = 30;
+    const yLidTop = yTuck + T;
+    const yLidBottom = yLidTop + W;
+    const yBackBottom = yLidBottom + wall;
+    const yBaseBottom = yBackBottom + W;
+    const yFrontBottom = yBaseBottom + wall;
+    const xR = xB + L;
+    const cuts: string[] = [];
+    const creases: string[] = [];
+    const labels: { x: number; y: number; text: string }[] = [];
+
+    // One continuous blank: front tuck + lid + back wall + base + front wall,
+    // with side walls attached to the base. Side locking details are simplified.
+    cuts.push(
+      `M ${xB} ${yTuck} L ${xR} ${yTuck} L ${xR} ${yBackBottom} L ${xR + wall} ${yBackBottom} L ${xR + wall} ${yBaseBottom} L ${xR} ${yBaseBottom} L ${xR} ${yFrontBottom} L ${xB} ${yFrontBottom} L ${xB} ${yBaseBottom} L ${xB - wall} ${yBaseBottom} L ${xB - wall} ${yBackBottom} L ${xB} ${yBackBottom} Z`
+    );
+
+    // The outer side-wall boundaries are cut edges; the true hinge axes are
+    // the vertical lines at xB and xR within the base panel (below).
+
+    // Creases: tuck/lid, lid/back, back/base, base/front and side-wall hinges.
+    creases.push(`M ${xB} ${yLidTop} L ${xR} ${yLidTop}`);
+    creases.push(`M ${xB} ${yLidBottom} L ${xR} ${yLidBottom}`);
+    creases.push(`M ${xB} ${yBackBottom} L ${xR} ${yBackBottom}`);
+    creases.push(`M ${xB} ${yBaseBottom} L ${xR} ${yBaseBottom}`);
+    creases.push(`M ${xB} ${yBackBottom} L ${xB} ${yBaseBottom}`);
+    creases.push(`M ${xR} ${yBackBottom} L ${xR} ${yBaseBottom}`);
+
+    labels.push({ x: (xB + xR) / 2, y: (yBackBottom + yBaseBottom) / 2, text: `کفه ${Math.round(L)} × ${Math.round(W)}mm` });
+    labels.push({ x: (xB + xR) / 2, y: (yLidTop + yLidBottom) / 2, text: 'درب' });
+    labels.push({ x: (xB + xR) / 2, y: (yBaseBottom + yFrontBottom) / 2, text: `دیواره ${Math.round(wall)}mm` });
+
+    return {
+      cuts, creases, labels,
+      xMin: xB - wall, yMin: yTuck, xMax: xR + wall, yMax: yFrontBottom,
+      totalW: L + 2 * wall, totalH: yFrontBottom - yTuck
+    };
+  };
+};
+
+/**
+ * Two-piece telescopic carton (separate base and lid) in a single flat layout.
+ * H is the assembled total depth; it is split between base and lid. Lid clearance
+ * uses the supplied board caliper as a starting point and must be calibrated.
+ */
+/**
+ * FEFCO 0320-style telescope: two independent half-slotted blanks.
+ * H is the main body inside height; lidHeight controls the over-sleeve wall
+ * depth and defaults to half H. Lid plan dimensions allow for board caliper
+ * and a small adjustable-by-calibration fit allowance.
+ */
+const createTelescopicEngine = () => {
+  return ({
+    L, W, H, lidHeight, lidClearance, thickness = 1.5, glueTab = 30,
+    slotGap, x0 = 50,
+  }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 1.5);
+    const G = Math.max(5, Math.min(200, Number.isFinite(glueTab) ? glueTab : 30));
+    const lidH = Math.max(5, Number.isFinite(lidHeight) ? lidHeight as number : H * 0.5);
+    const fit = Math.max(0.1, Number.isFinite(lidClearance) ? lidClearance as number : Math.max(0.8, t * 0.5));
+    const layoutGap = Math.max(24, t * 10);
+    const base = fefco0200Engine({
+      L, W, H, thickness: t, glueTab: G, slotGap,
+      dimensionConvention: 'inside', x0,
+    });
+    const lidL = L + 2 * t + fit;
+    const lidW = W + 2 * t + fit;
+    const lidX = base.xMax + layoutGap;
+    const lid = fefco0200Engine({
+      L: lidL, W: lidW, H: lidH, thickness: t, glueTab: G, slotGap,
+      dimensionConvention: 'inside', x0: lidX,
+    });
+    const baseCenterX = (x0 + G + x0 + G + 2 * L + 2 * W + 4 * t) / 2;
+    const baseCenterY = 40 + (H + t) / 2;
+    const lidCenterX = (lidX + G + lidX + G + 2 * lidL + 2 * lidW + 4 * t) / 2;
+    const lidCenterY = 40 + (lidH + t) / 2;
+    const xMin = Math.min(base.xMin, lid.xMin);
+    const yMin = Math.min(base.yMin, lid.yMin);
+    const xMax = Math.max(base.xMax, lid.xMax);
+    const yMax = Math.max(base.yMax, lid.yMax);
+    return {
+      cuts: [...base.cuts, ...lid.cuts],
+      creases: [...base.creases, ...lid.creases],
+      labels: [
+        ...base.labels,
+        ...lid.labels,
+        { x: baseCenterX, y: baseCenterY, text: `قطعه ۱: زیره · ارتفاع بدنه ${Math.round(H)}mm` },
+        { x: lidCenterX, y: lidCenterY, text: `قطعه ۲: درب · عمق دیواره ${Math.round(lidH)}mm` },
+      ],
+      xMin, yMin, xMax, yMax,
+      totalW: xMax - xMin,
+      totalH: yMax - yMin,
+    };
+  };
+};
+
+/** FEFCO 0300/0301-family baseline: separate tray-shaped base and lid. */
+const createTelescopicTrayEngine = () => {
+  return ({
+    L, W, H, lidHeight, lidClearance, thickness = 1.5, glueTab = 30,
+    x0 = 50, dimensionConvention = 'inside',
+  }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 1.5);
+    const fit = Math.max(0.1, Number.isFinite(lidClearance) ? lidClearance as number : Math.max(0.8, t * 0.5));
+    const lidH = Math.max(5, Number.isFinite(lidHeight) ? lidHeight as number : H * 0.5);
+    const layoutGap = Math.max(24, t * 10);
+    const base = trayEngine({
+      L, W, H, thickness: t, glueTab, x0, dimensionConvention, variant: 'زیره',
+    });
+    // Lid must pass over the outside of the base; clearance is explicit in the
+    // independent cover blank, rather than hiding in a generic size multiplier.
+    const lidL = L + 2 * t + fit;
+    const lidW = W + 2 * t + fit;
+    const lidX = base.xMax + layoutGap;
+    const lid = trayEngine({
+      L: lidL, W: lidW, H: lidH, thickness: t, glueTab,
+      x0: lidX, dimensionConvention: 'inside', variant: 'درب',
+    });
+    const xMin = Math.min(base.xMin, lid.xMin);
+    const yMin = Math.min(base.yMin, lid.yMin);
+    const xMax = Math.max(base.xMax, lid.xMax);
+    const yMax = Math.max(base.yMax, lid.yMax);
+    return {
+      cuts: [...base.cuts, ...lid.cuts],
+      creases: [...base.creases, ...lid.creases],
+      labels: [...base.labels, ...lid.labels],
+      xMin, yMin, xMax, yMax,
+      totalW: xMax - xMin,
+      totalH: yMax - yMin,
+    };
+  };
+};
+
+type SlottedStyle = '0200' | '0201' | '0203' | '0204';
+
+/**
+ * Parametric FEFCO 0200-family baseline.
+ * L/W/H inputs are inside dimensions by default. Board caliper is included in
+ * score-to-score panel dimensions; the slot gap is explicit and machine-adjustable.
+ * This is a dimensional baseline, not a replacement for a die-maker's crease rules.
+ */
+const createSlottedCaseEngine = (style: SlottedStyle) => {
+  return ({
+    L, W, H, glueTab = 35, thickness = 1.6, slotGap,
+    dimensionConvention = 'inside', x0 = 50,
+  }: DielineEngineParams): DielineEngineResult => {
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 1.6);
+    const G = Math.max(5, Math.min(200, Number.isFinite(glueTab) ? glueTab : 35));
+    const gap = Math.max(1, Math.min(10, Number.isFinite(slotGap) ? slotGap as number : Math.max(1, Math.min(6, t * 1.5))));
+    const innerL = dimensionConvention === 'outside' ? Math.max(1, L - t) : L;
+    const innerW = dimensionConvention === 'outside' ? Math.max(1, W - t) : W;
+    const innerH = dimensionConvention === 'outside' ? Math.max(1, H - t) : H;
+    const panelL = innerL + t;
+    const panelW = innerW + t;
+    const panelH = innerH + t;
+    const xs = [x0 + G, x0 + G + panelL, x0 + G + panelL + panelW, x0 + G + 2 * panelL + panelW, x0 + G + 2 * panelL + 2 * panelW];
+
+    const halfDepth = Math.max(0, (panelW - gap) / 2);
+    const longPanelDepth = Math.max(0, (panelL - gap) / 2);
+    const fullDepth = Math.max(0, panelW - gap);
+    // 0204's flaps attached to W-wide panels reach farther so opposing flaps meet.
+    const widthPanelsMeet = [halfDepth, longPanelDepth, halfDepth, longPanelDepth];
+    const topDepths = style === '0200'
+      ? [0, 0, 0, 0]
+      : style === '0203'
+        ? [fullDepth, fullDepth, fullDepth, fullDepth]
+        : style === '0204'
+          ? widthPanelsMeet
+          : [halfDepth, halfDepth, halfDepth, halfDepth];
+    // 0200 has no top flaps but retains a normal set of bottom flaps.
+    const bottomDepths = style === '0200'
+      ? [halfDepth, halfDepth, halfDepth, halfDepth]
+      : [...topDepths];
+
+    const maxTop = Math.max(...topDepths);
+    const maxBottom = Math.max(...bottomDepths);
+    const yTop = 40 + maxTop;
+    const yBottom = yTop + panelH;
+    const cuts: string[] = [];
+    const creases: string[] = [];
+    const labels: { x: number; y: number; text: string }[] = [];
+
+    // Manufacturer's joint: complete the top and bottom edges of the glue flap,
+    // and keep its external edge separate from the glue score.
+    cuts.push(`M ${x0 + 4} ${yTop} L ${x0} ${yTop + 4} L ${x0} ${yBottom - 4} L ${x0 + 4} ${yBottom}`);
+    cuts.push(`M ${x0 + 4} ${yTop} L ${xs[0]} ${yTop}`);
+    cuts.push(`M ${x0 + 4} ${yBottom} L ${xs[0]} ${yBottom}`);
+    cuts.push(`M ${xs[4]} ${yTop} L ${xs[4]} ${yBottom}`);
+
+    // Scores: glue joint, four body corners, and top/bottom flap hinges.
+    creases.push(`M ${xs[0]} ${yTop} L ${xs[0]} ${yBottom}`);
+    for (let i = 1; i < 4; i++) creases.push(`M ${xs[i]} ${yTop} L ${xs[i]} ${yBottom}`);
+    if (style !== '0200') creases.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`);
+    creases.push(`M ${xs[0]} ${yBottom} L ${xs[4]} ${yBottom}`);
+
+    // Use one straight outer edge per flap and one shared slot cut per panel seam.
+    // This avoids diagonal "decorative" flap shoulders and duplicate knife paths.
+    const addFlapEdge = (depths: number[], edgeY: number, direction: -1 | 1) => {
+      depths.forEach((depth, i) => {
+        if (depth <= 0) return;
+        const outerY = edgeY + direction * depth;
+        cuts.push(`M ${xs[i]} ${outerY} L ${xs[i + 1]} ${outerY}`);
+        labels.push({
+          x: (xs[i] + xs[i + 1]) / 2,
+          y: (edgeY + outerY) / 2,
+          text: `فلپ ${Math.round(depth)}mm`,
+        });
+      });
+      for (let i = 0; i <= 4; i++) {
+        const adjacentDepth = Math.max(i > 0 ? depths[i - 1] : 0, i < 4 ? depths[i] : 0);
+        if (adjacentDepth > 0) {
+          cuts.push(`M ${xs[i]} ${edgeY} L ${xs[i]} ${edgeY + direction * adjacentDepth}`);
+        }
+      }
+    };
+
+    addFlapEdge(topDepths, yTop, -1);
+    addFlapEdge(bottomDepths, yBottom, 1);
+    if (style === '0200') cuts.push(`M ${xs[0]} ${yTop} L ${xs[4]} ${yTop}`);
+
+    // Print the user-entered product dimensions, not score-to-score dimensions, in labels.
+    labels.push({ x: (xs[0] + xs[1]) / 2, y: (yTop + yBottom) / 2, text: `L ${Math.round(L)}mm` });
+    labels.push({ x: (xs[1] + xs[2]) / 2, y: (yTop + yBottom) / 2, text: `W ${Math.round(W)}mm` });
+    labels.push({ x: (xs[2] + xs[3]) / 2, y: (yTop + yBottom) / 2, text: `L ${Math.round(L)}mm` });
+    labels.push({ x: (xs[3] + xs[4]) / 2, y: (yTop + yBottom) / 2, text: `W ${Math.round(W)}mm` });
+
+    return {
+      cuts, creases, labels,
+      xMin: x0, yMin: yTop - maxTop, xMax: xs[4], yMax: yBottom + maxBottom,
+      totalW: xs[4] - x0, totalH: yBottom + maxBottom - (yTop - maxTop),
+    };
+  };
+};
+
+const fefco0200Engine = createSlottedCaseEngine('0200');
+const fefco0201Engine = createSlottedCaseEngine('0201');
+const fefco0203Engine = createSlottedCaseEngine('0203');
+const fefco0204Engine = createSlottedCaseEngine('0204');
+
+
+const fefco0215Engine = createSnapLockBottomEngine();
+
+const rscStandardEngine = createRscEngine(0.5, 0.5);
+const openTopEngine = createRscEngine(0, 0.5);
+const folEngine = createRscEngine(1.0, 1.0);
+const mailerEngine = createMailerEngine();
+const tuckEndEngine = createRteEngine(false);
+const straightTuckEngine = createRteEngine(true);
+const crashLockEngine = createAutoLockBottomEngine();
 const trayEngine = createTrayEngine();
+const telescopicTrayEngine = createTelescopicTrayEngine();
+const sleeveEngine = createSleeveEngine();
+const pizzaBoxEngine = createPizzaBoxEngine();
+
+const telescopicEngine = createTelescopicEngine();
+
+/** Drawer carton baseline: the inner tray and surrounding sleeve are separate blanks. */
+const createDrawerBoxEngine = () => {
+  return (params: DielineEngineParams): DielineEngineResult => {
+    const { L, W, H, x0 = 50, thickness = 0.45, glueTab = 25 } = params;
+    const t = Math.max(0.2, Number.isFinite(thickness) ? thickness : 0.45);
+    const tray = trayEngine({ ...params, x0 });
+    const clearance = Math.max(0.8, t * 1.5);
+    const sleeveX = tray.xMax + Math.max(24, t * 8);
+    const sleeve = sleeveEngine({
+      ...params, L: L + 2 * t + clearance, W: W + 2 * t + clearance,
+      H: Math.max(8, H * 0.55), glueTab, x0: sleeveX,
+    });
+    const yMin = Math.min(tray.yMin, sleeve.yMin);
+    const yMax = Math.max(tray.yMax, sleeve.yMax);
+    return {
+      cuts: [...tray.cuts, ...sleeve.cuts],
+      creases: [...tray.creases, ...sleeve.creases],
+      labels: [
+        ...tray.labels, ...sleeve.labels,
+        { x: (tray.xMin + tray.xMax) / 2, y: tray.yMin + 8, text: 'قطعه ۱: سینی کشویی' },
+        { x: (sleeve.xMin + sleeve.xMax) / 2, y: sleeve.yMin + 8, text: 'قطعه ۲: غلاف بیرونی' },
+      ],
+      xMin: tray.xMin, yMin, xMax: sleeve.xMax, yMax,
+      totalW: sleeve.xMax - tray.xMin, totalH: yMax - yMin,
+    };
+  };
+};
+
+/**
+ * Custom counter display-tray blank. This is intentionally not claimed as a verified ECMA D50 die.
+ */
+const createDisplayStandEngine = () => {
+  return ({ L, W, H, x0 = 50 }: DielineEngineParams): DielineEngineResult => {
+    const safeL = Math.max(20, Number.isFinite(L) ? L : 20);
+    const safeW = Math.max(20, Number.isFinite(W) ? W : 20);
+    const safeH = Math.max(10, Number.isFinite(H) ? H : 10);
+    const sideDepth = Math.max(12, Math.min(safeH, safeW * 0.55));
+    const lipHeight = Math.max(10, Math.min(safeH * 0.35, safeW * 0.3));
+    const xL = x0 + sideDepth, xR = xL + safeL;
+    const yB = 40 + lipHeight, yT = yB + safeW, yRear = yT + safeH;
+    const xMin = xL - sideDepth, xMax = xR + sideDepth;
+    const cuts = [
+      `M ${xL} ${yB - lipHeight} L ${xR} ${yB - lipHeight} L ${xR} ${yB} L ${xMax} ${yB} L ${xMax} ${yT} L ${xR} ${yT} L ${xR} ${yRear} L ${xL} ${yRear} L ${xL} ${yT} L ${xMin} ${yT} L ${xMin} ${yB} L ${xL} ${yB} Z`
+    ];
+    const creases = [
+      `M ${xL} ${yB} L ${xR} ${yB}`,
+      `M ${xL} ${yT} L ${xR} ${yT}`,
+      `M ${xL} ${yB} L ${xL} ${yT}`,
+      `M ${xR} ${yB} L ${xR} ${yT}`,
+    ];
+    const labels = [
+      { x: (xL + xR) / 2, y: (yB + yT) / 2, text: `پایه ${Math.round(safeL)} × ${Math.round(safeW)}mm` },
+      { x: (xL + xR) / 2, y: yT + safeH / 2, text: `دیواره پشتی ${Math.round(safeH)}mm` },
+      { x: (xL + xR) / 2, y: yB - lipHeight / 2, text: `لبه جلویی ${Math.round(lipHeight)}mm` },
+      { x: (xL + xR) / 2, y: yRear + 12, text: 'استند سفارشی؛ کد ECMA D50 و پایداری سازه تأیید نشده' },
+    ];
+    return {
+      cuts, creases, labels, xMin, yMin: yB - lipHeight, xMax, yMax: yRear + 18,
+      totalW: xMax - xMin, totalH: yRear + 18 - (yB - lipHeight),
+    };
+  };
+};
+
 const drawerBoxEngine = createDrawerBoxEngine();
 const displayStandEngine = createDisplayStandEngine();
-const sleeveEngine = createSleeveEngine();
 
-// Master Registry of Parametric Dieline CAD Engines
-export const STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEngineParams) => DielineEngineResult> = {
+const buildBleedRectPath = (xMin: number, yMin: number, xMax: number, yMax: number, bleedMm: number): string => {
+  const b = Math.max(2, bleedMm);
+  const f = (n: number) => (Math.round(n * 100) / 100).toString();
+  return `M ${f(xMin - b)},${f(yMin - b)} L ${f(xMax + b)},${f(yMin - b)} L ${f(xMax + b)},${f(yMax + b)} L ${f(xMin - b)},${f(yMax + b)} Z`;
+};
+
+const wrapEngineWithMetrics = (
+  id: string,
+  fn: (params: DielineEngineParams) => DielineEngineResult
+): ((params: DielineEngineParams) => DielineEngineResult) => {
+  return (params: DielineEngineParams): DielineEngineResult => {
+    const raw = fn(params);
+    const glues = raw.glues ?? raw.glueZones ?? [];
+    const bleeds = raw.bleeds ?? (params.bleedMm && params.bleedMm > 0
+      ? [buildBleedRectPath(raw.xMin, raw.yMin, raw.xMax, raw.yMax, params.bleedMm)]
+      : []);
+    const perforations = raw.perforations ?? [];
+    const cutLengthMm = measurePathListLengthMm(raw.cuts);
+    const creaseLengthMm = measurePathListLengthMm(raw.creases);
+    const perforationLengthMm = measurePathListLengthMm(perforations);
+    const grossBlankAreaSqCm = Number(((raw.totalW * raw.totalH) / 100).toFixed(2));
+    const netBlankAreaSqCm = Number((grossBlankAreaSqCm * 0.82).toFixed(2));
+    const t = Math.max(0.2, Number.isFinite(params.thickness) ? (params.thickness as number) : 1.6);
+    const metrics: DielineEngineeringMetrics = raw.metrics ?? {
+      cutLengthMm,
+      creaseLengthMm,
+      perforationLengthMm,
+      glueAreaSqMm: Math.round((params.glueTab || 20) * (params.H || 100)),
+      netBlankAreaSqCm,
+      grossBlankAreaSqCm,
+      slotWidthMm: Number(Math.max(1, Math.min(6, t * 1.5)).toFixed(2)),
+      bendDeductionMm: Number((t * 0.5).toFixed(2)),
+      flapCount: id.includes('0200') ? 4 : 8,
+      panelCount: 4,
+      isTwoPiece: ['fefco-0300', 'fefco-0301', 'fefco-0320', 'ecma-c1020'].includes(id),
+      hasLockingSlots: ['fefco-0215', 'fefco-0713', 'snap-lock-123', 'fefco-0427', 'ecma-a2020', 'ecma-ste'].includes(id),
+      hasVentilation: id === 'fefco-pizza',
+      hasTearStrip: perforations.length > 0,
+    };
+    return {
+      ...raw,
+      glues,
+      bleeds,
+      perforations,
+      metrics,
+    };
+  };
+};
+
+// The Master Registry of Parametric Dieline CAD Engines
+const RAW_STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEngineParams) => DielineEngineResult> = {
   // FEFCO 0200 Series
-  'default-rsc': rscStandardEngine,
-  'fefco-0201': rscStandardEngine,
-  'fefco-0200': openTopEngine,
-  'fefco-0203': folEngine,
-  'fefco-0215': crashLockSlottedEngine,
+  'default-rsc': fefco0201Engine,
+  'fefco-0201': fefco0201Engine,
+  'fefco-0200': fefco0200Engine,
+  'fefco-0203': fefco0203Engine,
+  'fefco-0204': fefco0204Engine,
+  'fefco-0215': fefco0215Engine,
 
   // FEFCO 0300 Series (Telescope & Tray)
-  'fefco-0300': trayEngine,
-  'fefco-0301': trayEngine,
-  'fefco-0320': trayEngine,
+  // 0300 is retained as a clearly labelled generic family baseline.
+  'fefco-0300': telescopicTrayEngine,
+  'fefco-0301': telescopicTrayEngine,
+  // 0320 is built from two independent FEFCO 0200-style half-slotted blanks.
+  'fefco-0320': telescopicEngine,
 
-  // FEFCO 0400 Series (Mailer, Pizza, Book Wrap & Folders)
+  // FEFCO 0400 Series (Mailer & Folders)
   'fefco-0427': mailerEngine,
   'fefco-pizza': pizzaBoxEngine,
-  'fefco-0409': wrapFolderEngine,
-  'fefco-0470': mailer0470Engine,
+  'fefco-0409': mailerEngine,
+  'fefco-0470': mailerEngine,
 
-  // FEFCO 0700 Series (Pre-glued Auto Crash-Lock)
-  'fefco-0713': crashLockTuckEngine,
+  // FEFCO 0700 Series (Auto lock)
+  'fefco-0713': crashLockEngine,
 
   // ECMA Standard Cartons
   'ecma-a2020': tuckEndEngine,
-  'snap-lock-123': snapLock123Engine,
-  'ecma-a30': euroHangTuckEngine,
+  'ecma-ste': straightTuckEngine,
+  'snap-lock-123': fefco0215Engine,
+  'ecma-a30': tuckEndEngine,
   'ecma-b10': sleeveEngine,
   'ecma-c1020': drawerBoxEngine,
   'ecma-d50': displayStandEngine,
 };
 
-// Accurate Geometric Parameter Calculator powered by the live SVG CAD engines
-export function calculateDielineParameters(
-  arg1: any,
-  arg2?: any,
-  arg3?: any,
-  arg4?: any,
-  arg5?: any
-): DielineCalculationResult {
-  let fefcoCode = 'fefco-0201';
-  let l = 200;
-  let w = 150;
-  let h = 100;
-  let caliper = 3;
+const wrappedEngineCache = new WeakMap<
+  (params: DielineEngineParams) => DielineEngineResult,
+  (params: DielineEngineParams) => DielineEngineResult
+>();
 
-  if (typeof arg1 === 'number') {
-    l = arg1;
-    w = Number(arg2) || 150;
-    h = Number(arg3) || 100;
-    caliper = Number(arg4) || 0.45;
-    fefcoCode = String(arg5 || 'fefco-0201');
-  } else {
-    fefcoCode = String(arg1 || 'fefco-0201');
-    l = Number(arg2) || 200;
-    w = Number(arg3) || 150;
-    h = Number(arg4) || 100;
-    caliper = Number(arg5) || 0.45;
-  }
-
-  const isCorrugated = caliper >= 1.2 || fefcoCode.startsWith('fefco-02') || fefcoCode.startsWith('fefco-04');
-  const glueTab = isCorrugated ? Math.max(25, Math.round(caliper * 10)) : Math.max(14, Math.round(caliper * 28));
-  const tuck = Math.max(15, Math.min(45, Math.round(w * 0.28)));
-  const dustFlap = Math.max(14, Math.min(w * 0.6, Math.round(w * 0.45)));
-
-  const engineFn = STANDARD_DIELINE_ENGINES[fefcoCode] || STANDARD_DIELINE_ENGINES['default-rsc'];
-  const geom = engineFn({
-    L: l,
-    W: w,
-    H: h,
-    glueTab,
-    tuck,
-    dustFlap,
-    thickness: caliper,
-  });
-
-  const grossAreaSqCm = geom.metrics?.grossBlankAreaSqCm ?? Math.round((geom.totalW * geom.totalH) / 100);
-  const netAreaSqCm = geom.metrics?.netBlankAreaSqCm ?? Math.round(grossAreaSqCm * 0.78);
-  const wastePercentage =
-    grossAreaSqCm > 0 ? Math.max(4, Math.min(45, Math.round(((grossAreaSqCm - netAreaSqCm) / grossAreaSqCm) * 100))) : 15;
-
-  const cutLengthMm = geom.metrics?.cutLengthMm ?? measurePathListLengthMm(geom.cuts);
-  const creaseLengthMm = geom.metrics?.creaseLengthMm ?? measurePathListLengthMm(geom.creases);
-  const perforationLengthMm = geom.metrics?.perforationLengthMm ?? measurePathListLengthMm(geom.perforations);
-
-  return {
-    sheetWidth: Math.round(geom.totalW),
-    sheetHeight: Math.round(geom.totalH),
-    grossArea: grossAreaSqCm,
-    netArea: netAreaSqCm,
-    wastePercentage,
-    cutLength: Math.round(cutLengthMm / 10),
-    creaseLength: Math.round(creaseLengthMm / 10),
-    cutLengthMm,
-    creaseLengthMm,
-    perforationLengthMm,
-    glueTab,
-    tuck,
-    dustFlap,
-    isSmallBoxActive: l < 90 || w < 65,
-    slotWidthMm: geom.metrics?.slotWidthMm,
-    bendAllowanceMm: geom.metrics?.bendDeductionMm,
-  };
-}
+export const STANDARD_DIELINE_ENGINES: Record<string, (params: DielineEngineParams) => DielineEngineResult> =
+  Object.fromEntries(
+    Object.entries(RAW_STANDARD_DIELINE_ENGINES).map(([id, fn]) => {
+      let wrapped = wrappedEngineCache.get(fn);
+      if (!wrapped) {
+        wrapped = wrapEngineWithMetrics(id, fn);
+        wrappedEngineCache.set(fn, wrapped);
+      }
+      return [id, wrapped];
+    })
+  );

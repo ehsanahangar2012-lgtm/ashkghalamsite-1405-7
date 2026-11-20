@@ -1,0 +1,126 @@
+/* Clean, print-oriented 2D dieline canvas. Scoped to the drawing workspace. */
+.dieline-canvas-workspace {
+  direction: rtl;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 360px;
+  width: 100%;
+  overflow: hidden;
+  background: #fff !important;
+  color: #1f2937;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 14px;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 5%);
+}
+.dieline-canvas-toolbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: #f8fafc !important;
+  border-bottom: 1px solid #e5e7eb !important;
+}
+.dieline-canvas-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.dieline-canvas-model-code {
+  color: #64748b !important;
+  background: #eef2f7 !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 6px;
+  padding: 3px 7px;
+  font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.dieline-canvas-model-name {
+  color: #111827 !important;
+  font-size: 13px;
+  font-weight: 700;
+}
+.dieline-canvas-dim-summary {
+  color: #475569 !important;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.dieline-canvas-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dieline-canvas-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #dbe2ea !important;
+  border-radius: 8px;
+  background: #fff !important;
+  color: #334155 !important;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.dieline-canvas-action:hover { background: #f1f5f9 !important; border-color: #94a3b8 !important; }
+.dieline-canvas-action.is-active { background: #eff6ff !important; border-color: #93c5fd !important; color: #1d4ed8 !important; }
+/* The SVG viewBox provides geometric fitting; never stretch its coordinate system. */
+#cad-blueprint-canvas-svg {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 360px;
+  max-height: min(72vh, 900px);
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: auto;
+  background: #fff !important;
+  transform-origin: center center;
+  touch-action: pan-x pan-y;
+}
+#cad-blueprint-canvas-svg #cad-sheet-background {
+  fill: #fff !important;
+  stroke: transparent !important;
+  stroke-dasharray: none !important;
+}
+#cad-blueprint-canvas-svg #cad-grid-mesh { opacity: .14 !important; }
+#cad-blueprint-canvas-svg #cad-offset-text-label { display: none !important; }
+#cad-blueprint-canvas-svg #cad-offset-margin-box { stroke: #cbd5e1 !important; opacity: .65 !important; }
+#cad-blueprint-canvas-svg #cad-cut-line-0,
+#cad-blueprint-canvas-svg [id^="cad-cut-line-"] {
+  stroke: #1f2937 !important;
+  stroke-width: 1.15 !important;
+  vector-effect: non-scaling-stroke;
+}
+#cad-blueprint-canvas-svg [id^="cad-crease-line-"] {
+  stroke: #e11d48 !important;
+  stroke-width: 1 !important;
+  stroke-dasharray: 5 3 !important;
+  vector-effect: non-scaling-stroke;
+}
+#cad-blueprint-canvas-svg #overall-dimensions line { stroke: #2563eb !important; stroke-width: 1 !important; vector-effect: non-scaling-stroke; }
+#cad-blueprint-canvas-svg #overall-dimensions rect,
+#cad-blueprint-canvas-svg [id^="cad-dim-badge-bg-"] {
+  fill: #fff !important;
+  stroke: #bfdbfe !important;
+}
+#cad-blueprint-canvas-svg #overall-dimensions text,
+#cad-blueprint-canvas-svg [id^="cad-dim-badge-text-"] { fill: #1d4ed8 !important; }
+@media (max-width: 640px) {
+  .dieline-canvas-workspace { min-height: 300px; border-radius: 10px; }
+  .dieline-canvas-toolbar { align-items: flex-start; padding: 9px; }
+  .dieline-canvas-heading { gap: 5px 8px; }
+  .dieline-canvas-model-name { font-size: 12px; }
+  .dieline-canvas-actions { width: 100%; }
+  .dieline-canvas-action { flex: 1 1 auto; }
+  #cad-blueprint-canvas-svg { min-height: 300px; max-height: 62vh; }
+}

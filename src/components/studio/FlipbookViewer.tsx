@@ -35,6 +35,7 @@ import {
   playPageFlipSound,
   primeFlipSoundAudio,
 } from '../../utils/flipSound';
+import { getUploadFallbackCandidates } from '../../utils/catalogAssets';
 
 interface FlipbookViewerProps {
   project: CatalogProject;
@@ -73,11 +74,28 @@ const ProductPageSheet = React.memo(
       },
       ref
     ) => {
+      const candidates = useMemo(
+        () => getUploadFallbackCandidates(page.optimizedDataUrl, page.originalDataUrl),
+        [page.optimizedDataUrl, page.originalDataUrl]
+      );
+      const [candidateIdx, setCandidateIdx] = useState(0);
       const [imgError, setImgError] = useState(false);
-      const src = page.optimizedDataUrl || page.originalDataUrl;
-      const w = page.width || page.originalWidth || 0;
-      const h = page.height || page.originalHeight || 0;
-      const isPhotoLandscape = w > 0 && h > 0 ? w > h * 1.05 : isBookLandscape;
+
+      useEffect(() => {
+        setCandidateIdx(0);
+        setImgError(false);
+      }, [page.optimizedDataUrl, page.originalDataUrl]);
+
+      const activeSrc = candidates[candidateIdx] || '';
+
+      const handleImgError = useCallback(() => {
+        if (candidateIdx + 1 < candidates.length) {
+          setCandidateIdx((prev) => prev + 1);
+        } else {
+          setImgError(true);
+        }
+      }, [candidateIdx, candidates.length]);
+
       const isAiAnalyzed = page.aiStatus === 'done';
 
       return (
@@ -107,20 +125,33 @@ const ProductPageSheet = React.memo(
                 <BookOpen className="w-6 h-6 opacity-40" />
                 <span className="text-[11px]">در حال آماده‌سازی صفحه...</span>
               </div>
-            ) : imgError || !src ? (
+            ) : imgError || !activeSrc ? (
               <div className="w-full h-full flex flex-col items-center justify-center bg-stone-100 text-stone-400 gap-2 p-4 text-center">
                 <ImageOff className="w-7 h-7 opacity-50" />
                 <span className="text-xs">{page.title || 'تصویر محصول'}</span>
+                {candidates.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCandidateIdx(0);
+                      setImgError(false);
+                    }}
+                    className="mt-1 px-2.5 py-1 rounded-md bg-stone-200 hover:bg-stone-300 text-stone-700 text-[10px] font-bold cursor-pointer"
+                  >
+                    تلاش مجدد برای بارگذاری تصویر
+                  </button>
+                )}
               </div>
             ) : (
               <>
                 <img
-                  src={src}
+                  src={activeSrc}
                   alt={page.title || page.fileName}
-                  loading="lazy"
+                  loading="eager"
                   decoding="async"
                   referrerPolicy="no-referrer"
-                  onError={() => setImgError(true)}
+                  onError={handleImgError}
                   className="max-w-full max-h-full w-auto h-auto object-contain rounded-sm transition-transform duration-300 group-hover:scale-[1.015]"
                 />
                 <button
@@ -241,6 +272,46 @@ const ColophonSheet = React.memo(
 );
 
 ColophonSheet.displayName = 'ColophonSheet';
+
+const InspectedLightboxImage: React.FC<{ page: CatalogPage }> = ({ page }) => {
+  const candidates = useMemo(
+    () => getUploadFallbackCandidates(page.optimizedDataUrl, page.originalDataUrl),
+    [page.optimizedDataUrl, page.originalDataUrl]
+  );
+  const [idx, setIdx] = useState(0);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setIdx(0);
+    setFailed(false);
+  }, [page.id, page.optimizedDataUrl, page.originalDataUrl]);
+
+  const activeSrc = candidates[idx] || '';
+  if (failed || !activeSrc) {
+    return (
+      <div className="py-12 flex flex-col items-center justify-center text-stone-400 gap-2 text-xs">
+        <ImageOff className="w-8 h-8 opacity-50" />
+        <span>تصویر محصول قابل بارگذاری نیست</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={activeSrc}
+      alt={page.title || page.fileName}
+      referrerPolicy="no-referrer"
+      onError={() => {
+        if (idx + 1 < candidates.length) {
+          setIdx((prev) => prev + 1);
+        } else {
+          setFailed(true);
+        }
+      }}
+      className="max-w-full max-h-[50vh] object-contain rounded"
+    />
+  );
+};
 
 export const FlipbookViewer: React.FC<FlipbookViewerProps> = ({
   project,
@@ -1027,11 +1098,7 @@ export const FlipbookViewer: React.FC<FlipbookViewerProps> = ({
 
             <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
               <div className="w-full max-h-[55vh] rounded-xl bg-stone-100 border border-stone-200 flex items-center justify-center p-2 overflow-hidden">
-                <img
-                  src={inspectedPage.optimizedDataUrl || inspectedPage.originalDataUrl}
-                  alt={inspectedPage.title || inspectedPage.fileName}
-                  className="max-w-full max-h-[50vh] object-contain rounded"
-                />
+                <InspectedLightboxImage page={inspectedPage} />
               </div>
 
               <div className="space-y-2.5 pt-1">

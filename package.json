@@ -9,7 +9,12 @@
     "build:worker": "esbuild agent/worker.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/agent-worker.js",
     "start": "node dist/server.js",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "verify:dieline": "tsx scripts/verify-dieline-engines.ts",
+    "verify:3d-caliper": "tsx scripts/verify-3d-board-caliper.ts",
+    "verify:dxf-scale": "tsx scripts/verify-dxf-scale-warning.ts",
+    "verify:cms-storage": "tsx scripts/verify-local-cms-storage.ts",
+    "verify:all": "npm run verify:dieline && npm run verify:3d-caliper && npm run verify:dxf-scale && npm run verify:cms-storage"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1062.0",
