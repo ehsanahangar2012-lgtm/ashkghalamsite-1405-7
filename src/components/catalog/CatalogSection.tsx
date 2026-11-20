@@ -2,9 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { CatalogItem } from '../../services/catalogService';
 import { useCatalog } from '../../contexts/CatalogContext';
-import { resolveCatalogCoverImage } from '../../utils/catalogAssets';
 import { saveInquiryPrefill } from '../../utils/inquiryPrefill';
 import { CatalogSpreadModal, getCatalogDossier } from './CatalogSpreadModal';
+import { ImageWrapper } from './ImageWrapper';
 import { BookOpen, Search, Download, Eye, ArrowUpRight, Box, BookMarked } from 'lucide-react';
 import { SmartHelpButton } from '../SmartHelpModal';
 import { BackButton } from '../UIComponents';
@@ -13,28 +13,14 @@ const CatalogCoverThumb: React.FC<{
   catalog: CatalogItem;
   className?: string;
 }> = React.memo(({ catalog, className = '' }) => {
-  const [failed, setFailed] = useState(false);
-  const src = resolveCatalogCoverImage(catalog.coverImage, catalog.id);
-
-  if (src && !failed) {
-    return (
-      <img
-        src={src}
-        alt={catalog.title}
-        loading="lazy"
-        decoding="async"
-        referrerPolicy="no-referrer"
-        onError={() => setFailed(true)}
-        className={`w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03] ${className}`}
-      />
-    );
-  }
-
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-6 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-900 dark:to-slate-800 text-slate-500 dark:text-slate-400 text-center">
-      <BookOpen className="w-10 h-10 mb-2 text-amber-500 opacity-75" />
-      <span className="text-xs font-bold text-slate-700 dark:text-slate-200 line-clamp-2">{catalog.title}</span>
-    </div>
+    <ImageWrapper
+      src={catalog.coverImage}
+      catalogId={catalog.id}
+      alt={catalog.title}
+      fallbackTitle={catalog.title}
+      className={className}
+    />
   );
 });
 

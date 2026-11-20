@@ -14,13 +14,17 @@ import {
   ChevronUp,
   RectangleHorizontal,
   RectangleVertical,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { CatalogPage, OptimizationSettings } from '../../types/flipbook';
+import { UploadedAsset } from '../../types';
 import {
   optimizeFileToWebP,
   formatBytesFa,
   calculateSavingsPercent,
 } from '../../utils/imageOptimizer';
+import { uploadImageAssetToServer } from '../../services/projectStorageService';
+import { MediaSelector } from '../AdminTools';
 
 interface ImageUploaderPanelProps {
   pages: CatalogPage[];
@@ -79,6 +83,8 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
   const [expandedPageId, setExpandedPageId] = useState<string | null>(pages[0]?.id || null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [newTagByPage, setNewTagByPage] = useState<Record<string, string>>({});
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [replacingPageId, setReplacingPageId] = useState<string | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -106,6 +112,10 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
         try {
           const result = await optimizeFileToWebP(file, optimization);
           const meta = buildMetadataFromFileName(file.name);
+          const storedUrl = await uploadImageAssetToServer(result.optimizedDataUrl);
+          if (typeof window !== 'undefined' && !storedUrl.startsWith('data:')) {
+            window.dispatchEvent(new Event('ashk-media-synced'));
+          }
           created.push({
             id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             fileName: file.name,
@@ -113,8 +123,8 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
             description: meta.description,
             category: meta.category,
             tags: meta.tags,
-            originalDataUrl: result.optimizedDataUrl,
-            optimizedDataUrl: result.optimizedDataUrl,
+            originalDataUrl: storedUrl,
+            optimizedDataUrl: storedUrl,
             originalSizeBytes: result.originalSizeBytes,
             optimizedSizeBytes: result.optimizedSizeBytes,
             originalWidth: result.originalWidth,
@@ -142,6 +152,34 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
         setUploadBusy(false);
       }
     }
+  };
+
+  const handleSelectAssetsFromMedia = (selectedAssets: UploadedAsset[]) => {
+    if (!selectedAssets.length) return;
+    const created: CatalogPage[] = selectedAssets.map((asset) => {
+      const meta = buildMetadataFromFileName(asset.title || asset.name || 'محصول کاتالوگ');
+      const url = asset.url || asset.data;
+      return {
+        id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        fileName: asset.name || 'media-image.webp',
+        title: asset.title || meta.title,
+        description: asset.description || meta.description,
+        category: asset.category || meta.category,
+        tags: meta.tags,
+        originalDataUrl: url,
+        optimizedDataUrl: url,
+        originalSizeBytes: asset.size || 120000,
+        optimizedSizeBytes: asset.size || 120000,
+        originalWidth: asset.width || 900,
+        originalHeight: asset.height || 1200,
+        width: asset.width || 900,
+        height: asset.height || 1200,
+        aiStatus: 'done',
+      };
+    });
+    onAddPages(created);
+    if (created[0]) setExpandedPageId(created[0].id);
+    setShowMediaPicker(false);
   };
 
   const handleAddTag = (page: CatalogPage) => {
@@ -205,6 +243,33 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
         <p className="text-xs text-stone-500 mt-1">
           تبدیل آنی به WebP با تشخیص خودکار جهت افقی/عمودی و امکان درج عنوان و توضیحات زیر هر عکس
         </p>
+
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            disabled={uploadBusy}
+            onClick={(e) => {
+              e.stopPropagation();
+              fileInputRef.current?.click();
+            }}
+            className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>آپلود از سیستم</span>
+          </button>
+          <button
+            type="button"
+            disabled={uploadBusy}
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMediaPicker(true);
+            }}
+            className="px-3.5 py-1.5 rounded-lg bg-stone-900 hover:bg-stone-800 text-amber-300 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            <span>انتخاب از رسانه سایت</span>
+          </button>
+        </div>
       </div>
 
       {uploadError && (
@@ -475,9 +540,19 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
                         حجم اصلی: {formatBytesFa(page.originalSizeBytes)} → خروجی WebP:{' '}
                         <strong className="text-emerald-700">{formatBytesFa(page.optimizedSizeBytes)}</strong>
                       </span>
-                      <span>
-                        ابعاد: {page.width} × {page.height} پیکسل ({isLandscape ? 'افقی' : 'عمودی'})
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setReplacingPageId(page.id)}
+                          className="px-2.5 py-1 rounded-lg bg-stone-900 hover:bg-stone-800 text-amber-300 text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <ImageIcon className="w-3 h-3" />
+                          <span>تغییر / انتخاب از رسانه</span>
+                        </button>
+                        <span>
+                          ابعاد: {page.width} × {page.height} پیکسل ({isLandscape ? 'افقی' : 'عمودی'})
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -485,6 +560,41 @@ export const ImageUploaderPanel: React.FC<ImageUploaderPanelProps> = ({
             );
           })}
         </div>
+      )}
+
+      {showMediaPicker && (
+        <MediaSelector
+          multiple
+          onSelect={() => {}}
+          onSelectMultipleAssets={handleSelectAssetsFromMedia}
+          onClose={() => setShowMediaPicker(false)}
+        />
+      )}
+
+      {replacingPageId && (
+        <MediaSelector
+          multiple={false}
+          onSelect={(url) => {
+            onUpdatePage(replacingPageId, {
+              originalDataUrl: url,
+              optimizedDataUrl: url,
+            });
+            setReplacingPageId(null);
+          }}
+          onSelectAsset={(asset) => {
+            const url = asset.url || asset.data;
+            onUpdatePage(replacingPageId, {
+              originalDataUrl: url,
+              optimizedDataUrl: url,
+              fileName: asset.name || undefined,
+              optimizedSizeBytes: asset.size || undefined,
+              width: asset.width || undefined,
+              height: asset.height || undefined,
+            });
+            setReplacingPageId(null);
+          }}
+          onClose={() => setReplacingPageId(null)}
+        />
       )}
     </div>
   );

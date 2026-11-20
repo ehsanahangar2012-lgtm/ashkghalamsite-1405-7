@@ -9,81 +9,117 @@ const downloadsDir = path.join(publicDir, 'downloads');
 
 const pkgPath = path.join(rootDir, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-const version = pkg.version || '3.14.0';
+const version = pkg.version || '3.23.0';
 
 const zipFileName = `ashk-ghalam-v${version}-cpanel.zip`;
 const outputZipPath = path.join(downloadsDir, zipFileName);
+const rootDownloadsDir = path.join(rootDir, 'downloads');
 
-// Clean any legacy or old zip files from public/, public/downloads/, and dist/
+// Clean any legacy or old zip files from public/, public/downloads/, downloads/, and dist/
 const legacyPublicZip = path.join(publicDir, 'ashk-ghalam-erp-cpanel-release.zip');
 if (fs.existsSync(legacyPublicZip)) {
   fs.unlinkSync(legacyPublicZip);
 }
-if (fs.existsSync(distDir)) {
-  for (const entry of fs.readdirSync(distDir)) {
+for (const dirToClean of [distDir, downloadsDir, rootDownloadsDir]) {
+  if (!fs.existsSync(dirToClean)) continue;
+  for (const entry of fs.readdirSync(dirToClean)) {
     if (entry.endsWith('.zip')) {
-      fs.unlinkSync(path.join(distDir, entry));
+      fs.unlinkSync(path.join(dirToClean, entry));
     }
   }
 }
 if (!fs.existsSync(downloadsDir)) {
   fs.mkdirSync(downloadsDir, { recursive: true });
-} else {
-  for (const entry of fs.readdirSync(downloadsDir)) {
-    if (entry.endsWith('.zip')) {
-      fs.unlinkSync(path.join(downloadsDir, entry));
-    }
-  }
+}
+if (!fs.existsSync(rootDownloadsDir)) {
+  fs.mkdirSync(rootDownloadsDir, { recursive: true });
 }
 
-console.log(`Packing flat cPanel production ZIP (${zipFileName})...`);
+console.log(`Packing pure PHP standard cPanel ZIP (${zipFileName})...`);
 
 const zip = new AdmZip();
 
-// Add compiled client + server + worker files directly at ZIP root (no nested dist/ wrapper folder)
+// Add compiled static frontend assets + public files directly at ZIP root
+// Strictly EXCLUDE any Node.js artifacts (server.js, agent-worker.js, maps, zips)
 if (fs.existsSync(distDir)) {
   zip.addLocalFolder(distDir, '', (filename) => {
     const normalized = filename.replace(/\\/g, '/');
-    if (normalized.endsWith('.zip') || normalized.endsWith('.map')) return false;
-    if (normalized.startsWith('downloads/')) return false;
+    const base = path.basename(normalized);
+    if (
+      base === 'server.js' ||
+      base === 'agent-worker.js' ||
+      normalized.endsWith('.zip') ||
+      normalized.endsWith('.map') ||
+      normalized.startsWith('downloads/')
+    ) {
+      return false;
+    }
     return true;
   });
 }
 
-// Add cPanel-ready package.json at ZIP root with "start": "node server.js"
-const cpanelPkg = {
-  ...pkg,
-  scripts: {
-    ...(pkg.scripts || {}),
-    start: 'node server.js',
-  },
-};
-zip.addFile('package.json', Buffer.from(JSON.stringify(cpanelPkg, null, 2), 'utf-8'));
+// Ensure api.php is present at ZIP root
+const apiPhpSrc = path.join(publicDir, 'api.php');
+if (fs.existsSync(apiPhpSrc) && !zip.getEntry('api.php')) {
+  zip.addLocalFile(apiPhpSrc, '');
+}
 
-// Add Apache/cPanel .htaccess for clean SPA routing if deployed to static public_html
-const htaccessContent = `<IfModule mod_rewrite.c>
+// Standard Apache / LiteSpeed .htaccess for cPanel public_html + PHP /api/* routing + image MIME types + SPA fallback
+const htaccessContent = `DirectoryIndex index.html
+
+<IfModule mod_mime.c>
+  AddType image/webp .webp
+  AddType image/svg+xml .svg .svgz
+  AddType image/png .png
+  AddType image/jpeg .jpg .jpeg
+  AddType image/gif .gif
+</IfModule>
+
+<IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-  RewriteRule ^index\\.html$ - [L]
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
-  RewriteCond %{REQUEST_URI} !^/api/
-  RewriteRule . /index.html [L]
+
+  # Route all /api/* requests to pure PHP backend (api.php)
+  RewriteRule ^api/?(.*)$ api.php?r=$1 [QSA,L]
+
+  # Serve existing static files and directories directly
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Fallback all frontend SPA routes to index.html
+  RewriteRule ^ index.html [L]
 </IfModule>
 `;
 zip.addFile('.htaccess', Buffer.from(htaccessContent, 'utf-8'));
 
-const essentialFiles = ['.env.example', 'catalogs.json', 'flipbooks.json', 'posts.json', 'settings.json'];
-for (const file of essentialFiles) {
-  const filePath = path.join(rootDir, file);
+// Ensure writable JSON stores exist at ZIP root (no package.json or .env.example)
+const jsonStores = [
+  { name: 'catalogs.json', fallback: '[]' },
+  { name: 'flipbooks.json', fallback: '[]' },
+  { name: 'posts.json', fallback: '[]' },
+  { name: 'inquiries.json', fallback: '[]' },
+  { name: 'settings.json', fallback: '{}' },
+  { name: 'media-meta.json', fallback: '[]' },
+];
+
+for (const store of jsonStores) {
+  const filePath = path.join(rootDir, store.name);
   if (fs.existsSync(filePath)) {
-    zip.addLocalFile(filePath);
+    zip.addLocalFile(filePath, '');
+  } else {
+    zip.addFile(store.name, Buffer.from(store.fallback, 'utf-8'));
   }
 }
 
+// Ensure uploads directories exist inside ZIP with index protection
+zip.addFile('uploads/flipbooks/index.html', Buffer.from('<!doctype html><title></title>', 'utf-8'));
+zip.addFile('uploads/media/index.html', Buffer.from('<!doctype html><title></title>', 'utf-8'));
+
 zip.writeZip(outputZipPath);
 
-// Mirror built release ZIP into dist/downloads AFTER writeZip so dist-only production servers also serve it
+// Mirror built release ZIP into root downloads/ (visible in Code tree) and dist/downloads/
+fs.copyFileSync(outputZipPath, path.join(rootDownloadsDir, zipFileName));
 const distDownloadsDir = path.join(distDir, 'downloads');
 if (!fs.existsSync(distDownloadsDir)) {
   fs.mkdirSync(distDownloadsDir, { recursive: true });
@@ -91,5 +127,4 @@ if (!fs.existsSync(distDownloadsDir)) {
 fs.copyFileSync(outputZipPath, path.join(distDownloadsDir, zipFileName));
 
 const sizeMb = (fs.statSync(outputZipPath).size / (1024 * 1024)).toFixed(2);
-console.log(`✅ Standalone flat cPanel release created: ${outputZipPath} (${sizeMb} MB)`);
-
+console.log(`✅ Standard cPanel PHP release created (zero Node.js): ${outputZipPath} & ${path.join(rootDownloadsDir, zipFileName)} (${sizeMb} MB)`);

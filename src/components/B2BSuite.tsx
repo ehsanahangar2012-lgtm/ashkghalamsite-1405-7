@@ -22,9 +22,9 @@ export const B2BSuite: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) => {
 
   // --- MEMBER INITIAL STATE FOR ERP INHERITANCE ---
   const [members, setMembers] = useState<Member[]>([
-    { id: 'MEM-01', name: 'مهندس احسان آهنگر', companyName: 'زعفران قائنات عتیق', role: 'Customer', nationalId: '۰۹۲۳۴۸۱۷۲', economicCode: '۴۱۱۵۶۸۹۴۳', phone: '۰۹۱۲۴۸۱۹۲۳۴', email: 'ehsanahangar2010@gmail.com', creditLimit: 25000000, walletBalance: 4500000, membershipLevel: 'Gold', history: ['عضویت طلایی ثبت شد', 'پیش‌پرداخت سفارش فولدینگ کارتن: ۱.۵ میلیون'], riskScore: 0, outstandingDebt: 0 },
-    { id: 'MEM-02', name: 'سهراب زارعی', companyName: 'چاپخانه خلیج‌فارس کاشان', role: 'Sales Partner', nationalId: '۱۰۳۲۴۹۸۲۳', economicCode: '---', phone: '۰۹۳۵۴۸۲۶۳۹۴', email: 'sohrab@kashanprint.ir', creditLimit: 10000000, walletBalance: 1200000, membershipLevel: 'Silver', history: ['عضویت نقره‌ای ثبت شد'], riskScore: 0, outstandingDebt: 0 },
-    { id: 'MEM-03', name: 'امین کاظمی', companyName: 'استودیو طراحی امین هنر', role: 'Designer', nationalId: '۱۲۹۳۸۴۷۵۶', economicCode: '---', phone: '۰۹۱۹۴۸۲۷۳۶۴', email: 'art_amin@outlook.com', creditLimit: 5000000, walletBalance: 2450000, membershipLevel: 'Standard', history: ['عضویت مستقل ثبت شد'], riskScore: 0, outstandingDebt: 0 }
+    { id: 'MEM-01', name: 'مهندس احسان آهنگر', companyName: 'زعفران قائنات عتیق', role: 'Customer', nationalId: '۰۹۲۳۴۸۱۷۲', economicCode: '۴۱۱۵۶۸۹۴۳', phone: '09153108763', email: 'ehsanahangar2010@gmail.com', creditLimit: 25000000, walletBalance: 4500000, membershipLevel: 'Gold', history: ['عضویت طلایی ثبت شد', 'پیش‌پرداخت سفارش فولدینگ کارتن: ۱.۵ میلیون'], riskScore: 0, outstandingDebt: 0 },
+    { id: 'MEM-02', name: 'سهراب زارعی', companyName: 'چاپخانه خلیج‌فارس کاشان', role: 'Sales Partner', nationalId: '۱۰۳۲۴۹۸۲۳', economicCode: '---', phone: '09153108763', email: 'sohrab@kashanprint.ir', creditLimit: 10000000, walletBalance: 1200000, membershipLevel: 'Silver', history: ['عضویت نقره‌ای ثبت شد'], riskScore: 0, outstandingDebt: 0 },
+    { id: 'MEM-03', name: 'امین کاظمی', companyName: 'استودیو طراحی امین هنر', role: 'Designer', nationalId: '۱۲۹۳۸۴۷۵۶', economicCode: '---', phone: '09153108763', email: 'art_amin@outlook.com', creditLimit: 5000000, walletBalance: 2450000, membershipLevel: 'Standard', history: ['عضویت مستقل ثبت شد'], riskScore: 0, outstandingDebt: 0 }
   ]);
 
   // --- 1. CONFIGURATOR STATE ---

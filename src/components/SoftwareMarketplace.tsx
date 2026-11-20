@@ -8,26 +8,48 @@ interface SoftwareMarketplaceProps {
   onNavigateToDieline?: () => void;
 }
 
-const softwares = [
+interface SoftwareItem {
+  id: string;
+  title: string;
+  version: string;
+  fileName: string;
+  description: string;
+  features: string[];
+  payload?: string;
+  isStaticRelease?: boolean;
+  downloadUrl?: string;
+}
+
+const softwares: SoftwareItem[] = [
+  {
+    id: 'ashk-cpanel-release',
+    title: 'پکیج کامل استقرار هاست معمولی cPanel (نسخه استاندارد PHP)',
+    version: 'v3.22.0',
+    fileName: 'ashk-ghalam-v3.22.0-cpanel.zip',
+    isStaticRelease: true,
+    downloadUrl: '/api/release/download',
+    description: 'بسته جامع استقرار فلت (Flat Root) شامل فرانت‌اند بهینه‌شده، بک‌اند خالص PHP در فایل api.php، ذخیره مستقیم کاتالوگ‌ها و تصاویر در public_html، فایل‌های sitemap.xml و کانفیگ کامل .htaccess آماده استخراج در cPanel معمولی.',
+    features: ['ساختار مسطح بدون پوشه تودرتوی dist', 'بک‌اند بومی PHP (api.php) بدون نیاز به Node.js یا ترمینال', 'سازگار ۱۰۰٪ با هاست اشتراکی معمولی (Apache / LiteSpeed)'],
+  },
   {
     id: 'ashk-cad-plugin',
     title: 'اسکریپت اتوکد اشک قلم (Ashk AutoLISP Box Drawer)',
-    version: 'v3.19.0',
+    version: 'v3.22.0',
     fileName: 'ashk-fefco0201-autolisp.lsp',
     description: 'ماژول تخصصی AutoLISP جهت ترسیم خودکار خطوط تا (Crease) و برش (Cut) استاندارد FEFCO 0201 درون محیط AutoCAD بدون نیاز به اتصال اینترنت.',
     features: ['ترسیم خودکار لایه‌های Cut و Crease', 'محاسبه ضخامت فلوت‌های B و E', 'سازگار با AutoCAD 2020 تا 2025'],
-    payload: `; Ashk Ghalam AutoLISP Offline Box Generator v3.19.0\n(defun c:ASHKBOX (/ L W H x0 y0)\n  (setq L (getreal "\\nTool Length (mm): "))\n  (setq W (getreal "\\nWidth (mm): "))\n  (setq H (getreal "\\nHeight (mm): "))\n  (command "._RECTANG" (list 0 0) (list (+ (* 2 L) (* 2 W)) H))\n  (princ "\\nAshk Ghalam base layout created.")\n  (princ)\n)\n`,
+    payload: `; Ashk Ghalam AutoLISP Offline Box Generator v3.22.0\n(defun c:ASHKBOX (/ L W H x0 y0)\n  (setq L (getreal "\\nTool Length (mm): "))\n  (setq W (getreal "\\nWidth (mm): "))\n  (setq H (getreal "\\nHeight (mm): "))\n  (command "._RECTANG" (list 0 0) (list (+ (* 2 L) (* 2 W)) H))\n  (princ "\\nAshk Ghalam base layout created.")\n  (princ)\n)\n`,
   },
   {
     id: 'dieline-calc-cli',
     title: 'پروفایل آفلاین محاسبه شیت و BCT اشک قلم',
-    version: 'v3.19.0',
-    fileName: 'ashk-packaging-rules-v3.19.0.json',
+    version: 'v3.22.0',
+    fileName: 'ashk-packaging-rules-v3.22.0.json',
     description: 'فایل قوانین مهندسی مک‌کی (McKee BCT) و استاندارد شیت‌بندی (۷۰×۱۰۰ و ۶۰×۹۰) برای استفاده درون نرم‌افزارهای چاپخانه در محیط آفلاین.',
     features: ['ورودی پارامترهای ابعاد L×W×H', 'تست مقاومت فشاری ستونی (BCT)', 'بهینه‌سازی چیدمان روی شیت چاپی'],
     payload: JSON.stringify({
       engine: 'Ashk Ghalam Offline CAD Core',
-      version: '3.19.0',
+      version: '3.22.0',
       standards: ['FEFCO-0201', 'FEFCO-0427', 'ECMA-A2020'],
       sheetsCm: [
         { name: '۷۰×۱۰۰ سانتی‌متر', width: 100, height: 70, gripperCm: 1.5 },
@@ -43,9 +65,62 @@ export const SoftwareMarketplace: React.FC<SoftwareMarketplaceProps> = ({
   onNavigateToDieline,
 }) => {
   const [downloadedId, setDownloadedId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
-  const handleDownloadPackage = (sw: typeof softwares[0]) => {
-    const blob = new Blob([sw.payload], { type: 'text/plain;charset=utf-8' });
+  const handleDownloadPackage = async (sw: SoftwareItem) => {
+    if (sw.isStaticRelease) {
+      if (downloadingId === sw.id) return;
+      setDownloadingId(sw.id);
+      const candidates = [
+        `${sw.downloadUrl || '/api/release/download'}?t=${Date.now()}`,
+        `/api.php?r=release/download&t=${Date.now()}`,
+        `/downloads/${sw.fileName}?t=${Date.now()}`,
+      ];
+      try {
+        let blob: Blob | null = null;
+        for (const ep of candidates) {
+          try {
+            const res = await fetch(ep, { cache: 'no-store' });
+            if (!res.ok) continue;
+            const ct = (res.headers.get('content-type') || '').toLowerCase();
+            if (ct.includes('text/html')) continue;
+            const b = await res.blob();
+            if (b.size > 10000) {
+              blob = b;
+              break;
+            }
+          } catch {
+            // try next candidate
+          }
+        }
+        if (blob) {
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = sw.fileName;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.setTimeout(() => URL.revokeObjectURL(blobUrl), 8000);
+        } else {
+          const a = document.createElement('a');
+          a.href = `/downloads/${sw.fileName}`;
+          a.download = sw.fileName;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+        setDownloadedId(sw.id);
+        setTimeout(() => setDownloadedId(null), 3000);
+      } finally {
+        setDownloadingId(null);
+      }
+      return;
+    }
+    const blob = new Blob([sw.payload || ''], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -120,11 +195,15 @@ export const SoftwareMarketplace: React.FC<SoftwareMarketplaceProps> = ({
 
             <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                {downloadedId === sw.id ? 'فایل با موفقیت دانلود شد' : 'اجرای ۱۰۰٪ آفلاین'}
+                {downloadingId === sw.id
+                  ? 'در حال آماده‌سازی فایل زیپ...'
+                  : downloadedId === sw.id
+                    ? 'فایل با موفقیت دانلود شد'
+                    : 'اجرای ۱۰۰٪ آفلاین'}
               </span>
-              <Button variant="outline" size="sm" onClick={() => handleDownloadPackage(sw)}>
+              <Button variant="outline" size="sm" onClick={() => handleDownloadPackage(sw)} disabled={downloadingId === sw.id}>
                 <Download className="w-3.5 h-3.5 ml-1.5" />
-                دریافت فایل ({sw.fileName.split('.').pop()?.toUpperCase()})
+                {downloadingId === sw.id ? 'در حال دانلود...' : `دریافت فایل (${sw.fileName.split('.').pop()?.toUpperCase()})`}
               </Button>
             </div>
           </Card>

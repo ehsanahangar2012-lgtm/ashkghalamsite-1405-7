@@ -1,5 +1,6 @@
 import { CatalogProject, SavedProjectSummary } from '../types/flipbook';
 import { optimizeDataUrlToWebP } from '../utils/imageOptimizer';
+import { apiFetch, apiPostJson, apiRequestJson } from '../utils/apiClient';
 
 const ACTIVE_PROJECT_KEY = 'varaghnegar_active_project_v1';
 const SAVED_PROJECTS_KEY = 'varaghnegar_saved_projects_v1';
@@ -22,44 +23,94 @@ function compactProjectForStorage(project: CatalogProject): CatalogProject {
   };
 }
 
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs = 20000
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+function dataUrlToBlob(dataUrl: string): { blob: Blob; ext: string } | null {
   try {
-    return await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-  } finally {
-    window.clearTimeout(timer);
+    const match = dataUrl.match(/^data:image\/(webp|jpeg|jpg|png|gif);base64,(.+)$/i);
+    if (!match) return null;
+    const rawExt = match[1].toLowerCase();
+    const ext = rawExt === 'jpeg' ? 'jpg' : rawExt;
+    const mime = `image/${rawExt === 'jpg' ? 'jpeg' : rawExt}`;
+    const byteString = atob(match[2]);
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i += 1) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    return {
+      blob: new Blob([ab], { type: mime }),
+      ext,
+    };
+  } catch {
+    return null;
   }
 }
 
-export async function uploadImageAssetToServer(dataUrl: string): Promise<string> {
+export async function uploadImageAssetToServer(
+  dataUrl: string,
+  allowRetryCompress = true
+): Promise<string> {
   if (!dataUrl || !dataUrl.startsWith('data:image/')) {
     return dataUrl;
   }
-  try {
-    const res = await fetchWithTimeout(
-      '/api/flipbooks/upload-image',
-      {
+
+  let lastStatus = 0;
+
+  // Primary path: standard multipart/form-data (tries /api/flipbooks/upload-image then /api.php?r=...)
+  const converted = dataUrlToBlob(dataUrl);
+  if (converted) {
+    try {
+      const formData = new FormData();
+      formData.append('file', converted.blob, `page-${Date.now()}.${converted.ext}`);
+      const res = await apiFetch('flipbooks/upload-image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataUrl }),
-      },
-      15000
+        body: formData,
+      }, 25000);
+      lastStatus = res.status;
+      if (res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.ok && typeof data.url === 'string' && data.url) {
+          return data.url;
+        }
+      }
+    } catch {
+      // Fall through to WAF-safe Base64 / JSON fallback
+    }
+  }
+
+  // Fallback path: JSON / Base64 payload_file upload (apiPostJson includes automatic /api.php + payload_file WAF bypass)
+  try {
+    const { res, data } = await apiPostJson<{ ok?: boolean; url?: string }>(
+      'flipbooks/upload-image',
+      { dataUrl },
+      25000
     );
-    if (!res.ok) return dataUrl;
-    const data = await res.json().catch(() => null);
-    if (data?.ok && typeof data.url === 'string' && data.url) {
+    lastStatus = res.status;
+    if (res.ok && data?.ok && typeof data.url === 'string' && data.url) {
       return data.url;
     }
   } catch {
-    // Fallback cleanly to inline dataUrl if individual upload route fails/times out
+    // Fall through to tighter compression retry
+  }
+
+  // Tighter WebP compression retry for oversized images (>90KB) on strict shared cPanel limits
+  if (allowRetryCompress && dataUrl.length > 90_000) {
+    try {
+      const recompressed = await optimizeDataUrlToWebP(dataUrl, 0, {
+        quality: 0.72,
+        maxDimension: 900,
+      });
+      if (recompressed?.optimizedDataUrl && recompressed.optimizedDataUrl.length < dataUrl.length) {
+        return await uploadImageAssetToServer(recompressed.optimizedDataUrl, false);
+      }
+    } catch {
+      // Ignore compression error
+    }
+  }
+
+  if (lastStatus > 0 && lastStatus !== 200) {
+    throw new Error(
+      `آپلود تصویر کاتالوگ روی سرور با کد ${lastStatus} متوقف شد. دسترسی نوشتن پوشه uploads/flipbooks را در هاست بررسی کنید.`
+    );
   }
   return dataUrl;
 }
@@ -222,6 +273,12 @@ export async function publishProjectToServer(
       ? await uploadImageAssetToServer(src)
       : src;
 
+    if (uploadedUrl.startsWith('data:image/') && uploadedUrl.length > 120_000) {
+      throw new Error(
+        `آپلود تصویر صفحه «${page.title || page.fileName || 'محصول'}» روی سرور با خطا مواجه شد. لطفاً دسترسی نوشتن پوشه uploads/flipbooks را در هاست cPanel بررسی کنید.`
+      );
+    }
+
     preparedPages.push({
       ...page,
       width,
@@ -236,36 +293,45 @@ export async function publishProjectToServer(
   const cover = { ...project.cover };
   if (cover.frontCustomImageUrl?.startsWith('data:image/')) {
     cover.frontCustomImageUrl = await uploadImageAssetToServer(cover.frontCustomImageUrl);
+    if (cover.frontCustomImageUrl.startsWith('data:image/') && cover.frontCustomImageUrl.length > 120_000) {
+      throw new Error('آپلود تصویر جلد کاتالوگ روی سرور با خطا مواجه شد. لطفاً دسترسی پوشه uploads را بررسی کنید.');
+    }
   }
   if (cover.backCustomImageUrl?.startsWith('data:image/')) {
     cover.backCustomImageUrl = await uploadImageAssetToServer(cover.backCustomImageUrl);
+    if (cover.backCustomImageUrl.startsWith('data:image/') && cover.backCustomImageUrl.length > 120_000) {
+      throw new Error('آپلود تصویر پشت‌جلد کاتالوگ روی سرور با خطا مواجه شد.');
+    }
   }
   if (cover.logoDataUrl?.startsWith('data:image/')) {
     cover.logoDataUrl = await uploadImageAssetToServer(cover.logoDataUrl);
   }
 
+  const normalizedId =
+    project.publishedId ||
+    (project.id && project.id !== 'demo-catalog-2026' && project.id !== 'catalog-new'
+      ? project.id
+      : `fb-${Date.now()}`);
+
   const preparedProject: CatalogProject = compactProjectForStorage({
     ...project,
+    id: normalizedId,
+    publishedId: normalizedId,
     cover,
     pages: preparedPages,
     updatedAt: new Date().toISOString(),
   });
 
-  // 3. Save lightweight JSON metadata to /api/flipbooks with strict timeout
+  // 3. Save lightweight JSON metadata via WAF-resilient transport (auto-falls back to /api.php & Base64 payload_file)
   let response: Response;
+  let data: { id?: string; error?: string } | null = null;
   try {
-    response = await fetchWithTimeout(
-      '/api/flipbooks',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(preparedProject),
-      },
-      25000
-    );
+    const res = await apiPostJson<{ id?: string; error?: string }>('flipbooks', preparedProject, 25000);
+    response = res.res;
+    data = res.data;
   } catch (err: any) {
     if (err?.name === 'AbortError') {
-      throw new Error('مهلت پاسخ سرور به پایان رسید. لطفاً اتصال اینترنت یا سرور Node.js هاست را بررسی کنید.');
+      throw new Error('مهلت پاسخ سرور به پایان رسید. لطفاً اتصال اینترنت یا دسترسی نوشتن فایل‌های هاست cPanel را بررسی کنید.');
     }
     throw new Error('ارتباط با سرور برای ثبت کاتالوگ برقرار نشد.');
   }
@@ -277,29 +343,35 @@ export async function publishProjectToServer(
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
     throw new Error(
-      `سرور پاسخ معتبر JSON نداد (کد ${response.status}). مطمئن شوید سرویس Node.js در هاست فعال است.`
+      `سرور پاسخ معتبر JSON نداد (کد ${response.status}). مطمئن شوید فایل‌های api.php و .htaccess در روت public_html قرار دارند و دسترسی فایل‌ها 644 است.`
     );
   }
 
-  const data = await response.json().catch(() => null);
   if (!response.ok || !data?.id) {
     throw new Error(data?.error || `انتشار کاتالوگ روی سرور با خطا مواجه شد (کد ${response.status}).`);
   }
 
   const publishedId = String(data.id);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('ashk-media-synced'));
+  }
   return {
     id: publishedId,
     project: {
       ...preparedProject,
+      id: publishedId,
       publishedId,
     },
   };
 }
 
 export async function fetchPublishedProject(id: string): Promise<CatalogProject> {
-  const response = await fetchWithTimeout(`/api/flipbooks/${encodeURIComponent(id)}`, {}, 15000);
-  const data = await response.json().catch(() => null);
-  if (!response.ok || !data) {
+  const { res, data } = await apiRequestJson<CatalogProject & { error?: string }>(
+    `flipbooks/${encodeURIComponent(id)}`,
+    {},
+    15000
+  );
+  if (!res.ok || !data) {
     throw new Error(data?.error || 'کاتالوگ درخواستی یافت نشد.');
   }
   return data as CatalogProject;

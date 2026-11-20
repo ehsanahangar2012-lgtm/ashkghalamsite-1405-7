@@ -1,8 +1,9 @@
-import React, { useRef } from 'react';
-import { ImagePlus, Trash2, Palette, BookMarked, RectangleHorizontal, RectangleVertical, Sparkles } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ImagePlus, Trash2, Palette, BookMarked, RectangleHorizontal, RectangleVertical, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { CoverDesignConfig, FlipDirection, OptimizationSettings, PageOrientationMode } from '../../types/flipbook';
 import { COVER_TEMPLATES } from '../../data/demoCatalog';
 import { optimizeFileToWebP } from '../../utils/imageOptimizer';
+import { MediaSelector } from '../AdminTools';
 
 interface CoverDesignerPanelProps {
   cover: CoverDesignConfig;
@@ -34,6 +35,9 @@ export const CoverDesignerPanel: React.FC<CoverDesignerPanelProps> = ({
   const logoInputRef = useRef<HTMLInputElement>(null);
   const frontImgInputRef = useRef<HTMLInputElement>(null);
   const backImgInputRef = useRef<HTMLInputElement>(null);
+  const [mediaTargetField, setMediaTargetField] = useState<
+    'logoDataUrl' | 'frontCustomImageUrl' | 'backCustomImageUrl' | null
+  >(null);
 
   const handleImageUpload = async (
     file: File,
@@ -320,24 +324,44 @@ export const CoverDesignerPanel: React.FC<CoverDesignerPanelProps> = ({
             {cover.logoDataUrl ? (
               <div className="flex items-center justify-between gap-2">
                 <img src={cover.logoDataUrl} alt="لوگو" className="h-8 max-w-[80px] object-contain" />
-                <button
-                  type="button"
-                  onClick={() => onChangeCover({ logoDataUrl: undefined })}
-                  className="text-red-600 hover:bg-red-50 p-1 rounded cursor-pointer"
-                  title="حذف لوگو"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setMediaTargetField('logoDataUrl')}
+                    className="text-amber-700 hover:bg-amber-50 p-1 rounded cursor-pointer"
+                    title="انتخاب از رسانه سایت"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChangeCover({ logoDataUrl: undefined })}
+                    className="text-red-600 hover:bg-red-50 p-1 rounded cursor-pointer"
+                    title="حذف لوگو"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => logoInputRef.current?.click()}
-                className="w-full py-1.5 px-2 rounded-lg border border-dashed border-stone-300 hover:border-amber-500 text-[11px] font-semibold text-stone-600 flex items-center justify-center gap-1 cursor-pointer bg-white"
-              >
-                <ImagePlus className="w-3.5 h-3.5" />
-                <span>آپلود لوگو</span>
-              </button>
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  className="w-full py-1.5 px-2 rounded-lg border border-dashed border-stone-300 hover:border-amber-500 text-[11px] font-semibold text-stone-600 flex items-center justify-center gap-1 cursor-pointer bg-white"
+                >
+                  <ImagePlus className="w-3.5 h-3.5" />
+                  <span>آپلود لوگو</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaTargetField('logoDataUrl')}
+                  className="w-full py-1 px-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-[10px] font-bold text-amber-300 flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <ImageIcon className="w-3 h-3" />
+                  <span>انتخاب از رسانه</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -362,24 +386,44 @@ export const CoverDesignerPanel: React.FC<CoverDesignerPanelProps> = ({
                   alt="جلد جلو"
                   className="h-8 w-12 rounded object-cover"
                 />
-                <button
-                  type="button"
-                  onClick={() => onChangeCover({ frontCustomImageUrl: undefined })}
-                  className="text-red-600 hover:bg-red-50 p-1 rounded cursor-pointer"
-                  title="حذف تصویر جلد جلو"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setMediaTargetField('frontCustomImageUrl')}
+                    className="text-amber-700 hover:bg-amber-50 p-1 rounded cursor-pointer"
+                    title="انتخاب از رسانه سایت"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChangeCover({ frontCustomImageUrl: undefined })}
+                    className="text-red-600 hover:bg-red-50 p-1 rounded cursor-pointer"
+                    title="حذف تصویر جلد جلو"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => frontImgInputRef.current?.click()}
-                className="w-full py-1.5 px-2 rounded-lg border border-dashed border-stone-300 hover:border-amber-500 text-[11px] font-semibold text-stone-600 flex items-center justify-center gap-1 cursor-pointer bg-white"
-              >
-                <ImagePlus className="w-3.5 h-3.5" />
-                <span>تصویر اختصاصی</span>
-              </button>
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => frontImgInputRef.current?.click()}
+                  className="w-full py-1.5 px-2 rounded-lg border border-dashed border-stone-300 hover:border-amber-500 text-[11px] font-semibold text-stone-600 flex items-center justify-center gap-1 cursor-pointer bg-white"
+                >
+                  <ImagePlus className="w-3.5 h-3.5" />
+                  <span>تصویر اختصاصی</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaTargetField('frontCustomImageUrl')}
+                  className="w-full py-1 px-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-[10px] font-bold text-amber-300 flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <ImageIcon className="w-3 h-3" />
+                  <span>انتخاب از رسانه</span>
+                </button>
+              </div>
             )}
           </div>
 
@@ -404,24 +448,44 @@ export const CoverDesignerPanel: React.FC<CoverDesignerPanelProps> = ({
                   alt="جلد پشت"
                   className="h-8 w-12 rounded object-cover"
                 />
-                <button
-                  type="button"
-                  onClick={() => onChangeCover({ backCustomImageUrl: undefined })}
-                  className="text-red-600 hover:bg-red-50 p-1 rounded cursor-pointer"
-                  title="حذف تصویر جلد پشت"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setMediaTargetField('backCustomImageUrl')}
+                    className="text-amber-700 hover:bg-amber-50 p-1 rounded cursor-pointer"
+                    title="انتخاب از رسانه سایت"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChangeCover({ backCustomImageUrl: undefined })}
+                    className="text-red-600 hover:bg-red-50 p-1 rounded cursor-pointer"
+                    title="حذف تصویر جلد پشت"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => backImgInputRef.current?.click()}
-                className="w-full py-1.5 px-2 rounded-lg border border-dashed border-stone-300 hover:border-amber-500 text-[11px] font-semibold text-stone-600 flex items-center justify-center gap-1 cursor-pointer bg-white"
-              >
-                <ImagePlus className="w-3.5 h-3.5" />
-                <span>تصویر اختصاصی</span>
-              </button>
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => backImgInputRef.current?.click()}
+                  className="w-full py-1.5 px-2 rounded-lg border border-dashed border-stone-300 hover:border-amber-500 text-[11px] font-semibold text-stone-600 flex items-center justify-center gap-1 cursor-pointer bg-white"
+                >
+                  <ImagePlus className="w-3.5 h-3.5" />
+                  <span>تصویر اختصاصی</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMediaTargetField('backCustomImageUrl')}
+                  className="w-full py-1 px-2 rounded-lg bg-stone-900 hover:bg-stone-800 text-[10px] font-bold text-amber-300 flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <ImageIcon className="w-3 h-3" />
+                  <span>انتخاب از رسانه</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -484,6 +548,17 @@ export const CoverDesignerPanel: React.FC<CoverDesignerPanelProps> = ({
           <span>نمایش شماره صفحه در پایین صفحات محصول</span>
         </label>
       </div>
+
+      {mediaTargetField && (
+        <MediaSelector
+          multiple={false}
+          onSelect={(url) => {
+            onChangeCover({ [mediaTargetField]: url });
+            setMediaTargetField(null);
+          }}
+          onClose={() => setMediaTargetField(null)}
+        />
+      )}
     </div>
   );
 };

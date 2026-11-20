@@ -8,13 +8,16 @@ import {
   Link, Trello, Printer, Trash2, Plus, Upload, BookOpen,
   Activity, Cpu, Sparkles, TrendingUp, ShieldCheck, AlertCircle, Coins, AlertTriangle,
   Clock, CheckCircle, RefreshCw, Layers, ArrowUpRight, UserCheck, Sliders,
-  Bell, AlertOctagon, Edit3, Search, Megaphone, X, ChevronDown, ChevronUp, ExternalLink, Menu, Globe, FolderArchive
+  Bell, AlertOctagon, Edit3, Search, Megaphone, X, ChevronDown, ChevronUp, ExternalLink, Menu, Globe, FolderArchive, Download
 } from 'lucide-react';
 import { Project } from '../types';
 import { parsePersianFloat, cleanPersianNumberString } from '../services/numberUtils';
 import { NumericFormatInput } from './NumericFormatInput';
 
 // Code-split every heavy admin module so opening AdminPanel is instant and memory-efficient
+const DownloadReleasePage = lazy(() =>
+  import('./DownloadReleasePage').then(m => ({ default: m.DownloadReleasePage }))
+);
 const BusinessProcessManager = lazy(() =>
   import('./BusinessProcessManager').then(m => ({ default: m.BusinessProcessManager }))
 );
@@ -152,6 +155,7 @@ const ADMIN_TAB_CATEGORIES = [
       { id: 'integrations', label: 'اتصال به پایانه‌ها و API', icon: Link, color: 'text-orange-400', perm: 'backupSystem' },
       { id: 'backup', label: 'پشتیبان‌گیری و ایمن‌سازی', icon: ShieldCheck, color: 'text-emerald-400', badge: 'امنیتی', perm: 'backupSystem' },
       { id: 'zip_update', label: 'مدیریت آپدیت و جایگزینی فایل زیپ', icon: FolderArchive, color: 'text-violet-400', badge: 'جدید', perm: 'backupSystem' },
+      { id: 'cpanel_deploy', label: 'دانلود بسته استقرار cPanel', icon: Download, color: 'text-amber-400', badge: 'v3.22.0', perm: 'backupSystem' },
       { id: 'settings', label: 'تنظیمات برندینگ و سیستم', icon: Settings, color: 'text-slate-400', perm: 'cmsContentEditing' }
     ]
   }
@@ -221,7 +225,7 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
     })).filter(cat => cat.tabs.length > 0);
   }, [user?.role, hasPermission]);
 
-  const [activeTab, setActiveTab] = useState<'dxp' | 'dashboard' | 'orders' | 'b2b_suite' | 'team_accounts' | 'formula' | 'simulator' | 'integrations' | 'backup' | 'zip_update' | 'settings' | 'pages_products_services' | 'software_hub' | 'catalogs' | 'media_library' | 'slider_settings' | 'dieline_analyzer' | 'templates_reset' | 'emergency_banner' | 'seo_manager'>(() => {
+  const [activeTab, setActiveTab] = useState<'dxp' | 'dashboard' | 'orders' | 'b2b_suite' | 'team_accounts' | 'formula' | 'simulator' | 'integrations' | 'backup' | 'zip_update' | 'cpanel_deploy' | 'settings' | 'pages_products_services' | 'software_hub' | 'catalogs' | 'media_library' | 'slider_settings' | 'dieline_analyzer' | 'templates_reset' | 'emergency_banner' | 'seo_manager'>(() => {
     try {
       const saved = sessionStorage.getItem('ashk_admin_active_tab');
       if (saved) return saved as any;
@@ -382,7 +386,7 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
               </div>
               
               <div className="flex items-center gap-1.5">
-                <span className="p-1 px-2.5 rounded-full text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 font-bold tracking-tight">v3.19.0 (cPanel)</span>
+                <span className="p-1 px-2.5 rounded-full text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 font-bold tracking-tight">v3.22.0 (cPanel)</span>
                 <button 
                   type="button"
                   onClick={toggleMobileMenu}
@@ -407,6 +411,20 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
                 <span>بازگشت به سایت اصلی</span>
               </button>
             )}
+
+            {/* Dedicated Admin cPanel Production Package Action */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                handleTabClick('cpanel_deploy');
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm mt-1"
+              title="دریافت بسته استقرار cPanel (نسخه ۳.۲۲.۰)"
+            >
+              <Download className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>دانلود بسته استقرار cPanel (v3.22.0)</span>
+            </button>
           </div>
 
           {/* Nav Items Grouped Categorically */}
@@ -626,6 +644,7 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
               {activeTab === 'formula' && 'موتور قیمت‌گذاری و هزینه‌های چاپ'}
               {activeTab === 'backup' && 'پشتیبان‌گیری امن داده‌ها'}
               {activeTab === 'zip_update' && 'سامانه مدیریت آپدیت و جایگزینی فایل‌های ZIP پروژه'}
+              {activeTab === 'cpanel_deploy' && 'دریافت و استقرار بسته cPanel (نسخه ۳.۲۲.۰)'}
               {activeTab === 'settings' && 'طرح زنده و رنگ سیستم'}
               {activeTab === 'slider_settings' && 'پنل تنظیمات استودیو نمایش محصول'}
               {activeTab === 'emergency_banner' && 'تنظیمات نوتیفیکیشن وضعیت اضطراری بالای سایت'}
@@ -957,6 +976,8 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
             {activeTab === 'backup' && <BackupManager isDarkMode={isDarkMode} />}
 
             {activeTab === 'zip_update' && <ZipUpdateManager isDarkMode={isDarkMode} />}
+
+            {activeTab === 'cpanel_deploy' && <DownloadReleasePage hideBreadcrumb={true} />}
 
             {activeTab === 'settings' && (
               <GlobalSettingsPanel 
@@ -1353,7 +1374,7 @@ const GlobalSettingsPanel: React.FC<GlobalSettingsPanelProps> = ({
                 type="text"
                 value={globalSettings.badikaranPortalUrl || ''}
                 onChange={e => updateGlobalSettings({ badikaranPortalUrl: e.target.value })}
-                placeholder="مثال: https://badikaran.ir (خالی برای تغییر بوم خودکار)"
+                placeholder="مثال: https://ashkghalam.ir (خالی برای تغییر بوم خودکار)"
                 className="w-full p-2.5 border rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-primary-500 font-mono text-left"
                 dir="ltr"
               />
@@ -1620,7 +1641,7 @@ const GlobalSettingsPanel: React.FC<GlobalSettingsPanelProps> = ({
                   type="text"
                   value={globalSettings.whatsappNumber || ''}
                   onChange={e => updateGlobalSettings({ whatsappNumber: e.target.value })}
-                  placeholder="+989120000000"
+                  placeholder="09153108763"
                   className="w-full p-2.5 border rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-amber-500 font-mono text-left"
                   dir="ltr"
                 />
@@ -2051,7 +2072,7 @@ const EmergencyBannerPanel: React.FC<EmergencyBannerPanelProps> = ({ config, onU
                 type="text"
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="مثال: https://new.ashkghalam.ir/catalog.pdf"
+                placeholder="مثال: https://ashkghalam.ir/catalog.pdf"
                 className="w-full px-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-white text-xs text-left font-mono focus:outline-none focus:border-indigo-500 transition-colors"
                 dir="ltr"
               />

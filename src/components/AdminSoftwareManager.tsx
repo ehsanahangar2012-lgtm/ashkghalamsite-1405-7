@@ -51,7 +51,7 @@ export const AdminSoftwareManager: React.FC = () => {
       {
         title: 'معرفی میز کار و امکانات سیستم',
         description: 'رابط کاربری سریع و روان طراحی شده برای بازار ایران بدون نیاز به اینترنت.',
-        imageUrl: '/media/catalog_page1.png',
+        imageUrl: '',
         highlights: ['سرعت فوق‌العاده', 'کارکرد ۱۰۰٪ مستقل'],
         stat: { label: 'ضریب اطمینان', value: '۱۰۰٪' }
       }
@@ -94,7 +94,7 @@ export const AdminSoftwareManager: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!window.confirm('آیا از حذف این نرم‌افزار از سیستم اطمینان دارید؟')) return;
     try {
-      const res = await fetch(`/api/software/products/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/software/products/${encodeURIComponent(id)}/delete`, { method: 'POST' });
       if (res.ok) {
         alert('نرم‌افزار با موفقیت حذف گردید.');
         fetchData();

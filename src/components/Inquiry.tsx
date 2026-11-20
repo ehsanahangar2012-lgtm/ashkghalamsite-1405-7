@@ -278,7 +278,7 @@ export const Inquiry: React.FC = () => {
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="0912..."
+                    placeholder="09153108763"
                     dir="ltr"
                     className={`${inputClass} text-left font-mono`}
                   />

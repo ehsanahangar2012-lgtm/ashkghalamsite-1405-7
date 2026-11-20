@@ -246,11 +246,29 @@ export interface MediaItem {
   }[];
 }
 
+export interface UploadedAssetUsage {
+  catalogId: string;
+  catalogTitle: string;
+  flipbookId?: string;
+  role: string;
+  pageId?: string;
+  pageIndex?: number;
+}
+
 export interface UploadedAsset {
   id: string;
   name: string;
+  title?: string;
+  description?: string;
+  category?: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  url?: string;
+  source?: 'media' | 'catalog';
+  usedInCatalogs?: UploadedAssetUsage[];
   type: string; // 'image/png', etc.
-  data: string; // Base64 string
+  data: string; // URL or Base64 string
   uploadDate: string;
   size: number; // in bytes
 }

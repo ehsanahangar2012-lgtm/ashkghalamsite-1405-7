@@ -17,28 +17,322 @@ import {
 } from 'lucide-react';
 import { ProfessionalSeoStudio } from './ProfessionalSeoStudio';
 
+interface MediaAssetEditModalProps {
+  asset: UploadedAsset;
+  onClose: () => void;
+  onSaved: (updatedUrl?: string) => void;
+}
+
+const MediaAssetEditModal: React.FC<MediaAssetEditModalProps> = ({ asset, onClose, onSaved }) => {
+  const { updateAsset } = useContent();
+  const [title, setTitle] = useState(asset.title || asset.name || '');
+  const [description, setDescription] = useState(asset.description || '');
+  const [category, setCategory] = useState(asset.category || (asset.source === 'catalog' ? 'تصاویر کاتالوگ' : 'رسانه سایت'));
+  const [alt, setAlt] = useState(asset.alt || asset.title || '');
+  const [rotation, setRotation] = useState<number>(0);
+  const [cropPreset, setCropPreset] = useState<'original' | '1:1' | '4:3' | '3:4'>('original');
+  const [replacementDataUrl, setReplacementDataUrl] = useState<string | null>(null);
+  const [dims, setDims] = useState<{ w: number; h: number }>({ w: asset.width || 0, h: asset.height || 0 });
+  const [saving, setSaving] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const sourceUrl = replacementDataUrl || asset.url || asset.data;
+
+  React.useEffect(() => {
+    let active = true;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      if (!active) return;
+      const nw = img.naturalWidth || 800;
+      const nh = img.naturalHeight || 600;
+      setDims({ w: nw, h: nh });
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const rad = (rotation * Math.PI) / 180;
+      const swap = rotation % 180 !== 0;
+      const rotW = swap ? nh : nw;
+      const rotH = swap ? nw : nh;
+
+      let targetW = rotW;
+      let targetH = rotH;
+      if (cropPreset === '1:1') {
+        const s = Math.min(rotW, rotH);
+        targetW = s;
+        targetH = s;
+      } else if (cropPreset === '4:3') {
+        if (rotW / rotH > 4 / 3) {
+          targetH = rotH;
+          targetW = Math.round((rotH * 4) / 3);
+        } else {
+          targetW = rotW;
+          targetH = Math.round((rotW * 3) / 4);
+        }
+      } else if (cropPreset === '3:4') {
+        if (rotW / rotH > 3 / 4) {
+          targetH = rotH;
+          targetW = Math.round((rotH * 3) / 4);
+        } else {
+          targetW = rotW;
+          targetH = Math.round((rotW * 4) / 3);
+        }
+      }
+
+      const maxDim = 1200;
+      const scale = Math.min(1, maxDim / Math.max(targetW, targetH));
+      canvas.width = Math.max(1, Math.round(targetW * scale));
+      canvas.height = Math.max(1, Math.round(targetH * scale));
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(rad);
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, -nw / 2, -nh / 2);
+      ctx.restore();
+    };
+    img.src = sourceUrl;
+    return () => {
+      active = false;
+    };
+  }, [sourceUrl, rotation, cropPreset]);
+
+  const handleReplaceFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setReplacementDataUrl(reader.result);
+        setRotation(0);
+        setCropPreset('original');
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setErrMsg(null);
+    try {
+      let newDataUrl: string | undefined;
+      let outW = dims.w;
+      let outH = dims.h;
+
+      const needsImageBinarySave = Boolean(replacementDataUrl || rotation !== 0 || cropPreset !== 'original');
+      if (needsImageBinarySave && canvasRef.current) {
+        newDataUrl = canvasRef.current.toDataURL('image/webp', 0.86);
+        outW = canvasRef.current.width;
+        outH = canvasRef.current.height;
+      }
+
+      const res = await updateAsset({
+        url: asset.url || asset.data,
+        title: title.trim(),
+        name: asset.name,
+        description: description.trim(),
+        category: category.trim(),
+        alt: alt.trim() || title.trim(),
+        width: outW || undefined,
+        height: outH || undefined,
+        newDataUrl,
+      });
+
+      if (!res.ok) {
+        setErrMsg(res.error || 'ذخیره تغییرات تصویر ناموفق بود.');
+        return;
+      }
+      onSaved(res.url);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[80] flex items-center justify-center p-4 text-right" dir="rtl" onClick={onClose}>
+      <div
+        className="bg-slate-900 border border-slate-700 text-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+          <div className="flex items-center gap-2">
+            <Edit className="w-4 h-4 text-amber-400" />
+            <h3 className="text-sm font-extrabold">ویرایش تصویر و مشخصات رسانه</h3>
+          </div>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5 overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Canvas Live Image Editor */}
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950 p-3 flex items-center justify-center min-h-[220px] max-h-[300px] overflow-hidden">
+              <canvas ref={canvasRef} className="max-w-full max-h-[260px] object-contain rounded-xl shadow-lg" />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setRotation((r) => (r + 90) % 360)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCw className="w-3.5 h-3.5 text-amber-400" />
+                <span>چرخش ۹۰°</span>
+              </button>
+
+              {(['original', '1:1', '4:3', '3:4'] as const).map((ratio) => (
+                <button
+                  key={ratio}
+                  type="button"
+                  onClick={() => setCropPreset(ratio)}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer ${
+                    cropPreset === ratio
+                      ? 'bg-amber-500 text-slate-950 border-amber-500'
+                      : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  {ratio === 'original' ? 'نسبت اصلی' : `برش ${ratio}`}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <input ref={replaceInputRef} type="file" accept="image/*" className="hidden" onChange={handleReplaceFile} />
+              <button
+                type="button"
+                onClick={() => replaceInputRef.current?.click()}
+                className="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>جایگزینی فایل تصویر جدید</span>
+              </button>
+              {dims.w > 0 && (
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {dims.w} × {dims.h}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Metadata Form */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-400 mb-1">عنوان محصول / تصویر</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-400 mb-1">دسته‌بندی</label>
+              <input
+                type="text"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-400 mb-1">متن جایگزین (Alt SEO)</label>
+              <input
+                type="text"
+                value={alt}
+                onChange={(e) => setAlt(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-400 mb-1">توضیحات</label>
+              <textarea
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            {asset.usedInCatalogs && asset.usedInCatalogs.length > 0 && (
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200 leading-relaxed">
+                این تصویر در {asset.usedInCatalogs.length.toLocaleString('fa-IR')} بخش از کاتالوگ‌ها استفاده شده است و پس از ذخیره در همان کاتالوگ‌ها هم بروزرسانی می‌شود.
+              </div>
+            )}
+
+            {errMsg && (
+              <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs">
+                {errMsg}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-end gap-2">
+          <Button type="button" onClick={onClose} variant="outline" className="text-slate-300 border-slate-700 hover:bg-slate-800 text-xs">
+            انصراف
+          </Button>
+          <Button type="button" onClick={handleSave} disabled={saving} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs">
+            {saving ? <RefreshCw className="w-3.5 h-3.5 ml-1.5 animate-spin" /> : <Save className="w-3.5 h-3.5 ml-1.5" />}
+            {saving ? 'در حال ذخیره...' : 'ذخیره تغییرات تصویر'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const MediaSelector = ({ 
   onSelect, 
+  onSelectAsset,
   onSelectMultiple, 
+  onSelectMultipleAssets,
   onClose, 
   multiple = false 
 }: { 
   onSelect: (url: string) => void;
+  onSelectAsset?: (asset: UploadedAsset) => void;
   onSelectMultiple?: (urls: string[]) => void;
+  onSelectMultipleAssets?: (assets: UploadedAsset[]) => void;
   onClose: () => void;
   multiple?: boolean;
 }) => {
-  const { assets, uploadAsset } = useContent();
+  const { assets, uploadAsset, deleteAsset, refreshAssets } = useContent();
   const [searchQuery, setSearchQuery] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'catalog' | 'media'>('all');
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [editingAsset, setEditingAsset] = useState<UploadedAsset | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  React.useEffect(() => {
+    void refreshAssets();
+  }, []);
+
   const filteredAssets = useMemo(() => {
-    return assets.filter(a => 
-      a.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [assets, searchQuery]);
+    const q = searchQuery.trim().toLowerCase();
+    return assets.filter((a) => {
+      if (sourceFilter === 'catalog' && a.source !== 'catalog' && !(a.usedInCatalogs && a.usedInCatalogs.length > 0)) {
+        return false;
+      }
+      if (sourceFilter === 'media' && a.source === 'catalog' && !(a.url || a.data).includes('/uploads/media/')) {
+        return false;
+      }
+      if (!q) return true;
+      const hay = `${a.title || ''} ${a.name || ''} ${a.category || ''} ${a.description || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [assets, searchQuery, sourceFilter]);
 
   const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -50,8 +344,9 @@ export const MediaSelector = ({
         const asset = await uploadAsset(file);
         if (asset) {
           if (multiple) {
-            setSelectedUrls(prev => [...prev, asset.data]);
+            setSelectedUrls((prev) => [...prev, asset.data]);
           } else {
+            if (onSelectAsset) onSelectAsset(asset);
             onSelect(asset.data);
             setIsUploading(false);
             return;
@@ -62,28 +357,39 @@ export const MediaSelector = ({
       console.error(err);
     } finally {
       setIsUploading(false);
+      e.target.value = '';
     }
   };
 
-  const handleToggleSelect = (url: string) => {
+  const handleToggleSelect = (asset: UploadedAsset) => {
+    const url = asset.data;
     if (multiple) {
-      setSelectedUrls(prev => 
-        prev.includes(url) ? prev.filter(u => u !== url) : [...prev, url]
+      setSelectedUrls((prev) =>
+        prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]
       );
     } else {
+      if (onSelectAsset) onSelectAsset(asset);
       onSelect(url);
     }
   };
 
   const handleConfirm = () => {
-    if (multiple && onSelectMultiple) {
-      onSelectMultiple(selectedUrls);
+    if (multiple) {
+      if (onSelectMultipleAssets) {
+        const selectedAssets = selectedUrls
+          .map((u) => assets.find((a) => a.data === u))
+          .filter((a): a is UploadedAsset => Boolean(a));
+        onSelectMultipleAssets(selectedAssets);
+      }
+      if (onSelectMultiple) {
+        onSelectMultiple(selectedUrls);
+      }
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[60] flex items-center justify-center p-4 text-right" dir="rtl">
-      <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col font-sans">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[60] flex items-center justify-center p-4 text-right" dir="rtl" onClick={onClose}>
+      <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[88vh] flex flex-col font-sans" onClick={(e) => e.stopPropagation()}>
         
         {/* Header */}
         <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900/60 rounded-t-3xl">
@@ -92,40 +398,64 @@ export const MediaSelector = ({
             <span>کتابخانه رسانه‌ها و انتخاب هوشمند تصویر</span>
             {multiple && <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px]">انتخاب چندگانه</Badge>}
           </h3>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
+          <button type="button" onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Search & Actions Bar */}
-        <div className="p-4 border-b border-slate-800 bg-slate-950/40 flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="جستجو در تصاویر..." 
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-9 pl-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-amber-500 outline-none"
-            />
+        {/* Search, Filter & Actions Bar */}
+        <div className="p-4 border-b border-slate-800 bg-slate-950/40 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="جستجو در عنوان، نام یا دسته‌بندی تصاویر..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-9 pl-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-amber-500 outline-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleUploadFile} 
+                className="hidden" 
+                accept="image/*" 
+                multiple
+              />
+              <Button 
+                type="button"
+                onClick={() => fileInputRef.current?.click()} 
+                disabled={isUploading} 
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs"
+              >
+                {isUploading ? <RefreshCw className="w-3.5 h-3.5 ml-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 ml-1.5" />}
+                {isUploading ? 'درحال آپلود...' : 'آپلود مستقیم در گالری'}
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleUploadFile} 
-              className="hidden" 
-              accept="image/*" 
-              multiple
-            />
-            <Button 
-              onClick={() => fileInputRef.current?.click()} 
-              disabled={isUploading} 
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs"
-            >
-              {isUploading ? <RefreshCw className="w-3.5 h-3.5 ml-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 ml-1.5" />}
-              {isUploading ? 'درحال آپلود...' : 'آپلود مستقیم در گالری'}
-            </Button>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { id: 'all' as const, label: 'همه تصاویر' },
+              { id: 'catalog' as const, label: 'تصاویر کاتالوگ‌ها' },
+              { id: 'media' as const, label: 'رسانه سایت' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSourceFilter(tab.id)}
+                className={`px-3 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer ${
+                  sourceFilter === tab.id
+                    ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -138,21 +468,22 @@ export const MediaSelector = ({
               <span className="text-[10px] text-slate-500 mt-1 block">می‌توانید همین حالا تصویر جدیدی را آپلود کنید.</span>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {filteredAssets.map(asset => {
                 const isSelected = selectedUrls.includes(asset.data);
+                const isConfirming = confirmDeleteId === asset.id;
                 return (
                   <div 
                     key={asset.id} 
-                    onClick={() => handleToggleSelect(asset.data)}
+                    onClick={() => !isConfirming && handleToggleSelect(asset)}
                     className={`relative group border rounded-2xl overflow-hidden cursor-pointer transition-all flex flex-col justify-between select-none ${
                       isSelected 
                         ? 'border-amber-500 ring-2 ring-amber-500 bg-amber-500/5' 
                         : 'border-slate-800 bg-slate-950/80 hover:border-slate-700'
                     }`}
                   >
-                    <div className="relative h-24 overflow-hidden bg-slate-900">
-                      <img src={asset.data} className="w-full h-full object-cover transition-transform group-hover:scale-105" alt={asset.name} referrerPolicy="no-referrer" />
+                    <div className="relative h-28 overflow-hidden bg-slate-900">
+                      <img src={asset.data} className="w-full h-full object-cover transition-transform group-hover:scale-105" alt={asset.alt || asset.name} referrerPolicy="no-referrer" />
                       {multiple && (
                         <div className={`absolute top-2 right-2 w-5 h-5 rounded-md flex items-center justify-center border transition-all ${
                           isSelected 
@@ -162,10 +493,67 @@ export const MediaSelector = ({
                           <Check className="w-3.5 h-3.5 stroke-[3]" />
                         </div>
                       )}
+                      {asset.usedInCatalogs && asset.usedInCatalogs.length > 0 && (
+                        <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-slate-950/85 border border-amber-500/40 text-[9px] font-bold text-amber-300">
+                          کاتالوگ ({asset.usedInCatalogs.length.toLocaleString('fa-IR')})
+                        </span>
+                      )}
+                      <div className="absolute top-2 left-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingAsset(asset);
+                          }}
+                          title="ویرایش تصویر"
+                          className="p-1.5 rounded-lg bg-slate-900/90 hover:bg-amber-500 text-white hover:text-slate-950 border border-slate-700 cursor-pointer"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmDeleteId(asset.id);
+                          }}
+                          title="حذف تصویر"
+                          className="p-1.5 rounded-lg bg-slate-900/90 hover:bg-rose-600 text-white border border-slate-700 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="p-1.5 text-[9px] truncate text-center text-slate-450 bg-slate-950 font-mono" title={asset.name}>
-                      {asset.name}
-                    </div>
+                    {isConfirming ? (
+                      <div className="p-2 bg-rose-950/80 border-t border-rose-500/30 flex items-center justify-between gap-1 text-[10px]" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await deleteAsset(asset.id, asset.url || asset.data, true);
+                            setSelectedUrls((prev) => prev.filter((u) => u !== asset.data));
+                            setConfirmDeleteId(null);
+                          }}
+                          className="px-2 py-1 rounded bg-rose-600 text-white font-bold cursor-pointer"
+                        >
+                          حذف قطعی
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="px-2 py-1 rounded bg-slate-800 text-slate-300 cursor-pointer"
+                        >
+                          انصراف
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="p-2 bg-slate-950">
+                        <div className="text-[11px] font-bold truncate text-slate-200" title={asset.title || asset.name}>
+                          {asset.title || asset.name}
+                        </div>
+                        <div className="text-[9px] truncate text-slate-500 mt-0.5">
+                          {asset.category || 'رسانه سایت'}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -180,10 +568,11 @@ export const MediaSelector = ({
               تعداد انتخاب شده: <strong className="text-amber-400 font-mono font-bold">{selectedUrls.length}</strong> تصویر
             </span>
             <div className="flex gap-2">
-              <Button onClick={onClose} variant="outline" className="text-slate-300 border-slate-750 hover:bg-slate-800 text-xs">
+              <Button type="button" onClick={onClose} variant="outline" className="text-slate-300 border-slate-750 hover:bg-slate-800 text-xs">
                 انصراف
               </Button>
               <Button 
+                type="button"
                 onClick={handleConfirm} 
                 disabled={selectedUrls.length === 0} 
                 className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs"
@@ -194,6 +583,17 @@ export const MediaSelector = ({
           </div>
         )}
       </div>
+
+      {editingAsset && (
+        <MediaAssetEditModal
+          asset={editingAsset}
+          onClose={() => setEditingAsset(null)}
+          onSaved={() => {
+            setEditingAsset(null);
+            void refreshAssets();
+          }}
+        />
+      )}
     </div>
   );
 };
@@ -232,7 +632,7 @@ export const BlogManager = () => {
         imageUrl: createSvgPlaceholder(topic || 'مطلب مجله اشک قلم')
       });
     } catch (e) {
-      alert("خطا در تولید محتوا");
+      console.error('خطا در تولید محتوا:', e);
     } finally {
       setIsGenerating(false);
     }
@@ -1255,14 +1655,14 @@ Disallow: /`}
   "name": "${globalSettings.siteName || 'مجتمع چاپ اشک قلم و بادیکاران توس'}",
   "image": "https://ashkghalam.ir/logo.png",
   "url": "https://ashkghalam.ir",
-  "telephone": "+985138400000",
+  "telephone": "09153108763",
   "address": {
     "@type": "PostalAddress",
     "addressLocality": "Mashhad",
     "addressCountry": "IR"
   },
   "sameAs": [
-    "https://badikaran.ir"
+    "https://ashkghalam.ir"
   ]
 }`}
                 </div>
@@ -1279,16 +1679,33 @@ Disallow: /`}
  * Component for managing catalog and portfolio images.
  */
 export const MediaManager = () => {
-  const { assets, uploadAsset, deleteAsset } = useContent();
+  const { assets, uploadAsset, deleteAsset, refreshAssets } = useContent();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCleaning, setIsCleaning] = useState(false);
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'catalog' | 'media'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
+  const [editingAsset, setEditingAsset] = useState<UploadedAsset | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  React.useEffect(() => {
+    void refreshAssets();
+  }, []);
+
+  const handleRefreshMedia = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshAssets();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleCleanupFiles = async () => {
     setIsCleaning(true);
@@ -1335,27 +1752,38 @@ export const MediaManager = () => {
     setTimeout(() => setCopiedId(null), 2500);
   };
 
-  const filteredAssets = assets.filter(a => 
-    a.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAssets = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return assets.filter((a) => {
+      if (sourceFilter === 'catalog' && a.source !== 'catalog' && !(a.usedInCatalogs && a.usedInCatalogs.length > 0)) {
+        return false;
+      }
+      if (sourceFilter === 'media' && a.source === 'catalog' && !(a.url || a.data).includes('/uploads/media/')) {
+        return false;
+      }
+      if (!q) return true;
+      const hay = `${a.title || ''} ${a.name || ''} ${a.category || ''} ${a.description || ''}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [assets, searchQuery, sourceFilter]);
 
   return (
     <div className="space-y-6 text-right" dir="rtl">
-      <Card className="p-6 bg-slate-900/80 border-slate-800 shadow-xl" title="آرشیو مرکزی رسانه، تصاویر و آپلود هوشمند">
+      <Card className="p-6 bg-slate-900/80 border-slate-800 shadow-xl" title="آرشیو مرکزی رسانه، تصاویر و مدیریت یکپارچه کاتالوگ‌ها">
         {/* Top Action & Search Bar */}
-        <div className="mb-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+        <div className="mb-4 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
           <div className="relative flex-1">
             <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
               type="text" 
-              placeholder="جستجو در نام فایل‌های آرشیو شده..." 
+              placeholder="جستجو در عنوان، دسته‌بندی یا نام فایل‌های رسانه و کاتالوگ..." 
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-9 pl-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 outline-none"
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -1364,15 +1792,52 @@ export const MediaManager = () => {
               accept="image/*" 
               multiple
             />
-            <Button onClick={handleCleanupFiles} disabled={isCleaning} className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700">
-              <Trash2 className={`w-3.5 h-3.5 ml-1.5 text-rose-400 ${isCleaning ? 'animate-spin' : ''}`} />
-              {isCleaning ? 'در حال پاکسازی...' : 'پاکسازی فایل‌های اضافی هاست'}
+            <Button type="button" onClick={handleRefreshMedia} disabled={isRefreshing} className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700">
+              <RefreshCw className={`w-3.5 h-3.5 ml-1.5 text-amber-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+              همگام‌سازی
             </Button>
-            <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/20">
+            <Button type="button" onClick={handleCleanupFiles} disabled={isCleaning} className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700">
+              <Trash2 className={`w-3.5 h-3.5 ml-1.5 text-rose-400 ${isCleaning ? 'animate-spin' : ''}`} />
+              {isCleaning ? 'در حال پاکسازی...' : 'پاکسازی فایل‌های اضافی'}
+            </Button>
+            <Button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/20">
               {isUploading ? <RefreshCw className="w-4 h-4 ml-2 animate-spin" /> : <Upload className="w-4 h-4 ml-2" />}
               {isUploading ? 'در حال پردازش...' : 'آپلود فایل‌های جدید'}
             </Button>
           </div>
+        </div>
+
+        {/* Filter Pills */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { id: 'all' as const, label: `همه تصاویر (${assets.length.toLocaleString('fa-IR')})` },
+              {
+                id: 'catalog' as const,
+                label: `تصاویر کاتالوگ‌ها (${assets.filter((a) => a.source === 'catalog' || (a.usedInCatalogs && a.usedInCatalogs.length > 0)).length.toLocaleString('fa-IR')})`,
+              },
+              {
+                id: 'media' as const,
+                label: `رسانه سایت (${assets.filter((a) => a.source !== 'catalog').length.toLocaleString('fa-IR')})`,
+              },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSourceFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                  sourceFilter === tab.id
+                    ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <span className="text-[11px] text-slate-400">
+            تمامی ویرایش‌ها و حذف تصاویر کاتالوگ به‌صورت مستقیم روی فایل‌های سرور و کاتالوگ‌ها اعمال می‌شود.
+          </span>
         </div>
 
         {cleanupMessage && (
@@ -1390,22 +1855,22 @@ export const MediaManager = () => {
             setIsDragging(false);
             if (e.dataTransfer.files) handleUploadFiles(e.dataTransfer.files);
           }}
-          className={`p-6 border-2 border-dashed rounded-2xl mb-6 transition-all text-center flex flex-col items-center justify-center gap-2 ${
+          className={`p-5 border-2 border-dashed rounded-2xl mb-6 transition-all text-center flex flex-col items-center justify-center gap-2 ${
             isDragging ? 'border-indigo-500 bg-indigo-500/10' : 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
           }`}
         >
-          <Upload className={`w-8 h-8 ${isDragging ? 'text-indigo-400 animate-bounce' : 'text-slate-600'}`} />
+          <Upload className={`w-7 h-7 ${isDragging ? 'text-indigo-400 animate-bounce' : 'text-slate-600'}`} />
           <p className="text-xs font-bold text-slate-300">
-            فایل‌های تصویر را به این کادر بکشید و رها کنید (Drag & Drop) یا روی کلید آپلود کلیک کنید
+            فایل‌های تصویر را به این کادر بکشید و رها کنید یا روی کلید آپلود کلیک کنید
           </p>
-          <span className="text-[10px] text-slate-500">پشتیبانی از فرمت‌های PNG, JPG, WebP, SVG</span>
+          <span className="text-[10px] text-slate-500">پشتیبانی از فرمت‌های PNG, JPG, WebP, SVG · ذخیره دائمی در پوشه uploads/media هاست</span>
         </div>
 
         {/* Progress Bar */}
         {isUploading && (
           <div className="mb-6 bg-slate-950 p-4 rounded-2xl border border-indigo-500/30">
             <div className="flex justify-between text-xs text-indigo-300 font-bold mb-2">
-              <span>در حال بهینه‌سازی و آپلود فایل‌ها...</span>
+              <span>در حال بهینه‌سازی و آپلود فایل‌ها در سرور...</span>
               <span className="font-mono">{uploadProgress}%</span>
             </div>
             <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
@@ -1424,35 +1889,88 @@ export const MediaManager = () => {
             <p className="text-xs font-bold text-slate-400">هیچ فایلی در این بخش یافت نشد.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {filteredAssets.map(asset => (
-              <div key={asset.id} className="relative group border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/80 shadow-md hover:border-indigo-500/50 transition-all flex flex-col justify-between">
-                <div className="relative h-28 overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setPreviewImage({ url: asset.data, name: asset.name })}>
-                  <img src={asset.data} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={asset.name} referrerPolicy="no-referrer" />
-                  
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <button 
-                      onClick={e => { e.stopPropagation(); copyToClipboard(asset.data, asset.id); }} 
-                      className={`p-2 rounded-xl text-white transition-colors ${copiedId === asset.id ? 'bg-emerald-600' : 'bg-indigo-600 hover:bg-indigo-500'}`} 
-                      title={copiedId === asset.id ? 'کپی شد!' : 'کپی لینک'}
-                    >
-                      {copiedId === asset.id ? <Check className="w-4 h-4" /> : <Link className="w-4 h-4" />}
-                    </button>
-                    <button 
-                      onClick={e => { e.stopPropagation(); deleteAsset(asset.id); }} 
-                      className="bg-red-600 hover:bg-red-500 text-white p-2 rounded-xl transition-colors" 
-                      title="حذف فایل"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {filteredAssets.map(asset => {
+              const isConfirmingDel = confirmDeleteId === asset.id;
+              const usageCount = asset.usedInCatalogs?.length || 0;
+              return (
+                <div key={asset.id} className="relative group border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/80 shadow-md hover:border-amber-500/50 transition-all flex flex-col justify-between">
+                  <div className="relative h-32 overflow-hidden bg-slate-900 cursor-pointer" onClick={() => setPreviewImage({ url: asset.data, name: asset.title || asset.name })}>
+                    <img src={asset.data} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={asset.alt || asset.name} referrerPolicy="no-referrer" />
+                    
+                    {usageCount > 0 && (
+                      <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-slate-950/85 border border-amber-500/40 text-[9px] font-bold text-amber-300">
+                        کاتالوگ ({usageCount.toLocaleString('fa-IR')})
+                      </span>
+                    )}
+
+                    <div className="absolute inset-0 bg-black/65 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                      <button 
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setEditingAsset(asset); }} 
+                        className="p-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition-colors cursor-pointer" 
+                        title="ویرایش تصویر و مشخصات"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={e => { e.stopPropagation(); copyToClipboard(asset.data, asset.id); }} 
+                        className={`p-2 rounded-xl text-white transition-colors cursor-pointer ${copiedId === asset.id ? 'bg-emerald-600' : 'bg-indigo-600 hover:bg-indigo-500'}`} 
+                        title={copiedId === asset.id ? 'کپی شد!' : 'کپی لینک'}
+                      >
+                        {copiedId === asset.id ? <Check className="w-4 h-4" /> : <Link className="w-4 h-4" />}
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setConfirmDeleteId(asset.id); }} 
+                        className="bg-red-600 hover:bg-red-500 text-white p-2 rounded-xl transition-colors cursor-pointer" 
+                        title="حذف فایل"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
+
+                  {isConfirmingDel ? (
+                    <div className="p-2.5 bg-rose-950/80 border-t border-rose-500/30 space-y-2 text-[10px]">
+                      <div className="text-rose-200 font-bold leading-snug">
+                        {usageCount > 0 ? 'این تصویر از سرور و کاتالوگ‌ها حذف می‌شود. مطمئنید؟' : 'حذف از سرور و رسانه؟'}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await deleteAsset(asset.id, asset.url || asset.data, true);
+                            setConfirmDeleteId(null);
+                          }}
+                          className="flex-1 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold cursor-pointer"
+                        >
+                          تایید حذف
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="flex-1 py-1 rounded bg-slate-800 text-slate-300 cursor-pointer"
+                        >
+                          انصراف
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 bg-slate-950 space-y-1">
+                      <div className="text-[11px] font-bold truncate text-slate-200" title={asset.title || asset.name}>
+                        {asset.title || asset.name}
+                      </div>
+                      <div className="flex items-center justify-between text-[9px] text-slate-500">
+                        <span className="truncate">{asset.category || 'رسانه سایت'}</span>
+                        {asset.size > 0 && <span className="font-mono shrink-0">{Math.max(1, Math.round(asset.size / 1024))}KB</span>}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                
-                <div className="p-2 text-[10px] truncate text-center text-slate-400 font-mono bg-slate-950" title={asset.name}>
-                  {asset.name}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>
@@ -1462,20 +1980,31 @@ export const MediaManager = () => {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}>
           <div className="relative bg-slate-900 border border-slate-800 rounded-3xl p-4 max-w-3xl w-full max-h-[90vh] flex flex-col items-center space-y-4" onClick={e => e.stopPropagation()}>
             <div className="w-full flex justify-between items-center pb-2 border-b border-slate-800 text-slate-200">
-              <span className="text-xs font-mono font-bold truncate max-w-md">{previewImage.name}</span>
-              <button onClick={() => setPreviewImage(null)} className="p-1.5 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white">
+              <span className="text-xs font-bold truncate max-w-md">{previewImage.name}</span>
+              <button type="button" onClick={() => setPreviewImage(null)} className="p-1.5 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <img src={previewImage.url} alt={previewImage.name} className="max-h-[70vh] object-contain rounded-2xl shadow-2xl border border-slate-800" referrerPolicy="no-referrer" />
             <div className="w-full flex justify-end gap-2">
-              <Button onClick={() => copyToClipboard(previewImage.url, 'prev')} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">
+              <Button type="button" onClick={() => copyToClipboard(previewImage.url, 'prev')} className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">
                 <Link className="w-4 h-4 ml-1.5" />
                 کپی آدرس لینک تصویر
               </Button>
             </div>
           </div>
         </div>
+      )}
+
+      {editingAsset && (
+        <MediaAssetEditModal
+          asset={editingAsset}
+          onClose={() => setEditingAsset(null)}
+          onSaved={() => {
+            setEditingAsset(null);
+            void refreshAssets();
+          }}
+        />
       )}
     </div>
   );
@@ -1486,7 +2015,7 @@ export const MediaManager = () => {
  */
 export const IntegrationHub = () => {
   const [jdfEnabled, setJdfEnabled] = useState(true);
-  const [jdfServerUrl, setJdfServerUrl] = useState('https://jdf.ashkghalam.com/v1/jobs');
+  const [jdfServerUrl, setJdfServerUrl] = useState('https://ashkghalam.ir/v1/jobs');
   const [apiKey, setApiKey] = useState('ag_live_' + Math.random().toString(36).substring(2, 12));
   const [isTestingPing, setIsTestingPing] = useState(false);
   const [pingStatus, setPingStatus] = useState<string | null>(null);

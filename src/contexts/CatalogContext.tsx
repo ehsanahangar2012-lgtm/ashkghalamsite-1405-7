@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { catalogService, CatalogItem } from '../services/catalogService';
 import { fetchPublishedProject } from '../services/projectStorageService';
+import { apiFetch } from '../utils/apiClient';
 import { CatalogProject } from '../types/flipbook';
 
 const DEFAULT_CATEGORIES: string[] = [
@@ -158,6 +159,17 @@ export const CatalogProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [performFetch]
   );
 
+  useEffect(() => {
+    const handleMediaSync = () => {
+      flipbookCacheRef.current.clear();
+      if (hasLoadedAdminRef.current || hasLoadedPublicRef.current) {
+        void performFetch(hasLoadedAdminRef.current);
+      }
+    };
+    window.addEventListener('ashk-media-synced', handleMediaSync);
+    return () => window.removeEventListener('ashk-media-synced', handleMediaSync);
+  }, [performFetch]);
+
   // Optimistic instant toggle so admin switches respond in 0ms without blocking or re-fetching
   const toggleCatalogStatus = useCallback(
     async (
@@ -221,8 +233,8 @@ export const CatalogProvider: React.FC<{ children: React.ReactNode }> = ({ child
     async (id: string | number, flipbookId?: string): Promise<void> => {
       await catalogService.deleteCatalogItem(id);
       if (flipbookId) {
-        await fetch(`/api/flipbooks/${encodeURIComponent(flipbookId)}`, {
-          method: 'DELETE',
+        await apiFetch(`flipbooks/${encodeURIComponent(flipbookId)}/delete`, {
+          method: 'POST',
         }).catch(() => {});
         flipbookCacheRef.current.delete(flipbookId);
       }

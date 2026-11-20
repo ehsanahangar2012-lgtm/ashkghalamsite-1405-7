@@ -1,7 +1,7 @@
-// Service Worker for Ashk Ghalam v3.13.0 (Offline PWA)
-const CACHE_NAME = 'ashkghalam-v3.13.0';
+// Service Worker for Ashk Ghalam v3.25.0 (Offline PWA)
+const CACHE_NAME = 'ashkghalam-v3.25.0';
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -17,8 +17,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Let browser handle normal requests; if offline, fallback to cache
+  // Let browser handle normal requests; skip API/PHP routes; if offline, fallback to cache
   if (event.request.method !== 'GET') return;
+  const url = event.request.url || '';
+  if (url.includes('/api/') || url.includes('api.php')) return;
   event.respondWith(
     fetch(event.request).catch(() => {
       return caches.match(event.request);

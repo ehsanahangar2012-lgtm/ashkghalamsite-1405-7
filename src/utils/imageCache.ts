@@ -108,7 +108,7 @@ export function createSvgPlaceholder(title: string = "کاتالوگ اشک قل
     <text x="50%" y="620" font-family="Tahoma, Arial, sans-serif" font-size="28" font-weight="bold" fill="#f8fafc" text-anchor="middle" direction="rtl">${safeTitle}</text>
     <text x="50%" y="670" font-family="Tahoma, Arial, sans-serif" font-size="18" fill="#f59e0b" text-anchor="middle" direction="rtl">${pageText || 'اشک قلم - صنایع چاپ و بسته‌بندی'}</text>
     <rect x="250" y="720" width="300" height="2" fill="url(#gold_${pageNum || 0})" opacity="0.6" />
-    <text x="50%" y="1030" font-family="Tahoma, Arial, sans-serif" font-size="14" fill="#64748b" text-anchor="middle" direction="rtl">www.ashkghalam.ir</text>
+    <text x="50%" y="1030" font-family="Tahoma, Arial, sans-serif" font-size="14" fill="#64748b" text-anchor="middle" direction="rtl">https://ashkghalam.ir</text>
   </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

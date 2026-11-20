@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { CoverDesignConfig } from '../../types/flipbook';
+import { getUploadFallbackUrl } from '../../utils/catalogAssets';
 
 interface BookCoverRendererProps {
   side: 'front' | 'back';
@@ -10,14 +11,32 @@ interface BookCoverRendererProps {
 export const BookCoverRenderer = React.forwardRef<HTMLDivElement, BookCoverRendererProps>(
   ({ side, cover, pageCount }, ref) => {
     const customImage = side === 'front' ? cover.frontCustomImageUrl : cover.backCustomImageUrl;
-    const isFullImage = Boolean(customImage) || cover.templateId === 'full-image';
-    const hasBackdropImage = Boolean(customImage);
+    const [bgSrc, setBgSrc] = useState<string | undefined>(customImage);
+    const [bgFailed, setBgFailed] = useState(false);
+    const [bgRetried, setBgRetried] = useState(false);
+
+    const [logoSrc, setLogoSrc] = useState<string | undefined>(cover.logoDataUrl);
+    const [logoFailed, setLogoFailed] = useState(false);
+    const [logoRetried, setLogoRetried] = useState(false);
+
+    useEffect(() => {
+      setBgSrc(customImage);
+      setBgFailed(false);
+      setBgRetried(false);
+    }, [customImage]);
+
+    useEffect(() => {
+      setLogoSrc(cover.logoDataUrl);
+      setLogoFailed(false);
+      setLogoRetried(false);
+    }, [cover.logoDataUrl]);
+
+    const hasBackdropImage = Boolean(bgSrc) && !bgFailed;
+    const isFullImage = hasBackdropImage || cover.templateId === 'full-image';
 
     const baseBgStyle: React.CSSProperties = hasBackdropImage
       ? {
-          backgroundImage: `linear-gradient(to top, rgba(0,0,0,0.84) 0%, rgba(0,0,0,0.38) 52%, rgba(0,0,0,0.22) 100%), url(${customImage})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundColor: cover.primaryColor,
           color: '#ffffff',
         }
       : {
@@ -30,6 +49,49 @@ export const BookCoverRenderer = React.forwardRef<HTMLDivElement, BookCoverRende
     const isModern = cover.templateId === 'modern-grid' && !hasBackdropImage;
     const isArtisan = cover.templateId === 'artisan-warm' && !hasBackdropImage;
 
+    const handleBgError = () => {
+      if (!bgRetried) {
+        const fb = getUploadFallbackUrl(bgSrc);
+        if (fb) {
+          setBgRetried(true);
+          setBgSrc(fb);
+          return;
+        }
+      }
+      setBgFailed(true);
+    };
+
+    const handleLogoError = () => {
+      if (!logoRetried) {
+        const fb = getUploadFallbackUrl(logoSrc);
+        if (fb) {
+          setLogoRetried(true);
+          setLogoSrc(fb);
+          return;
+        }
+      }
+      setLogoFailed(true);
+    };
+
+    const backdropLayer = hasBackdropImage && bgSrc ? (
+      <>
+        <img
+          src={bgSrc}
+          alt=""
+          referrerPolicy="no-referrer"
+          onError={handleBgError}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(to top, rgba(0,0,0,0.84) 0%, rgba(0,0,0,0.38) 52%, rgba(0,0,0,0.22) 100%)',
+          }}
+        />
+      </>
+    ) : null;
+
     if (side === 'back') {
       return (
         <div
@@ -39,6 +101,7 @@ export const BookCoverRenderer = React.forwardRef<HTMLDivElement, BookCoverRende
           className="flip-page-sheet relative w-full h-full overflow-hidden flex flex-col justify-between p-6 md:p-8 text-center"
           style={baseBgStyle}
         >
+          {backdropLayer}
           {/* Decorative template borders */}
           {isLuxury && (
             <div
@@ -59,10 +122,12 @@ export const BookCoverRenderer = React.forwardRef<HTMLDivElement, BookCoverRende
           </div>
 
           <div className="relative z-10 my-auto max-w-[260px] mx-auto space-y-4">
-            {cover.logoDataUrl && (
+            {logoSrc && !logoFailed && (
               <img
-                src={cover.logoDataUrl}
+                src={logoSrc}
                 alt={cover.brandName || 'لوگو'}
+                referrerPolicy="no-referrer"
+                onError={handleLogoError}
                 className="max-h-12 max-w-[140px] mx-auto object-contain"
               />
             )}
@@ -98,6 +163,7 @@ export const BookCoverRenderer = React.forwardRef<HTMLDivElement, BookCoverRende
         className="flip-page-sheet relative w-full h-full overflow-hidden flex flex-col justify-between p-6 md:p-8"
         style={baseBgStyle}
       >
+        {backdropLayer}
         {/* Template-specific architectural framing */}
         {isLuxury && (
           <>
@@ -162,10 +228,12 @@ export const BookCoverRenderer = React.forwardRef<HTMLDivElement, BookCoverRende
             isModern ? 'text-right pr-3' : 'text-center items-center'
           }`}
         >
-          {cover.logoDataUrl && (
+          {logoSrc && !logoFailed && (
             <img
-              src={cover.logoDataUrl}
+              src={logoSrc}
               alt={cover.brandName || 'لوگو برند'}
+              referrerPolicy="no-referrer"
+              onError={handleLogoError}
               className="max-h-14 max-w-[150px] object-contain"
             />
           )}

@@ -42,6 +42,7 @@ const AboutUs = lazy(() => import('./components/AboutUs').then(m => ({ default: 
 const Library = lazy(() => import('./components/Library').then(m => ({ default: m.Library })));
 const SoftwareMarketplace = lazy(() => import('./components/SoftwareMarketplace').then(m => ({ default: m.SoftwareMarketplace })));
 const CustomPageView = lazy(() => import('./components/CustomPageView').then(m => ({ default: m.CustomPageView })));
+const DownloadReleasePage = lazy(() => import('./components/DownloadReleasePage').then(m => ({ default: m.DownloadReleasePage })));
 
 import {
   Menu, X, Home, Grid, Users, Moon, Sun, MessageSquare,
@@ -470,7 +471,13 @@ const ChatWidget = () => {
 const ContactFloaters = () => {
   const { siteContent } = useContent();
   const [expanded, setExpanded] = useState(false);
-  const phoneClean = siteContent.contactPhone.replace(/[^0-9]/g, '');
+  const normalizeDigits = (val: string) =>
+    val
+      .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+      .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  const rawDigits = normalizeDigits(siteContent.contactPhone || '').replace(/[^0-9]/g, '');
+  const phoneClean = rawDigits || '09153108763';
+  const waNumber = phoneClean.startsWith('0') ? `98${phoneClean.slice(1)}` : phoneClean;
 
   return (
     <div className="fixed bottom-[4.15rem] left-2.5 md:bottom-5 md:left-5 z-40 flex items-center gap-2">
@@ -503,7 +510,7 @@ const ContactFloaters = () => {
             </a>
 
             <a
-              href={`https://wa.me/${phoneClean}`}
+              href={`https://wa.me/${waNumber}`}
               target="_blank"
               rel="noopener noreferrer"
               title="واتساپ"
@@ -1104,6 +1111,10 @@ const AppContent = () => {
             />
             <Route path="/admin-panel" element={<Navigate to="/admin" replace />} />
             <Route path="/b2b" element={<Navigate to="/services" replace />} />
+            <Route path="/download" element={<DownloadReleasePage />} />
+            <Route path="/downloads" element={<Navigate to="/download" replace />} />
+            <Route path="/release" element={<Navigate to="/download" replace />} />
+            <Route path="/cpanel" element={<Navigate to="/download" replace />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>

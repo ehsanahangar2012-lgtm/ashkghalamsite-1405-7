@@ -20,15 +20,17 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const APP_VERSION = '3.19.0';
+const APP_VERSION = '3.25.0';
 const CATALOGS_FILE = path.join(__dirname, 'catalogs.json');
 const INQUIRIES_FILE = path.join(__dirname, 'inquiries.json');
 const SETTINGS_FILE = path.join(__dirname, 'settings.json');
 const POSTS_FILE = path.join(__dirname, 'posts.json');
 const SEO_STATE_FILE = path.join(__dirname, 'seo-state.json');
 const FLIPBOOKS_FILE = path.join(__dirname, 'flipbooks.json');
+const MEDIA_META_FILE = path.join(__dirname, 'media-meta.json');
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const FLIPBOOK_UPLOADS_DIR = path.join(UPLOADS_DIR, 'flipbooks');
+const MEDIA_UPLOADS_DIR = path.join(UPLOADS_DIR, 'media');
 
 function readJsonFile<T>(filePath: string, fallback: T): T {
   try {
@@ -184,7 +186,114 @@ function getServerGemini(): GoogleGenAI | null {
 async function startServer() {
   const app = express();
   app.use(cors());
+
+  const parseMultipartFields = (rawBuf: Buffer, contentType: string): Record<string, { value: Buffer; filename?: string }> => {
+    const fields: Record<string, { value: Buffer; filename?: string }> = {};
+    const boundaryMatch = contentType.match(/boundary=([^\s;]+)/i);
+    if (!boundaryMatch) return fields;
+    const boundary = boundaryMatch[1].replace(/^["']|["']$/g, '');
+    const delim = Buffer.from(`--${boundary}`);
+    const headerEndBuf = Buffer.from('\r\n\r\n');
+    let pos = rawBuf.indexOf(delim);
+    while (pos >= 0) {
+      const nextHeaderStart = pos + delim.length;
+      if (rawBuf.slice(nextHeaderStart, nextHeaderStart + 2).toString() === '--') break;
+      const lineBreak = rawBuf.indexOf('\r\n', nextHeaderStart);
+      if (lineBreak < 0) break;
+      const headerEnd = rawBuf.indexOf(headerEndBuf, lineBreak + 2);
+      if (headerEnd < 0) break;
+      const headersText = rawBuf.slice(lineBreak + 2, headerEnd).toString('utf-8');
+      const bodyStart = headerEnd + 4;
+      const nextDelim = rawBuf.indexOf(Buffer.from(`\r\n--${boundary}`), bodyStart);
+      if (nextDelim < 0) break;
+      const nameMatch = headersText.match(/name="([^"]+)"/i);
+      const fnMatch = headersText.match(/filename="([^"]*)"/i);
+      if (nameMatch) {
+        fields[nameMatch[1]] = {
+          value: rawBuf.slice(bodyStart, nextDelim),
+          filename: fnMatch ? fnMatch[1] : undefined,
+        };
+      }
+      pos = nextDelim + 2;
+    }
+    return fields;
+  };
+
+  // Rewrite /api.php?r=... BEFORE body parsers so binary multipart uploads reach express.raw routes untouched
+  app.use((req, _res, next) => {
+    if (req.path === '/api.php' || req.path.startsWith('/api.php/')) {
+      const q = req.query as Record<string, unknown>;
+      const fromQuery = typeof q.r === 'string' ? q.r : typeof q._route === 'string' ? q._route : '';
+      const fromHeader = typeof req.headers['x-api-route'] === 'string' ? req.headers['x-api-route'] : '';
+      const fromPath = req.path.replace(/^\/api\.php\/?/, '');
+      const route = (fromQuery || fromHeader || fromPath).replace(/^\/+/, '');
+      if (route) {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(q)) {
+          if (k === 'r' || k === '_route') continue;
+          if (Array.isArray(v)) {
+            v.forEach((item) => params.append(k, String(item)));
+          } else if (v !== undefined) {
+            params.append(k, String(v));
+          }
+        }
+        const qs = params.toString();
+        const rawCt = String(req.headers['content-type'] || '');
+        const ctLower = rawCt.toLowerCase();
+        const isImageUploadRoute = route === 'flipbooks/upload-image' || route === 'media/upload';
+
+        if (ctLower.includes('multipart/form-data') && !isImageUploadRoute) {
+          const chunks: Buffer[] = [];
+          req.on('data', (chunk: Buffer) => chunks.push(chunk));
+          req.on('end', () => {
+            const rawBuf = Buffer.concat(chunks);
+            const parts = parseMultipartFields(rawBuf, rawCt);
+            const enc = parts._encoding?.value.toString('utf-8').trim().toLowerCase() || '';
+            if (parts.payload_file) {
+              const rawText = parts.payload_file.value.toString('utf-8').trim();
+              try {
+                const jsonText = enc === 'b64' && !rawText.startsWith('{') && !rawText.startsWith('[')
+                  ? Buffer.from(rawText, 'base64').toString('utf-8')
+                  : rawText;
+                (req as any).body = JSON.parse(jsonText);
+                (req as any)._body = true;
+              } catch {
+                (req as any).body = {};
+                (req as any)._body = true;
+              }
+            }
+            req.url = `/api/${route}${qs ? `?${qs}` : ''}`;
+            next();
+          });
+          req.on('error', next);
+          return;
+        }
+
+        req.url = `/api/${route}${qs ? `?${qs}` : ''}`;
+      }
+    }
+    next();
+  });
+
   app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  // Decode WAF-bypass base64 payloads (_b64 / payload_b64) sent via JSON or URL-encoded forms
+  app.use((req, _res, next) => {
+    const body = req.body as Record<string, unknown> | undefined;
+    if (body && typeof body === 'object' && !Array.isArray(body)) {
+      const b64 = typeof body._b64 === 'string' ? body._b64 : typeof body.payload_b64 === 'string' ? body.payload_b64 : '';
+      if (b64) {
+        try {
+          const decoded = Buffer.from(b64.trim(), 'base64').toString('utf-8');
+          req.body = JSON.parse(decoded);
+        } catch {
+          // leave original body intact if not valid base64 JSON
+        }
+      }
+    }
+    next();
+  });
 
   // Health Endpoint
   app.get('/api/health', (_req, res) => {
@@ -300,7 +409,7 @@ async function startServer() {
     }
   });
 
-  app.patch('/api/catalogs/:id/status', (req, res) => {
+  const handleToggleCatalogStatus = (req: express.Request, res: express.Response) => {
     const targetId = req.params.id;
     const all = readJsonFile<any[]>(CATALOGS_FILE, []);
     const idx = all.findIndex((c) => String(c.id) === String(targetId));
@@ -321,16 +430,22 @@ async function startServer() {
     writeJsonFile(CATALOGS_FILE, all);
     buildSitemapAndRobots();
     return res.json(all[idx]);
-  });
+  };
 
-  app.delete('/api/catalogs/:id', (req, res) => {
+  app.patch('/api/catalogs/:id/status', handleToggleCatalogStatus);
+  app.post('/api/catalogs/:id/status', handleToggleCatalogStatus);
+
+  const handleDeleteCatalog = (req: express.Request, res: express.Response) => {
     const targetId = req.params.id;
     const all = readJsonFile<any[]>(CATALOGS_FILE, []);
     const next = all.filter((c) => String(c.id) !== String(targetId));
     writeJsonFile(CATALOGS_FILE, next);
     buildSitemapAndRobots();
     res.json({ deleted: true, count: next.length });
-  });
+  };
+
+  app.delete('/api/catalogs/:id', handleDeleteCatalog);
+  app.post('/api/catalogs/:id/delete', handleDeleteCatalog);
 
   // Real Blog Posts CRUD backed by posts.json
   app.get('/api/posts', (req, res) => {
@@ -364,7 +479,7 @@ async function startServer() {
     return res.json(record);
   });
 
-  app.patch('/api/posts/:id/status', async (req, res) => {
+  const handlePostStatus = async (req: express.Request, res: express.Response) => {
     const targetId = req.params.id;
     const nextStatus = req.body?.status;
     if (!['draft', 'published', 'rejected'].includes(nextStatus)) {
@@ -392,16 +507,22 @@ async function startServer() {
       ]);
     }
     return res.json({ post: all[idx], notifyResult });
-  });
+  };
 
-  app.delete('/api/posts/:id', (req, res) => {
+  app.patch('/api/posts/:id/status', handlePostStatus);
+  app.post('/api/posts/:id/status', handlePostStatus);
+
+  const handleDeletePost = (req: express.Request, res: express.Response) => {
     const targetId = req.params.id;
     const all = readJsonFile<any[]>(POSTS_FILE, []);
     const next = all.filter((p) => String(p.id) !== String(targetId));
     writeJsonFile(POSTS_FILE, next);
     buildSitemapAndRobots();
     res.json({ deleted: true, count: next.length });
-  });
+  };
+
+  app.delete('/api/posts/:id', handleDeletePost);
+  app.post('/api/posts/:id/delete', handleDeletePost);
 
   // SEO Worker & Audit Endpoints
   app.get('/api/seo/report', (_req, res) => {
@@ -706,30 +827,93 @@ async function startServer() {
   });
 
   // Upload individual flipbook image asset as a static file so /api/flipbooks stays lightweight (<5KB JSON)
-  app.post('/api/flipbooks/upload-image', (req, res) => {
-    try {
-      const dataUrl = String(req.body?.dataUrl || '').trim();
-      const match = dataUrl.match(/^data:image\/(webp|jpeg|jpg|png|gif);base64,(.+)$/i);
-      if (!match) {
-        return res.status(400).json({ error: 'فرمت تصویر نامعتبر است.' });
+  app.post(
+    '/api/flipbooks/upload-image',
+    express.raw({ type: 'multipart/form-data', limit: '25mb' }),
+    (req, res) => {
+      try {
+        let ext = 'webp';
+        let buffer: Buffer | null = null;
+        let jsonBody: Record<string, any> | null = null;
+        if (!Buffer.isBuffer(req.body) && req.body && typeof req.body === 'object') {
+          jsonBody = req.body as any;
+        } else if (Buffer.isBuffer(req.body)) {
+          try {
+            const rawTxt = req.body.toString('utf-8').trim();
+            if (rawTxt.startsWith('{') || rawTxt.startsWith('[')) {
+              jsonBody = JSON.parse(rawTxt);
+            }
+          } catch {}
+        }
+
+        // Path A: multipart/form-data binary upload OR Stage-3 WAF-bypass payload_file
+        const ct = String(req.headers['content-type'] || '');
+        if (ct.toLowerCase().includes('multipart/form-data') && Buffer.isBuffer(req.body)) {
+          const parts = parseMultipartFields(req.body, ct);
+          const filePart =
+            parts.file ||
+            Object.entries(parts).find(([key, part]) => key !== 'payload_file' && Boolean(part.filename))?.[1];
+
+          if (filePart && filePart.value.length > 0) {
+            buffer = filePart.value;
+            const fnExt = (filePart.filename || '').split('.').pop()?.toLowerCase() || '';
+            if (['webp', 'jpg', 'jpeg', 'png', 'gif'].includes(fnExt)) {
+              ext = fnExt === 'jpeg' ? 'jpg' : fnExt;
+            } else if (buffer.slice(0, 4).toString('ascii') === 'RIFF' && buffer.slice(8, 12).toString('ascii') === 'WEBP') {
+              ext = 'webp';
+            } else if (buffer[0] === 0x89 && buffer[1] === 0x50) {
+              ext = 'png';
+            } else if (buffer[0] === 0xff && buffer[1] === 0xd8) {
+              ext = 'jpg';
+            } else if (buffer.slice(0, 4).toString('ascii') === 'GIF8') {
+              ext = 'gif';
+            } else {
+              ext = 'webp';
+            }
+          } else if (parts.payload_file) {
+            const enc = parts._encoding?.value.toString('utf-8').trim().toLowerCase() || '';
+            const rawText = parts.payload_file.value.toString('utf-8').trim();
+            try {
+              const decodedText =
+                (enc === 'b64' || enc === 'base64') && !rawText.startsWith('{') && !rawText.startsWith('[')
+                  ? Buffer.from(rawText, 'base64').toString('utf-8')
+                  : rawText;
+              jsonBody = JSON.parse(decodedText);
+            } catch {
+              jsonBody = null;
+            }
+          }
+        }
+
+        // Path B: JSON dataUrl fallback (direct JSON, Stage-3 payload_file, or Stage-4 _b64)
+        if (!buffer) {
+          const dataUrl = String(jsonBody?.dataUrl || '').trim();
+          const b64Marker = ';base64,';
+          const markerIdx = dataUrl.toLowerCase().indexOf(b64Marker);
+          if (!dataUrl.toLowerCase().startsWith('data:image/') || markerIdx < 0) {
+            return res.status(400).json({ error: 'فرمت تصویر نامعتبر است.' });
+          }
+          const mimeRaw = dataUrl.slice('data:image/'.length, markerIdx).split(';')[0].trim().toLowerCase();
+          ext = mimeRaw === 'jpeg' ? 'jpg' : ['webp', 'jpg', 'png', 'gif'].includes(mimeRaw) ? mimeRaw : 'webp';
+          buffer = Buffer.from(dataUrl.slice(markerIdx + b64Marker.length).replace(/\s+/g, ''), 'base64');
+        }
+
+        if (!buffer || buffer.length === 0) {
+          return res.status(400).json({ error: 'داده تصویر خالی است.' });
+        }
+        if (!fs.existsSync(FLIPBOOK_UPLOADS_DIR)) {
+          fs.mkdirSync(FLIPBOOK_UPLOADS_DIR, { recursive: true });
+        }
+        const fileName = `fb-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
+        const targetPath = path.join(FLIPBOOK_UPLOADS_DIR, fileName);
+        fs.writeFileSync(targetPath, buffer);
+        return res.json({ ok: true, url: `/uploads/flipbooks/${fileName}`, bytes: buffer.length });
+      } catch (err) {
+        console.error('Failed saving flipbook image:', err);
+        return res.status(500).json({ error: 'ذخیره فایل تصویر روی سرور با خطا مواجه شد.' });
       }
-      const ext = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
-      const buffer = Buffer.from(match[2], 'base64');
-      if (!buffer || buffer.length === 0) {
-        return res.status(400).json({ error: 'داده تصویر خالی است.' });
-      }
-      if (!fs.existsSync(FLIPBOOK_UPLOADS_DIR)) {
-        fs.mkdirSync(FLIPBOOK_UPLOADS_DIR, { recursive: true });
-      }
-      const fileName = `fb-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
-      const targetPath = path.join(FLIPBOOK_UPLOADS_DIR, fileName);
-      fs.writeFileSync(targetPath, buffer);
-      return res.json({ ok: true, url: `/uploads/flipbooks/${fileName}`, bytes: buffer.length });
-    } catch (err) {
-      console.error('Failed saving flipbook image:', err);
-      return res.status(500).json({ error: 'ذخیره فایل تصویر روی سرور با خطا مواجه شد.' });
     }
-  });
+  );
 
   // Published Flipbooks CRUD (powers live WordPress iframe embeds at /embed/:id)
   app.get('/api/flipbooks', (_req, res) => {
@@ -790,12 +974,15 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/flipbooks/:id', (req, res) => {
+  const handleDeleteFlipbook = (req: express.Request, res: express.Response) => {
     const list = readJsonFile<any[]>(FLIPBOOKS_FILE, []);
     const next = list.filter((item) => String(item.id) !== String(req.params.id));
     writeJsonFile(FLIPBOOKS_FILE, next, true);
     res.json({ ok: true, count: next.length });
-  });
+  };
+
+  app.delete('/api/flipbooks/:id', handleDeleteFlipbook);
+  app.post('/api/flipbooks/:id/delete', handleDeleteFlipbook);
 
   // Real Inquiries persistence backed by inquiries.json
   app.get('/api/inquiries', (_req, res) => {
@@ -849,22 +1036,616 @@ async function startServer() {
     });
   });
 
+  // Central Media Library CRUD (syncs site uploads + catalog images)
+  const guessImageMime = (ext: string): string => {
+    switch (ext.toLowerCase()) {
+      case 'webp': return 'image/webp';
+      case 'png': return 'image/png';
+      case 'gif': return 'image/gif';
+      case 'svg': return 'image/svg+xml';
+      default: return 'image/jpeg';
+    }
+  };
+
+  const resolveUploadDiskPath = (url: string): string | null => {
+    const clean = url.split('?')[0].split('#')[0];
+    if (!clean.startsWith('/uploads/')) return null;
+    const rel = clean.slice('/uploads/'.length).replace(/^\/+/, '');
+    if (!rel || rel.includes('..')) return null;
+    return path.join(UPLOADS_DIR, rel);
+  };
+
+  const parseMultipartFormData = (req: express.Request): {
+    fileBuffer: Buffer | null;
+    fileExt: string;
+    origName: string;
+    fields: Record<string, string>;
+  } => {
+    const ct = String(req.headers['content-type'] || '');
+    const fields: Record<string, string> = {};
+    let fileBuffer: Buffer | null = null;
+    let fileExt = 'webp';
+    let origName = 'media-image.webp';
+
+    if (!ct.includes('multipart/form-data') || !Buffer.isBuffer(req.body)) {
+      return { fileBuffer, fileExt, origName, fields };
+    }
+    const boundaryMatch = ct.match(/boundary=([^\s;]+)/i);
+    if (!boundaryMatch) {
+      return { fileBuffer, fileExt, origName, fields };
+    }
+    const boundary = boundaryMatch[1].replace(/^["']|["']$/g, '');
+    const delimBuf = Buffer.from(`--${boundary}`);
+    const headerEndBuf = Buffer.from('\r\n\r\n');
+    const raw = req.body;
+
+    let offset = 0;
+    while (offset < raw.length) {
+      const partStart = raw.indexOf(delimBuf, offset);
+      if (partStart < 0) break;
+      const afterDelim = partStart + delimBuf.length;
+      if (raw.slice(afterDelim, afterDelim + 2).toString('utf-8') === '--') break;
+      const headerStart = raw.indexOf('\r\n', partStart);
+      if (headerStart < 0) break;
+      const headerEnd = raw.indexOf(headerEndBuf, headerStart);
+      if (headerEnd < 0) break;
+
+      const headersText = raw.slice(headerStart + 2, headerEnd).toString('utf-8');
+      const bodyStart = headerEnd + 4;
+      const nextBoundary = raw.indexOf(Buffer.from(`\r\n--${boundary}`), bodyStart);
+      if (nextBoundary < 0) break;
+
+      const partBody = raw.slice(bodyStart, nextBoundary);
+      const nameMatch = headersText.match(/name="([^"]+)"/i);
+      const fnMatch = headersText.match(/filename="([^"]+)"/i);
+      const fieldName = nameMatch?.[1] || '';
+
+      if (fnMatch && fieldName !== 'payload_file') {
+        fileBuffer = partBody;
+        origName = fnMatch[1] || origName;
+        const typeMatch = headersText.match(/Content-Type:\s*image\/([a-z0-9+]+)/i);
+        const rawExt = (origName.split('.').pop() || typeMatch?.[1] || 'webp').toLowerCase();
+        fileExt = rawExt === 'jpeg' ? 'jpg' : rawExt === 'svg+xml' ? 'svg' : ['webp', 'jpg', 'png', 'gif', 'svg'].includes(rawExt) ? rawExt : 'webp';
+      } else if (fieldName) {
+        fields[fieldName] = partBody.toString('utf-8').trim();
+      }
+
+      offset = nextBoundary + 2;
+    }
+
+    return { fileBuffer, fileExt, origName, fields };
+  };
+
+  const collectMediaAssets = () => {
+    const metaList = readJsonFile<any[]>(MEDIA_META_FILE, []);
+    const metaByUrl: Record<string, any> = {};
+    for (const m of Array.isArray(metaList) ? metaList : []) {
+      if (m && m.url) metaByUrl[String(m.url)] = m;
+    }
+
+    const catalogs = readJsonFile<any[]>(CATALOGS_FILE, []);
+    const flipbooks = readJsonFile<any[]>(FLIPBOOKS_FILE, []);
+
+    const usageByUrl: Record<string, any[]> = {};
+    const catalogTitleByFb: Record<string, { catalogId: string; catalogTitle: string }> = {};
+    for (const cat of Array.isArray(catalogs) ? catalogs : []) {
+      if (!cat) continue;
+      const fbId = String(cat.flipbookId || '');
+      const catId = String(cat.id || '');
+      const catTitle = String(cat.title || 'کاتالوگ');
+      if (fbId) catalogTitleByFb[fbId] = { catalogId: catId, catalogTitle: catTitle };
+      const coverUrl = String(cat.coverImage || '');
+      if (coverUrl && !coverUrl.includes('/src/assets/images/catalog_')) {
+        usageByUrl[coverUrl] = usageByUrl[coverUrl] || [];
+        usageByUrl[coverUrl].push({ catalogId: catId, catalogTitle: catTitle, role: 'cover' });
+      }
+    }
+
+    const extraCatInfo: Record<string, any> = {};
+    for (const fb of Array.isArray(flipbooks) ? flipbooks : []) {
+      if (!fb) continue;
+      const fbId = String(fb.id || '');
+      const linked = catalogTitleByFb[fbId] || {
+        catalogId: fbId,
+        catalogTitle: String(fb.cover?.title || fb.name || 'کاتالوگ سه‌بعدی'),
+      };
+      const cover = fb.cover || {};
+      for (const [field, role] of [
+        ['frontCustomImageUrl', 'front'],
+        ['backCustomImageUrl', 'back'],
+        ['logoDataUrl', 'logo'],
+      ] as const) {
+        const u = String(cover[field] || '');
+        if (u && !u.includes('/src/assets/images/')) {
+          usageByUrl[u] = usageByUrl[u] || [];
+          usageByUrl[u].push({ catalogId: linked.catalogId, catalogTitle: linked.catalogTitle, flipbookId: fbId, role });
+        }
+      }
+      const pages = Array.isArray(fb.pages) ? fb.pages : [];
+      pages.forEach((p: any, idx: number) => {
+        if (!p) return;
+        const u = String(p.optimizedDataUrl || p.originalDataUrl || '');
+        if (u && !u.includes('/src/assets/images/')) {
+          usageByUrl[u] = usageByUrl[u] || [];
+          usageByUrl[u].push({
+            catalogId: linked.catalogId,
+            catalogTitle: linked.catalogTitle,
+            flipbookId: fbId,
+            role: 'page',
+            pageId: String(p.id || ''),
+            pageIndex: idx + 1,
+          });
+          if (!extraCatInfo[u]) {
+            extraCatInfo[u] = {
+              title: String(p.title || p.fileName || ''),
+              description: String(p.description || ''),
+              category: String(p.category || 'تصاویر کاتالوگ'),
+              name: String(p.fileName || path.basename(u.split('?')[0]) || 'page.webp'),
+              size: Number(p.optimizedSizeBytes || p.originalSizeBytes || 0),
+              width: Number(p.width || 0),
+              height: Number(p.height || 0),
+            };
+          }
+        }
+      });
+    }
+
+    const seenUrls = new Set<string>();
+    const assets: any[] = [];
+    const scanDirs = [
+      { dir: MEDIA_UPLOADS_DIR, prefix: '/uploads/media/', source: 'media' as const },
+      { dir: FLIPBOOK_UPLOADS_DIR, prefix: '/uploads/flipbooks/', source: 'catalog' as const },
+    ];
+
+    for (const entry of scanDirs) {
+      if (!fs.existsSync(entry.dir)) continue;
+      for (const fname of fs.readdirSync(entry.dir)) {
+        if (fname === 'index.html' || fname.startsWith('.')) continue;
+        const full = path.join(entry.dir, fname);
+        const st = fs.statSync(full);
+        if (!st.isFile()) continue;
+        const ext = path.extname(fname).slice(1).toLowerCase();
+        if (!['webp', 'jpg', 'jpeg', 'png', 'gif', 'svg'].includes(ext)) continue;
+        const url = `${entry.prefix}${fname}`;
+        seenUrls.add(url);
+        const meta = metaByUrl[url] || {};
+        const catExtra = extraCatInfo[url] || {};
+        const mtime = Math.floor(st.mtimeMs / 1000);
+        assets.push({
+          id: meta.id || `srv-${crypto.createHash('md5').update(url).digest('hex')}`,
+          name: meta.name || catExtra.name || fname,
+          title: meta.title || catExtra.title || path.basename(fname, path.extname(fname)),
+          description: meta.description ?? catExtra.description ?? '',
+          category: meta.category || catExtra.category || (entry.source === 'catalog' ? 'تصاویر کاتالوگ' : 'رسانه سایت'),
+          alt: meta.alt ?? meta.title ?? catExtra.title ?? '',
+          type: guessImageMime(ext),
+          size: st.size || catExtra.size || 0,
+          width: Number(meta.width || catExtra.width || 0),
+          height: Number(meta.height || catExtra.height || 0),
+          data: url,
+          url,
+          source: (usageByUrl[url]?.length ? 'catalog' : meta.source || entry.source),
+          usedInCatalogs: usageByUrl[url] || [],
+          uploadDate: meta.uploadDate || new Date(st.mtimeMs).toLocaleDateString('fa-IR'),
+          mtime,
+        });
+      }
+    }
+
+    for (const [u, usages] of Object.entries(usageByUrl)) {
+      if (seenUrls.has(u)) continue;
+      if (u.startsWith('data:') && u.length > 250000) continue;
+      const meta = metaByUrl[u] || {};
+      const catExtra = extraCatInfo[u] || {};
+      assets.push({
+        id: meta.id || `cat-${crypto.createHash('md5').update(u).digest('hex')}`,
+        name: meta.name || catExtra.name || 'تصویر کاتالوگ',
+        title: meta.title || catExtra.title || 'تصویر کاتالوگ',
+        description: meta.description ?? catExtra.description ?? '',
+        category: meta.category || catExtra.category || 'تصاویر کاتالوگ',
+        alt: meta.alt ?? catExtra.title ?? '',
+        type: 'image/webp',
+        size: Number(catExtra.size || 0),
+        width: Number(catExtra.width || 0),
+        height: Number(catExtra.height || 0),
+        data: u,
+        url: u,
+        source: 'catalog',
+        usedInCatalogs: usages,
+        uploadDate: meta.uploadDate || new Date().toLocaleDateString('fa-IR'),
+        mtime: Math.floor(Date.now() / 1000),
+      });
+    }
+
+    return assets.sort((a, b) => (b.mtime || 0) - (a.mtime || 0));
+  };
+
+  app.get('/api/media', (_req, res) => {
+    res.json(collectMediaAssets());
+  });
+
+  app.post(
+    '/api/media/upload',
+    express.raw({ type: 'multipart/form-data', limit: '25mb' }),
+    (req, res) => {
+      try {
+        if (!fs.existsSync(MEDIA_UPLOADS_DIR)) {
+          fs.mkdirSync(MEDIA_UPLOADS_DIR, { recursive: true });
+        }
+
+        let buffer: Buffer | null = null;
+        let ext = 'webp';
+        let origName = 'media-image.webp';
+        let title = '';
+        let category = 'رسانه سایت';
+        let description = '';
+        let width = 0;
+        let height = 0;
+        let jsonBody: Record<string, any> | null = null;
+        if (!Buffer.isBuffer(req.body) && req.body && typeof req.body === 'object') {
+          jsonBody = req.body as any;
+        } else if (Buffer.isBuffer(req.body)) {
+          try {
+            const rawTxt = req.body.toString('utf-8').trim();
+            if (rawTxt.startsWith('{') || rawTxt.startsWith('[')) {
+              jsonBody = JSON.parse(rawTxt);
+            }
+          } catch {}
+        }
+
+        const ct = String(req.headers['content-type'] || '');
+        if (ct.toLowerCase().includes('multipart/form-data') && Buffer.isBuffer(req.body)) {
+          const parsed = parseMultipartFormData(req);
+          if (parsed.fileBuffer && parsed.fileBuffer.length > 0) {
+            buffer = parsed.fileBuffer;
+            ext = parsed.fileExt;
+            origName = parsed.origName;
+            title = parsed.fields.title || '';
+            category = parsed.fields.category || category;
+            description = parsed.fields.description || '';
+            width = Number(parsed.fields.width || 0);
+            height = Number(parsed.fields.height || 0);
+          } else if (parsed.fields.payload_file) {
+            const enc = (parsed.fields._encoding || '').toLowerCase();
+            const rawText = parsed.fields.payload_file.trim();
+            try {
+              const decodedText =
+                (enc === 'b64' || enc === 'base64') && !rawText.startsWith('{') && !rawText.startsWith('[')
+                  ? Buffer.from(rawText, 'base64').toString('utf-8')
+                  : rawText;
+              jsonBody = JSON.parse(decodedText);
+            } catch {
+              jsonBody = null;
+            }
+          }
+        }
+
+        if (!buffer) {
+          const body = jsonBody || {};
+          const dataUrl = String(body?.dataUrl || '').trim();
+          const b64Marker = ';base64,';
+          const markerIdx = dataUrl.toLowerCase().indexOf(b64Marker);
+          if (!dataUrl.toLowerCase().startsWith('data:image/') || markerIdx < 0) {
+            return res.status(400).json({ error: 'فرمت تصویر ارسالی نامعتبر است.' });
+          }
+          const mimeRaw = dataUrl.slice('data:image/'.length, markerIdx).split(';')[0].trim().toLowerCase();
+          ext = mimeRaw === 'jpeg' ? 'jpg' : mimeRaw === 'svg+xml' ? 'svg' : ['webp', 'jpg', 'png', 'gif', 'svg'].includes(mimeRaw) ? mimeRaw : 'webp';
+          buffer = Buffer.from(dataUrl.slice(markerIdx + b64Marker.length).replace(/\s+/g, ''), 'base64');
+          origName = String(body?.name || `media-${Date.now()}.${ext}`);
+          title = String(body?.title || '');
+          category = String(body?.category || category);
+          description = String(body?.description || '');
+          width = Number(body?.width || 0);
+          height = Number(body?.height || 0);
+        }
+
+        if (!buffer || buffer.length === 0) {
+          return res.status(400).json({ error: 'داده تصویر خالی است.' });
+        }
+
+        const fileName = `media-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
+        const targetPath = path.join(MEDIA_UPLOADS_DIR, fileName);
+        fs.writeFileSync(targetPath, buffer);
+
+        const url = `/uploads/media/${fileName}`;
+        const baseTitle = path.basename(origName, path.extname(origName));
+        const asset = {
+          id: `srv-${crypto.createHash('md5').update(url).digest('hex')}`,
+          name: origName,
+          title: title || baseTitle,
+          description,
+          category: category || 'رسانه سایت',
+          alt: title || baseTitle,
+          type: guessImageMime(ext),
+          size: buffer.length,
+          width: width > 0 ? width : 0,
+          height: height > 0 ? height : 0,
+          data: url,
+          url,
+          source: 'media' as const,
+          usedInCatalogs: [],
+          uploadDate: new Date().toLocaleDateString('fa-IR'),
+        };
+
+        const metaList = readJsonFile<any[]>(MEDIA_META_FILE, []);
+        metaList.unshift(asset);
+        writeJsonFile(MEDIA_META_FILE, metaList);
+
+        return res.json({ ok: true, asset });
+      } catch (err) {
+        console.error('Failed uploading media asset:', err);
+        return res.status(500).json({ error: 'خطا در آپلود فایل رسانه در سرور.' });
+      }
+    }
+  );
+
+  app.post('/api/media/update', (req, res) => {
+    try {
+      const body = req.body || {};
+      const oldUrl = String(body.url || body.oldUrl || '').trim();
+      if (!oldUrl) {
+        return res.status(400).json({ error: 'آدرس تصویر مشخص نشده است.' });
+      }
+
+      let newUrl = oldUrl;
+      let newSize: number | null = null;
+      const newDataUrl = String(body.newDataUrl || '').trim();
+      if (newDataUrl) {
+        const match = newDataUrl.match(/^data:image\/(webp|jpeg|jpg|png|gif);base64,(.+)$/i);
+        if (match) {
+          const ext = match[1].toLowerCase() === 'jpeg' ? 'jpg' : match[1].toLowerCase();
+          const binary = Buffer.from(match[2], 'base64');
+          if (binary.length > 0) {
+            if (!fs.existsSync(MEDIA_UPLOADS_DIR)) {
+              fs.mkdirSync(MEDIA_UPLOADS_DIR, { recursive: true });
+            }
+            const diskPath = resolveUploadDiskPath(oldUrl);
+            if (diskPath && fs.existsSync(path.dirname(diskPath))) {
+              const curExt = path.extname(diskPath).slice(1).toLowerCase();
+              if (curExt === ext) {
+                fs.writeFileSync(diskPath, binary);
+              } else {
+                const fileName = `media-${Date.now()}.${ext}`;
+                const targetPath = path.join(MEDIA_UPLOADS_DIR, fileName);
+                fs.writeFileSync(targetPath, binary);
+                if (fs.existsSync(diskPath)) fs.unlinkSync(diskPath);
+                newUrl = `/uploads/media/${fileName}`;
+              }
+            } else {
+              const fileName = `media-${Date.now()}.${ext}`;
+              fs.writeFileSync(path.join(MEDIA_UPLOADS_DIR, fileName), binary);
+              newUrl = `/uploads/media/${fileName}`;
+            }
+            newSize = binary.length;
+          }
+        }
+      }
+
+      const title = body.title !== undefined ? String(body.title).trim() : null;
+      const name = body.name !== undefined ? String(body.name).trim() : null;
+      const description = body.description !== undefined ? String(body.description).trim() : null;
+      const category = body.category !== undefined ? String(body.category).trim() : null;
+      const alt = body.alt !== undefined ? String(body.alt).trim() : null;
+      const width = body.width !== undefined ? Number(body.width) : null;
+      const height = body.height !== undefined ? Number(body.height) : null;
+
+      const metaList = readJsonFile<any[]>(MEDIA_META_FILE, []);
+      const foundIdx = metaList.findIndex((m) => m && (m.url === oldUrl || m.url === newUrl));
+      const metaRecord =
+        foundIdx >= 0
+          ? { ...metaList[foundIdx] }
+          : {
+              id: `srv-${crypto.createHash('md5').update(newUrl).digest('hex')}`,
+              url: newUrl,
+              data: newUrl,
+              uploadDate: new Date().toLocaleDateString('fa-IR'),
+            };
+      metaRecord.url = newUrl;
+      metaRecord.data = newUrl;
+      if (title !== null) metaRecord.title = title;
+      if (name !== null) metaRecord.name = name;
+      if (description !== null) metaRecord.description = description;
+      if (category !== null) metaRecord.category = category;
+      if (alt !== null) metaRecord.alt = alt;
+      if (newSize !== null) metaRecord.size = newSize;
+      if (width !== null) metaRecord.width = width;
+      if (height !== null) metaRecord.height = height;
+
+      if (foundIdx >= 0) metaList[foundIdx] = metaRecord;
+      else metaList.unshift(metaRecord);
+      writeJsonFile(MEDIA_META_FILE, metaList);
+
+      let catalogsChanged = false;
+      const catalogs = readJsonFile<any[]>(CATALOGS_FILE, []);
+      for (let i = 0; i < catalogs.length; i += 1) {
+        if (catalogs[i] && catalogs[i].coverImage === oldUrl && newUrl !== oldUrl) {
+          catalogs[i].coverImage = newUrl;
+          catalogs[i].updatedAt = new Date().toISOString();
+          catalogsChanged = true;
+        }
+      }
+      if (catalogsChanged) writeJsonFile(CATALOGS_FILE, catalogs);
+
+      let flipbooksChanged = false;
+      const flipbooks = readJsonFile<any[]>(FLIPBOOKS_FILE, []);
+      for (const fb of flipbooks) {
+        if (!fb) continue;
+        if (fb.cover) {
+          for (const cf of ['frontCustomImageUrl', 'backCustomImageUrl', 'logoDataUrl']) {
+            if (fb.cover[cf] === oldUrl && newUrl !== oldUrl) {
+              fb.cover[cf] = newUrl;
+              flipbooksChanged = true;
+            }
+          }
+        }
+        if (Array.isArray(fb.pages)) {
+          for (const pg of fb.pages) {
+            if (!pg) continue;
+            const pgUrl = String(pg.optimizedDataUrl || pg.originalDataUrl || '');
+            if (pgUrl === oldUrl) {
+              if (newUrl !== oldUrl) {
+                pg.optimizedDataUrl = newUrl;
+                pg.originalDataUrl = newUrl;
+              }
+              if (title !== null && title !== '') pg.title = title;
+              if (description !== null) pg.description = description;
+              if (category !== null && category !== '') pg.category = category;
+              if (newSize !== null) pg.optimizedSizeBytes = newSize;
+              if (width) pg.width = width;
+              if (height) pg.height = height;
+              flipbooksChanged = true;
+            }
+          }
+        }
+      }
+      if (flipbooksChanged) writeJsonFile(FLIPBOOKS_FILE, flipbooks, true);
+
+      return res.json({
+        ok: true,
+        url: newUrl,
+        asset: metaRecord,
+        updatedCatalogs: catalogsChanged || flipbooksChanged,
+      });
+    } catch (err) {
+      console.error('Failed updating media asset:', err);
+      return res.status(500).json({ error: 'بروزرسانی فایل رسانه با خطا مواجه شد.' });
+    }
+  });
+
+  const handleDeleteMedia = (req: express.Request, res: express.Response) => {
+    try {
+      const body = req.body || {};
+      const targetUrl = String(body.url || '').trim();
+      const targetId = String(body.id || '').trim();
+      const removeFromCatalogs = body.removeFromCatalogs !== false;
+
+      if (!targetUrl && !targetId) {
+        return res.status(400).json({ error: 'شناسه یا آدرس تصویر برای حذف ارسال نشده است.' });
+      }
+
+      if (targetUrl) {
+        const diskPath = resolveUploadDiskPath(targetUrl);
+        if (diskPath && fs.existsSync(diskPath)) {
+          fs.unlinkSync(diskPath);
+        }
+      }
+
+      const metaList = readJsonFile<any[]>(MEDIA_META_FILE, []);
+      const nextMeta = metaList.filter((m) => {
+        if (!m) return false;
+        if (targetUrl && m.url === targetUrl) return false;
+        if (targetId && m.id === targetId) return false;
+        return true;
+      });
+      writeJsonFile(MEDIA_META_FILE, nextMeta);
+
+      let updatedCatalogs = false;
+      if (removeFromCatalogs && targetUrl) {
+        const pageCountsByFb: Record<string, number> = {};
+        const coverFallbackByFb: Record<string, string> = {};
+        const flipbooks = readJsonFile<any[]>(FLIPBOOKS_FILE, []);
+        let fbChanged = false;
+        for (const fb of flipbooks) {
+          if (!fb) continue;
+          const fbId = String(fb.id || '');
+          if (fb.cover) {
+            for (const cf of ['frontCustomImageUrl', 'backCustomImageUrl', 'logoDataUrl']) {
+              if (fb.cover[cf] === targetUrl) {
+                fb.cover[cf] = null;
+                fbChanged = true;
+              }
+            }
+          }
+          if (Array.isArray(fb.pages)) {
+            const before = fb.pages.length;
+            fb.pages = fb.pages.filter((pg: any) => {
+              if (!pg) return false;
+              return pg.optimizedDataUrl !== targetUrl && pg.originalDataUrl !== targetUrl;
+            });
+            if (fb.pages.length !== before) {
+              fb.updatedAt = new Date().toISOString();
+              fbChanged = true;
+            }
+            pageCountsByFb[fbId] = fb.pages.length;
+            const firstImg =
+              fb.cover?.frontCustomImageUrl ||
+              fb.pages[0]?.optimizedDataUrl ||
+              fb.pages[0]?.originalDataUrl ||
+              '';
+            coverFallbackByFb[fbId] = String(firstImg || '');
+          }
+        }
+        if (fbChanged) {
+          writeJsonFile(FLIPBOOKS_FILE, flipbooks, true);
+          updatedCatalogs = true;
+        }
+
+        const catalogs = readJsonFile<any[]>(CATALOGS_FILE, []);
+        let catChanged = false;
+        for (const cat of catalogs) {
+          if (!cat) continue;
+          const fbId = String(cat.flipbookId || '');
+          if (cat.coverImage === targetUrl) {
+            cat.coverImage = fbId ? coverFallbackByFb[fbId] || '' : '';
+            cat.updatedAt = new Date().toISOString();
+            catChanged = true;
+          }
+          if (fbId && pageCountsByFb[fbId] !== undefined) {
+            cat.pageCount = pageCountsByFb[fbId];
+            cat.updatedAt = new Date().toISOString();
+            catChanged = true;
+          }
+        }
+        if (catChanged) {
+          writeJsonFile(CATALOGS_FILE, catalogs);
+          updatedCatalogs = true;
+        }
+      }
+
+      return res.json({ ok: true, updatedCatalogs });
+    } catch (err) {
+      console.error('Failed deleting media asset:', err);
+      return res.status(500).json({ error: 'حذف تصویر با خطا مواجه شد.' });
+    }
+  };
+
+  app.post('/api/media/delete', handleDeleteMedia);
+  app.delete('/api/media/delete', handleDeleteMedia);
+
   const isProduction = process.env.NODE_ENV === 'production';
   const PORT = isProduction ? Number(process.env.PORT) || 3000 : 3000;
 
-  if (!fs.existsSync(FLIPBOOK_UPLOADS_DIR)) {
-    try {
-      fs.mkdirSync(FLIPBOOK_UPLOADS_DIR, { recursive: true });
-    } catch {
-      // ignore if read-only
+  for (const dir of [FLIPBOOK_UPLOADS_DIR, MEDIA_UPLOADS_DIR]) {
+    if (!fs.existsSync(dir)) {
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+      } catch {
+        // ignore if read-only
+      }
     }
   }
+  app.get('/api/upload-file', (req, res) => {
+    const rel = String(req.query.p || '').replace(/^\/+/, '');
+    if (!rel || rel.includes('..')) {
+      return res.status(400).json({ error: 'آدرس فایل نامعتبر است.' });
+    }
+    const diskPath = path.join(UPLOADS_DIR, rel);
+    if (!fs.existsSync(diskPath) || !fs.statSync(diskPath).isFile()) {
+      return res.status(404).json({ error: 'فایل تصویر یافت نشد.' });
+    }
+    const ext = path.extname(diskPath).slice(1).toLowerCase();
+    res.setHeader('Content-Type', guessImageMime(ext));
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    return res.sendFile(diskPath);
+  });
+
   app.use('/uploads', express.static(UPLOADS_DIR));
 
   const downloadsCandidates = [
     path.join(__dirname, 'public', 'downloads'),
     path.join(__dirname, '..', 'public', 'downloads'),
     path.join(__dirname, 'downloads'),
+    path.join(__dirname, '..', 'downloads'),
   ];
 
   const resolveLatestReleaseZip = (): { filePath: string; fileName: string; sizeBytes: number; version: string } | null => {

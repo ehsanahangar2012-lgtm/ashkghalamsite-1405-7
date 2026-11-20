@@ -1,4 +1,5 @@
 import { OptimizationSettings } from '../types/flipbook';
+import { isSupportedImageFile } from './catalogAssets';
 
 export interface OptimizedImageResult {
   originalDataUrl: string;
@@ -29,7 +30,9 @@ function readFileAsDataUrl(file: File): Promise<string> {
 function loadHtmlImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('تصویر معتبر نیست یا قابل بارگذاری نمی‌باشد'));
     img.src = src;
@@ -127,7 +130,7 @@ export async function optimizeFileToWebP(
   file: File,
   settings: OptimizationSettings
 ): Promise<OptimizedImageResult> {
-  if (!file.type.startsWith('image/')) {
+  if (!isSupportedImageFile(file)) {
     throw new Error(`فایل «${file.name}» یک تصویر معتبر نیست.`);
   }
   const sourceDataUrl = await readFileAsDataUrl(file);

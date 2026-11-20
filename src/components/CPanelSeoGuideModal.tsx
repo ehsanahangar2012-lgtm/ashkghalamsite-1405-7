@@ -62,31 +62,20 @@ export const CPanelSeoGuideModal: React.FC<{ onClose?: () => void }> = ({ onClos
           <div className="space-y-3 pt-6 border-t border-slate-800">
             <h3 className="text-base font-bold text-emerald-400 flex items-center gap-2">
               <Terminal className="w-4 h-4" />
-              ۳. مراحل مستقر کردن برنامه روی cPanel
+              ۳. مراحل مستقر کردن برنامه روی هاست معمولی cPanel (بدون نیاز به Node.js)
             </h3>
             <ol className="list-decimal list-inside space-y-2 pr-2 text-slate-300">
               <li>
-                در پنل cPanel به بخش <strong>Setup Node.js App</strong> بروید و یک اپلیکیشن با <strong>Node.js نسخه ۲۲</strong> بسازید.
+                بسته زیپ خروجی را از پنل مدیریت دانلود کرده و مستقیماً در پوشه <code className="text-amber-300" dir="ltr">public_html</code> در File Manager هاست cPanel استخراج (Extract) کنید.
               </li>
               <li>
-                فایل‌های پروژه (یا پوشه `dist/` و فایل‌های سرور) را در پوشه ریشه دامنه آپلود کنید.
+                فایل‌های <code className="text-amber-300" dir="ltr">index.html</code>، <code className="text-amber-300" dir="ltr">api.php</code>، <code className="text-amber-300" dir="ltr">.htaccess</code> و فایل‌های JSON اطلاعات در ریشه دامنه قرار می‌گیرند.
               </li>
               <li>
-                فایل <code className="text-amber-300">.env</code> را در ریشه سرور بسازید و متغیرهای زیر را تنظیم کنید:
-                <div className="mt-2 p-3 bg-slate-950 rounded-lg text-emerald-300 font-mono text-[11px]" dir="ltr">
-                  NODE_ENV=production<br/>
-                  PORT=3000<br/>
-                  SITE_BASE_URL=https://ashkghalam.ir<br/>
-                  AGENT_INGEST_SECRET=همان_رمز_تصادفی<br/>
-                  GEMINI_API_KEY=کلید_ایمیل_شما
-                </div>
+                اطمینان حاصل کنید پوشه <code className="text-amber-300" dir="ltr">uploads/flipbooks</code> و فایل‌های <code className="text-amber-300" dir="ltr">.json</code> مجوز نوشتن استاندارد (<code dir="ltr">0755</code> برای پوشه و <code dir="ltr">0644</code> برای فایل‌ها) داشته باشند تا کاتالوگ‌ها و تصاویر بدون خطا ذخیره شوند.
               </li>
               <li>
-                دستورات نصب و اجرا در ترمینال سی‌پنل:
-                <div className="mt-2 p-3 bg-slate-950 rounded-lg text-amber-300 font-mono text-[11px]" dir="ltr">
-                  npm install --production<br/>
-                  npm run build
-                </div>
+                نیازی به اجرای هیچ دستور ترمینال یا سرویس جانبی نیست؛ تمام مسیرهای <code dir="ltr">/api/*</code> به صورت خودکار توسط <code dir="ltr">.htaccess</code> به <code dir="ltr">api.php</code> هدایت می‌شوند.
               </li>
             </ol>
           </div>

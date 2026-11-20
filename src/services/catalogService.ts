@@ -1,3 +1,5 @@
+import { apiFetch, apiPostJson, apiRequestJson } from '../utils/apiClient';
+
 export interface CatalogSpecs {
   standardCode?: string;
   boardOptions?: string;
@@ -29,13 +31,10 @@ export interface CatalogItem {
 export const catalogService = {
   async fetchCatalogs(isPublishedOnly = false): Promise<CatalogItem[]> {
     try {
-      const url = isPublishedOnly ? '/api/catalogs' : '/api/catalogs?admin=true';
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          return isPublishedOnly ? data.filter((c) => c.isPublished) : data;
-        }
+      const route = isPublishedOnly ? 'catalogs' : 'catalogs?admin=true';
+      const { res, data } = await apiRequestJson<CatalogItem[]>(route, {}, 15000);
+      if (res.ok && Array.isArray(data)) {
+        return isPublishedOnly ? data.filter((c) => c.isPublished) : data;
       }
     } catch (e) {
       console.warn('Failed to fetch catalogs from server:', e);
@@ -53,25 +52,18 @@ export const catalogService = {
   },
 
   async saveCatalogItem(item: Partial<CatalogItem> & { title: string }): Promise<CatalogItem> {
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 20000);
     let res: Response;
+    let data: (CatalogItem & { error?: string }) | null = null;
     try {
-      res = await fetch('/api/catalogs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item),
-        signal: controller.signal,
-      });
+      const result = await apiPostJson<CatalogItem & { error?: string }>('catalogs', item, 20000);
+      res = result.res;
+      data = result.data;
     } catch (err: any) {
       if (err?.name === 'AbortError') {
         throw new Error('مهلت ذخیره کاتالوگ در لیست سایت به پایان رسید.');
       }
       throw new Error('ارتباط با سرور برای ثبت کاتالوگ برقرار نشد.');
-    } finally {
-      window.clearTimeout(timer);
     }
-    const data = await res.json().catch(() => null);
     if (!res.ok || !data) {
       throw new Error(data?.error || `ذخیره کاتالوگ در سرور با خطا مواجه شد (کد ${res.status}).`);
     }
@@ -82,12 +74,11 @@ export const catalogService = {
     id: string | number,
     patch: { isPublished?: boolean; category?: string }
   ): Promise<CatalogItem> {
-    const res = await fetch(`/api/catalogs/${encodeURIComponent(String(id))}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-    const data = await res.json().catch(() => null);
+    const { res, data } = await apiPostJson<CatalogItem & { error?: string }>(
+      `catalogs/${encodeURIComponent(String(id))}/status`,
+      patch,
+      15000
+    );
     if (!res.ok || !data) {
       throw new Error(data?.error || 'تغییر وضعیت کاتالوگ ناموفق بود.');
     }
@@ -96,11 +87,8 @@ export const catalogService = {
 
   async fetchCategories(): Promise<string[]> {
     try {
-      const res = await fetch('/api/catalog-categories');
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) return data;
-      }
+      const { res, data } = await apiRequestJson<string[]>('catalog-categories', {}, 15000);
+      if (res.ok && Array.isArray(data)) return data;
     } catch {
       // fallback below
     }
@@ -114,12 +102,11 @@ export const catalogService = {
   },
 
   async saveCategories(categories: string[]): Promise<string[]> {
-    const res = await fetch('/api/catalog-categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ categories }),
-    });
-    const data = await res.json().catch(() => null);
+    const { res, data } = await apiPostJson<{ categories?: string[]; error?: string }>(
+      'catalog-categories',
+      { categories },
+      15000
+    );
     if (!res.ok || !Array.isArray(data?.categories)) {
       throw new Error(data?.error || 'ذخیره دسته‌بندی‌ها با خطا مواجه شد.');
     }
@@ -127,9 +114,11 @@ export const catalogService = {
   },
 
   async deleteCatalogItem(id: string | number): Promise<void> {
-    const res = await fetch(`/api/catalogs/${encodeURIComponent(String(id))}`, {
-      method: 'DELETE',
-    });
+    const res = await apiFetch(
+      `catalogs/${encodeURIComponent(String(id))}/delete`,
+      { method: 'POST' },
+      15000
+    );
     if (!res.ok) {
       const data = await res.json().catch(() => null);
       throw new Error(data?.error || 'حذف کاتالوگ با خطا مواجه شد.');

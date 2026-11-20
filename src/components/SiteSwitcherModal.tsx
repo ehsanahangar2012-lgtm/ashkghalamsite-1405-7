@@ -31,7 +31,7 @@ export const SiteSwitcherModal: React.FC<SiteSwitcherModalProps> = ({
       icon: Box,
       badge: 'پرتال اصلی',
       color: 'from-amber-500 to-amber-600',
-      externalUrl: globalSettings.ashkPortalUrl?.trim() || '',
+      externalUrl: globalSettings.ashkPortalUrl?.trim() || 'https://ashkghalam.ir',
       targetView: AppView.HOME,
     },
     {
@@ -43,7 +43,7 @@ export const SiteSwitcherModal: React.FC<SiteSwitcherModalProps> = ({
       icon: Globe,
       badge: 'ورود به سایت بادیکاران',
       color: 'from-emerald-500 to-teal-600',
-      externalUrl: globalSettings.badikaranPortalUrl?.trim() || 'https://badikaran.ir',
+      externalUrl: globalSettings.badikaranPortalUrl?.trim() || 'https://ashkghalam.ir',
       targetView: AppView.PRODUCTS,
     },
     {

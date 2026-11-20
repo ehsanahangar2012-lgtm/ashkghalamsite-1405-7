@@ -146,7 +146,7 @@ export const AboutUs: React.FC<{ onNavigate?: (view: AppView) => void }> = ({ on
           <div>
             <h4 className="font-bold text-sm text-slate-900 dark:text-white mb-0.5">تلفن‌های ارتباطی</h4>
             <p className="text-xs text-slate-600 dark:text-slate-400 dir-ltr font-mono text-right">
-              {siteContent.contactPhone || '۰۵۱-۳۳۸۸۰۰۰۰'}
+              {siteContent.contactPhone || '09153108763'}
             </p>
           </div>
         </div>
@@ -158,7 +158,7 @@ export const AboutUs: React.FC<{ onNavigate?: (view: AppView) => void }> = ({ on
           <div>
             <h4 className="font-bold text-sm text-slate-900 dark:text-white mb-0.5">پست الکترونیک</h4>
             <p className="text-xs text-slate-600 dark:text-slate-400 font-mono">
-              {siteContent.contactEmail || 'info@ashkghalam.com'}
+              {siteContent.contactEmail || 'info@ashkghalam.ir'}
             </p>
           </div>
         </div>

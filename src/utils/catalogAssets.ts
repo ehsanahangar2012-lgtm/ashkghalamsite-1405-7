@@ -1,28 +1,37 @@
-import fefcoCover from '../assets/images/catalog_fefco_corrugated_1794764676518.jpg';
-import hardboxCover from '../assets/images/catalog_luxury_hardbox_1794764676452.jpg';
-import mailerCover from '../assets/images/catalog_ecommerce_mailer_1794764677888.jpg';
-import pharmaCover from '../assets/images/catalog_pharma_cosmetic_1794764676825.jpg';
-
-const CATALOG_IMAGE_MAP: Record<string, string> = {
-  '/src/assets/images/catalog_fefco_corrugated_1794764676518.jpg': fefcoCover,
-  '/src/assets/images/catalog_luxury_hardbox_1794764676452.jpg': hardboxCover,
-  '/src/assets/images/catalog_ecommerce_mailer_1794764677888.jpg': mailerCover,
-  '/src/assets/images/catalog_pharma_cosmetic_1794764676825.jpg': pharmaCover,
-  'cat-fefco-industrial': fefcoCover,
-  'cat-luxury-hardbox': hardboxCover,
-  'cat-ecommerce-mailer': mailerCover,
-  'cat-ecma-pharma': pharmaCover,
-};
-
-export function resolveCatalogCoverImage(coverImage?: string, id?: string | number): string | undefined {
-  if (coverImage && CATALOG_IMAGE_MAP[coverImage]) {
-    return CATALOG_IMAGE_MAP[coverImage];
+export function resolveCatalogCoverImage(coverImage?: string, _id?: string | number): string | undefined {
+  if (!coverImage || typeof coverImage !== 'string') {
+    return undefined;
   }
-  if (coverImage) {
-    return coverImage;
+  const trimmed = coverImage.trim();
+  if (
+    !trimmed ||
+    trimmed.includes('/src/assets/images/catalog_') ||
+    trimmed.includes('/src/assets/images/demo_')
+  ) {
+    return undefined;
   }
-  if (id !== undefined && CATALOG_IMAGE_MAP[String(id)]) {
-    return CATALOG_IMAGE_MAP[String(id)];
-  }
-  return undefined;
+  return trimmed;
 }
+
+export function isSupportedImageFile(file: File): boolean {
+  if (!file) return false;
+  if (file.type && file.type.toLowerCase().startsWith('image/')) {
+    return true;
+  }
+  return /\.(jpe?g|png|webp|gif|bmp|avif|svg)$/i.test(file.name || '');
+}
+
+export function getUploadFallbackUrl(src?: string | null): string | null {
+  if (!src || typeof src !== 'string') return null;
+  const trimmed = src.trim();
+  if (!trimmed || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return null;
+  if (trimmed.includes('upload-file') && trimmed.includes('p=')) return null;
+
+  const clean = trimmed.split('#')[0];
+  const match = clean.match(/(?:^|\/)uploads\/([^?]+)/i);
+  if (!match || !match[1]) return null;
+  const rel = match[1].replace(/^\/+/, '');
+  if (!rel || rel.includes('..')) return null;
+  return `/api.php?r=upload-file&p=${encodeURIComponent(rel)}`;
+}
+

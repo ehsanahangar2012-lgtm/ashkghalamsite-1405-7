@@ -1,6 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { CatalogItem } from '../../services/catalogService';
-import { resolveCatalogCoverImage } from '../../utils/catalogAssets';
+import { resolveCatalogCoverImage, getUploadFallbackUrl } from '../../utils/catalogAssets';
 import { useCatalog } from '../../contexts/CatalogContext';
 import { CatalogProject } from '../../types/flipbook';
 import { BookOpen, ChevronLeft, ChevronRight, Download, Box, ArrowUpRight, Layers, Printer, Ruler, Loader2, AlertCircle } from 'lucide-react';
@@ -273,13 +273,33 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
 }) => {
   const { getFlipbookProject } = useCatalog();
   const [spreadIndex, setSpreadIndex] = useState(0);
-  const [imgFailed, setImgFailed] = useState(false);
   const [flipbookProject, setFlipbookProject] = useState<CatalogProject | null>(null);
   const [loadingFlipbook, setLoadingFlipbook] = useState(Boolean(catalog.flipbookId));
   const [flipbookError, setFlipbookError] = useState<string | null>(null);
 
   const dossier = getCatalogDossier(catalog);
-  const coverSrc = resolveCatalogCoverImage(catalog.coverImage, catalog.id);
+  const [coverSrc, setCoverSrc] = useState<string | undefined>(() => resolveCatalogCoverImage(catalog.coverImage, catalog.id));
+  const [imgFailed, setImgFailed] = useState(false);
+  const [imgRetried, setImgRetried] = useState(false);
+
+  useEffect(() => {
+    const resolved = resolveCatalogCoverImage(catalog.coverImage, catalog.id);
+    setCoverSrc(resolved);
+    setImgFailed(false);
+    setImgRetried(false);
+  }, [catalog.coverImage, catalog.id]);
+
+  const handleCoverError = () => {
+    if (!imgRetried && coverSrc) {
+      const fb = getUploadFallbackUrl(coverSrc);
+      if (fb) {
+        setImgRetried(true);
+        setCoverSrc(fb);
+        return;
+      }
+    }
+    setImgFailed(true);
+  };
 
   useEffect(() => {
     if (!catalog.flipbookId) {
@@ -445,7 +465,7 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
                     src={coverSrc}
                     alt={catalog.title}
                     referrerPolicy="no-referrer"
-                    onError={() => setImgFailed(true)}
+                    onError={handleCoverError}
                     className="w-full h-full object-cover"
                   />
                 ) : (

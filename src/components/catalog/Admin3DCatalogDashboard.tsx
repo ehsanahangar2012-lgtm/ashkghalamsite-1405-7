@@ -526,7 +526,7 @@ export const Admin3DCatalogDashboard: React.FC = () => {
                     aiStatus: 'idle',
                   },
                 ]
-              : base.pages,
+              : [],
           });
         }
         if (!mountedRef.current) return;

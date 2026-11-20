@@ -12,6 +12,9 @@ import {
   ManagedServiceItem,
 } from '../types';
 import { createPackageSvgDataUrl } from '../utils/packagePreviewSvg';
+import { apiFetch, apiPostJson, apiRequestJson } from '../utils/apiClient';
+import { optimizeFileToWebP } from '../utils/imageOptimizer';
+import { isSupportedImageFile } from '../utils/catalogAssets';
 
 interface GlobalSettings {
   siteName: string;
@@ -135,6 +138,19 @@ export const DEFAULT_MANAGED_SERVICES: ManagedServiceItem[] = [
   },
 ];
 
+export interface UpdateAssetPayload {
+  url: string;
+  oldUrl?: string;
+  title?: string;
+  name?: string;
+  description?: string;
+  category?: string;
+  alt?: string;
+  newDataUrl?: string;
+  width?: number;
+  height?: number;
+}
+
 interface ContentContextType {
   siteContent: SiteContent;
   globalSettings: GlobalSettings;
@@ -157,8 +173,14 @@ interface ContentContextType {
   removeBlogPost: (id: string) => void;
   updateBlogPostStatus: (id: string, status: 'draft' | 'published' | 'rejected') => Promise<void>;
   refreshPosts: () => Promise<void>;
-  uploadAsset: (asset: any, onProgress?: (percent: number) => void) => Promise<UploadedAsset | null>;
-  deleteAsset: (id: string) => Promise<boolean>;
+  refreshAssets: () => Promise<UploadedAsset[]>;
+  uploadAsset: (
+    asset: any,
+    onProgress?: (percent: number) => void,
+    meta?: { title?: string; category?: string; description?: string }
+  ) => Promise<UploadedAsset | null>;
+  updateAsset: (payload: UpdateAssetPayload) => Promise<{ ok: boolean; url?: string; error?: string }>;
+  deleteAsset: (id: string, url?: string, removeFromCatalogs?: boolean) => Promise<boolean>;
   saveSettingsToHost: () => Promise<boolean>;
   upsertCustomPage: (page: CustomPageItem) => Promise<void>;
   deleteCustomPage: (id: string) => Promise<void>;
@@ -175,9 +197,9 @@ const defaultSiteContent: SiteContent = {
   heroDescription: 'سامانه یکپارچه CAD/CAM طراحی کارتن و جعبه با موتور محاسبات دقیق صنعتی، کاتالوگ دیجیتال تعاملی و ابزارهای کاملاً آفلاین تولید بسته‌بندی.',
   heroBackgroundUrl: '',
   footerAbout: 'مجتمع صنایع چاپ و بسته‌بندی اشک قلم، پیشرو در نوآوری ساختار کارتن، طراحی مهندسی دایکات و چاپ افست مدرن.',
-  contactPhone: '۰۲۱-۵۵۰۰۰۰۰۰',
+  contactPhone: '09153108763',
   contactEmail: 'info@ashkghalam.ir',
-  contactAddress: 'تهران، شهرک صنعتی، مجتمع چاپ اشک قلم',
+  contactAddress: 'مشهد، مجتمع چاپ و بسته‌بندی اشک قلم',
   workingHours: 'شنبه تا چهارشنبه ۸:۰۰ الی ۱۷:۰۰',
 };
 
@@ -185,13 +207,15 @@ const defaultGlobalSettings: GlobalSettings = {
   siteName: 'اشک قلم - استودیو CAD و مهندسی کارتن',
   primaryColor: '#f59e0b',
   enableAutoSave: true,
-  contactPhone: '۰۲۱-۵۵۰۰۰۰۰۰',
+  contactPhone: '09153108763',
   contactEmail: 'info@ashkghalam.ir',
-  address: 'تهران، مجتمع چاپ اشک قلم',
-  heroBadge: 'نسخه ۳.۱۴.۰ - موتور اختصاصی CAD',
+  address: 'مشهد، مجتمع چاپ اشک قلم',
+  heroBadge: 'نسخه ۳.۲۴.۰ - موتور اختصاصی CAD',
   heroHeadline: 'مهندسی پیشرفته جعبه و کارتن',
+  ashkPortalUrl: 'https://ashkghalam.ir',
   badikaranPortalTitle: 'مجتمع چاپ و بسته‌بندی بادیکاران توس',
-  badikaranPortalUrl: 'https://badikaran.ir',
+  badikaranPortalUrl: 'https://ashkghalam.ir',
+  whatsappNumber: '09153108763',
   badikaranNotifEnabled: true,
 };
 
@@ -309,6 +333,54 @@ const defaultEmergencyConfig: EmergencyConfig = {
   backgroundColor: '#dc2626',
 };
 
+const LEGACY_PHONES = new Set([
+  '۰۲۱-۵۵۰۰۰۰۰۰',
+  '021-55000000',
+  '۰۵۱-۳۳۸۸۰۰۰۰',
+  '051-33880000',
+  '+985138400000',
+  '۰۲۱-۸۸۴۴۱۲۰۰',
+]);
+
+const LEGACY_URLS = new Set([
+  'https://badikaran.ir',
+  'http://badikaran.ir',
+  'https://badikaran-print.ir',
+  'https://arta-catalog.ir',
+  'www.ashkghalam.ir',
+  'https://ashkghalam.com',
+  'http://ashkghalam.com',
+]);
+
+function normalizeSiteContentRecord(sc: SiteContent): SiteContent {
+  const phone = !sc.contactPhone || LEGACY_PHONES.has(sc.contactPhone.trim()) ? '09153108763' : sc.contactPhone;
+  return { ...sc, contactPhone: phone };
+}
+
+function normalizeGlobalSettingsRecord(gs: GlobalSettings): GlobalSettings {
+  const phone = !gs.contactPhone || LEGACY_PHONES.has(gs.contactPhone.trim()) ? '09153108763' : gs.contactPhone;
+  const badUrl = !gs.badikaranPortalUrl || LEGACY_URLS.has(gs.badikaranPortalUrl.trim())
+    ? 'https://ashkghalam.ir'
+    : gs.badikaranPortalUrl;
+  const ashkUrl = !gs.ashkPortalUrl || LEGACY_URLS.has(String(gs.ashkPortalUrl).trim())
+    ? 'https://ashkghalam.ir'
+    : gs.ashkPortalUrl;
+  const wa = !gs.whatsappNumber || LEGACY_PHONES.has(String(gs.whatsappNumber).trim())
+    ? '09153108763'
+    : gs.whatsappNumber;
+  const badge = gs.heroBadge
+    ? gs.heroBadge.replace(/۳\.(۲۰|۲۱|۲۲|۲۳)\.۰/g, '۳.۲۴.۰')
+    : gs.heroBadge;
+  return {
+    ...gs,
+    contactPhone: phone,
+    badikaranPortalUrl: badUrl,
+    ashkPortalUrl: ashkUrl,
+    whatsappNumber: wa,
+    heroBadge: badge,
+  };
+}
+
 function readStorage<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -341,7 +413,9 @@ const ContentContext = createContext<ContentContextType>({
   removeBlogPost: () => {},
   updateBlogPostStatus: async () => {},
   refreshPosts: async () => {},
+  refreshAssets: async () => [],
   uploadAsset: async () => null,
+  updateAsset: async () => ({ ok: false }),
   deleteAsset: async () => false,
   saveSettingsToHost: async () => false,
   upsertCustomPage: async () => {},
@@ -353,8 +427,12 @@ const ContentContext = createContext<ContentContextType>({
 });
 
 export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [siteContent, setSiteContent] = useState<SiteContent>(() => readStorage('siteContent', defaultSiteContent));
-  const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(() => readStorage('globalSettings', defaultGlobalSettings));
+  const [siteContent, setSiteContent] = useState<SiteContent>(() =>
+    normalizeSiteContentRecord(readStorage('siteContent', defaultSiteContent))
+  );
+  const [globalSettings, setGlobalSettings] = useState<GlobalSettings>(() =>
+    normalizeGlobalSettingsRecord(readStorage('globalSettings', defaultGlobalSettings))
+  );
   const [portfolioItems] = useState<MediaItem[]>(() => readStorage('portfolioItems', defaultPortfolioItems));
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>(() => readStorage('blogPosts', defaultBlogPosts));
   const [catalogItems, setCatalogItems] = useState<MediaItem[]>([]);
@@ -372,9 +450,8 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const refreshPosts = async () => {
     try {
-      const res = await fetch('/api/posts?admin=true');
-      const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
+      const { res, data } = await apiRequestJson<BlogPost[]>('posts?admin=true');
+      if (res.ok && Array.isArray(data) && data.length > 0) {
         setBlogPosts((prev) => {
           const serverIds = new Set(data.map((p: BlogPost) => p.id));
           const merged = [...data, ...prev.filter((p) => !serverIds.has(p.id))];
@@ -385,24 +462,54 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch {}
   };
 
+  const refreshAssets = async (): Promise<UploadedAsset[]> => {
+    try {
+      const { res, data: serverAssets } = await apiRequestJson<UploadedAsset[]>('media');
+      if (res.ok && Array.isArray(serverAssets)) {
+        let merged: UploadedAsset[] = serverAssets;
+        setAssets((prev) => {
+          const serverUrls = new Set(serverAssets.map((a: UploadedAsset) => a.url || a.data));
+          const localOnly = prev.filter(
+            (a) => a.data.startsWith('data:') && !serverUrls.has(a.data)
+          );
+          merged = [...serverAssets, ...localOnly];
+          try {
+            localStorage.setItem('uploadedAssets', JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+        return merged;
+      }
+    } catch {}
+    return assets;
+  };
+
   useEffect(() => {
     refreshPosts();
+    refreshAssets();
 
-    fetch('/api/catalogs')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setCatalogItems(data);
-        }
-      })
-      .catch(() => {});
+    const loadCatalogItems = () => {
+      apiRequestJson<MediaItem[]>('catalogs')
+        .then(({ res, data }) => {
+          if (res.ok && Array.isArray(data)) {
+            setCatalogItems(data);
+          }
+        })
+        .catch(() => {});
+    };
+    loadCatalogItems();
 
-    fetch('/api/settings')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && typeof data === 'object') {
-          if (data.siteContent) setSiteContent((prev) => ({ ...prev, ...data.siteContent }));
-          if (data.globalSettings) setGlobalSettings((prev) => ({ ...prev, ...data.globalSettings }));
+    const onMediaSynced = () => {
+      void refreshAssets();
+      loadCatalogItems();
+    };
+    window.addEventListener('ashk-media-synced', onMediaSynced);
+
+    apiRequestJson<Record<string, any>>('settings')
+      .then(({ res, data }) => {
+        if (res.ok && data && typeof data === 'object') {
+          if (data.siteContent) setSiteContent((prev) => normalizeSiteContentRecord({ ...prev, ...data.siteContent }));
+          if (data.globalSettings) setGlobalSettings((prev) => normalizeGlobalSettingsRecord({ ...prev, ...data.globalSettings }));
           if (data.pricingFormula) setPricingFormula((prev) => ({ ...prev, ...data.pricingFormula }));
           if (data.emergencyConfig) setEmergencyConfig((prev) => ({ ...prev, ...data.emergencyConfig }));
           if (Array.isArray(data.customPages)) {
@@ -435,15 +542,15 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
       })
       .catch(() => {});
+
+    return () => {
+      window.removeEventListener('ashk-media-synced', onMediaSynced);
+    };
   }, []);
 
   const persistPartialSettings = async (patch: Record<string, unknown>) => {
     try {
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      });
+      await apiPostJson('settings', patch);
     } catch {}
   };
 
@@ -548,11 +655,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.setItem('blogPosts', JSON.stringify(next));
       return next;
     });
-    fetch('/api/posts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(withStatus),
-    }).catch(() => {});
+    apiPostJson('posts', withStatus).catch(() => {});
   };
 
   const removeBlogPost = (id: string) => {
@@ -561,7 +664,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       localStorage.setItem('blogPosts', JSON.stringify(next));
       return next;
     });
-    fetch(`/api/posts/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    apiFetch(`posts/${encodeURIComponent(id)}/delete`, { method: 'POST' }).catch(() => {});
   };
 
   const updateBlogPostStatus = async (id: string, status: 'draft' | 'published' | 'rejected') => {
@@ -571,74 +674,190 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return next;
     });
     try {
-      await fetch(`/api/posts/${encodeURIComponent(id)}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
+      await apiPostJson(`posts/${encodeURIComponent(id)}/status`, { status });
     } catch {}
   };
 
-  const uploadAsset = async (fileOrAsset: any, onProgress?: (percent: number) => void): Promise<UploadedAsset | null> => {
+  const uploadAsset = async (
+    fileOrAsset: any,
+    onProgress?: (percent: number) => void,
+    meta?: { title?: string; category?: string; description?: string }
+  ): Promise<UploadedAsset | null> => {
     if (fileOrAsset instanceof File) {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onprogress = (e) => {
-          if (e.lengthComputable && onProgress) {
-            onProgress(Math.round((e.loaded / e.total) * 100));
-          }
-        };
-        reader.onload = () => {
-          const item: UploadedAsset = {
-            id: `asset-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            name: fileOrAsset.name,
-            type: fileOrAsset.type,
-            size: fileOrAsset.size,
-            data: String(reader.result || ''),
-            uploadDate: new Date().toLocaleDateString('fa-IR'),
-          };
-          setAssets((prev) => {
-            const next = [item, ...prev];
-            try {
-              localStorage.setItem('uploadedAssets', JSON.stringify(next));
-            } catch {}
-            return next;
+      if (!isSupportedImageFile(fileOrAsset)) {
+        return null;
+      }
+      if (onProgress) onProgress(15);
+
+      const isSvgOrGif =
+        fileOrAsset.type.includes('svg') ||
+        fileOrAsset.type.includes('gif') ||
+        /\.(svg|gif)$/i.test(fileOrAsset.name || '');
+
+      let uploadBlob: Blob = fileOrAsset;
+      let uploadName = fileOrAsset.name;
+      let dataUrl = '';
+      let width = 0;
+      let height = 0;
+
+      if (!isSvgOrGif) {
+        try {
+          const opt = await optimizeFileToWebP(fileOrAsset, {
+            quality: 0.84,
+            maxDimension: 1600,
           });
-          if (onProgress) onProgress(100);
-          resolve(item);
-        };
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(fileOrAsset);
-      });
+          dataUrl = opt.optimizedDataUrl;
+          width = opt.width;
+          height = opt.height;
+          const b64 = dataUrl.split(',')[1] || '';
+          const bin = atob(b64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i += 1) {
+            bytes[i] = bin.charCodeAt(i);
+          }
+          uploadBlob = new Blob([bytes], { type: 'image/webp' });
+          const stem = fileOrAsset.name.replace(/\.[^.]+$/, '') || 'media';
+          uploadName = `${stem}.webp`;
+        } catch {
+          // Fall back to original file below
+        }
+      }
+
+      if (!dataUrl) {
+        dataUrl = await new Promise<string>((resolve) => {
+          const r = new FileReader();
+          r.onload = () => resolve(typeof r.result === 'string' ? r.result : '');
+          r.onerror = () => resolve('');
+          r.readAsDataURL(fileOrAsset);
+        });
+      }
+
+      if (onProgress) onProgress(45);
+
+      const handleSuccess = (uploaded: UploadedAsset): UploadedAsset => {
+        setAssets((prev) => {
+          const next = [uploaded, ...prev.filter((a) => a.id !== uploaded.id && a.url !== uploaded.url)];
+          try {
+            localStorage.setItem('uploadedAssets', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+        if (onProgress) onProgress(100);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('ashk-media-synced'));
+        }
+        void refreshAssets();
+        return uploaded;
+      };
+
+      // Stage A: multipart/form-data upload
+      try {
+        const formData = new FormData();
+        formData.append('file', uploadBlob, uploadName);
+        if (meta?.title) formData.append('title', meta.title);
+        if (meta?.category) formData.append('category', meta.category);
+        if (meta?.description) formData.append('description', meta.description);
+        if (width > 0) formData.append('width', String(width));
+        if (height > 0) formData.append('height', String(height));
+
+        const res = await apiFetch('media/upload', {
+          method: 'POST',
+          body: formData,
+        }, 25000);
+        if (onProgress) onProgress(75);
+        if (res.ok) {
+          const payload = await res.json().catch(() => null);
+          if (payload?.ok && payload.asset) {
+            return handleSuccess(payload.asset as UploadedAsset);
+          }
+        }
+      } catch {
+        // Fall through to Stage B JSON/WAF-bypass
+      }
+
+      // Stage B: JSON / WAF-bypass Base64 payload_file upload
+      if (dataUrl && dataUrl.startsWith('data:image/')) {
+        try {
+          const { res, data } = await apiPostJson<{ ok?: boolean; asset?: UploadedAsset }>(
+            'media/upload',
+            {
+              dataUrl,
+              name: uploadName,
+              title: meta?.title || fileOrAsset.name.replace(/\.[^.]+$/, ''),
+              category: meta?.category || 'رسانه سایت',
+              description: meta?.description || '',
+              width: width || undefined,
+              height: height || undefined,
+            },
+            25000
+          );
+          if (onProgress) onProgress(95);
+          if (res.ok && data?.ok && data.asset) {
+            return handleSuccess(data.asset);
+          }
+        } catch {
+          // Return null below so UI alerts user cleanly
+        }
+      }
+
+      if (onProgress) onProgress(0);
+      return null;
     }
     return null;
   };
 
-  const deleteAsset = async (id: string): Promise<boolean> => {
+  const updateAsset = async (
+    payload: UpdateAssetPayload
+  ): Promise<{ ok: boolean; url?: string; error?: string }> => {
+    try {
+      const { res, data } = await apiPostJson<{ ok?: boolean; url?: string; error?: string }>('media/update', payload);
+      if (!res.ok || !data?.ok) {
+        return { ok: false, error: data?.error || 'خطا در ویرایش تصویر در سرور.' };
+      }
+      await refreshAssets();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ashk-media-synced'));
+      }
+      return { ok: true, url: data.url || payload.url };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'ارتباط با سرور برای ویرایش تصویر برقرار نشد.' };
+    }
+  };
+
+  const deleteAsset = async (
+    id: string,
+    url?: string,
+    removeFromCatalogs = true
+  ): Promise<boolean> => {
+    const existing = assets.find((a) => a.id === id);
+    const targetUrl = url || existing?.url || existing?.data || '';
+    try {
+      await apiPostJson('media/delete', { id, url: targetUrl, removeFromCatalogs });
+    } catch {}
+
     setAssets((prev) => {
-      const next = prev.filter((a) => a.id !== id);
+      const next = prev.filter((a) => a.id !== id && (!targetUrl || (a.url || a.data) !== targetUrl));
       try {
         localStorage.setItem('uploadedAssets', JSON.stringify(next));
       } catch {}
       return next;
     });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('ashk-media-synced'));
+    }
     return true;
   };
 
   const saveSettingsToHost = async (): Promise<boolean> => {
     try {
-      const res = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          siteContent,
-          globalSettings,
-          pricingFormula,
-          emergencyConfig,
-          customPages,
-          managedProducts,
-          managedServices,
-        }),
+      const { res } = await apiPostJson('settings', {
+        siteContent,
+        globalSettings,
+        pricingFormula,
+        emergencyConfig,
+        customPages,
+        managedProducts,
+        managedServices,
       });
       return res.ok;
     } catch {
@@ -670,7 +889,9 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
         removeBlogPost,
         updateBlogPostStatus,
         refreshPosts,
+        refreshAssets,
         uploadAsset,
+        updateAsset,
         deleteAsset,
         saveSettingsToHost,
         upsertCustomPage,

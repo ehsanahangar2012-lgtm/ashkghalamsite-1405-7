@@ -193,17 +193,17 @@ export const B2BEnterpriseProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Unified State Stores
   const [members, setMembers] = useState<Member[]>([
-    { id: 'MEM-01', name: 'مهندس احسان آهنگر', companyName: 'زعفران قائنات عتیق', role: 'Customer', nationalId: '۰۹۲۳۴۸۱۷۲', economicCode: '۴۱۱۵۶۸۹۴۳', phone: '۰۹۱۲۴۸۱۹۲۳۴', email: 'ehsanahangar2010@gmail.com', creditLimit: 45000000, walletBalance: 12500000, membershipLevel: 'Gold', riskScore: 12, outstandingDebt: 15400000, history: ['عضویت طلایی ثبت شد', 'پیش‌پرداخت سفارش فولدینگ کارتن: ۱.۵ میلیون'] },
-    { id: 'MEM-02', name: 'سهراب زارعی', companyName: 'چاپخانه خلیج‌فارس کاشان', role: 'Sales Partner', nationalId: '۱۰۳۲۴۹۸۲۳', economicCode: '---', phone: '۰۹۳۵۴۸۲۶۳۹۴', email: 'sohrab@kashanprint.ir', creditLimit: 20000000, walletBalance: 1200000, membershipLevel: 'Silver', riskScore: 48, outstandingDebt: 8500000, history: ['عضویت نقره‌ای ثبت شد'] },
-    { id: 'MEM-03', name: 'امین کاظمی', companyName: 'استودیو طراحی امین هنر', role: 'Designer', nationalId: '۱۲۹۳۸۴۷۵۶', economicCode: '---', phone: '۰۹۱۹۴۸۲۷۳۶۴', email: 'art_amin@outlook.com', creditLimit: 5000000, walletBalance: 4500000, membershipLevel: 'Standard', riskScore: 8, outstandingDebt: 0, history: ['عضویت مستقل ثبت شد'] },
-    { id: 'MEM-04', name: 'کارخانه مقوای البرز', companyName: 'شرکت صنایع سلولزی البرز', role: 'Supplier', nationalId: '۱۰۴۴۸۳۹۲۳', economicCode: '۸۹۱۲۳۷۴۸۴', phone: '۰۲۶۳۲۴۷۲۹۳۹', email: 'allborz-paper@melli.ir', creditLimit: 150000000, walletBalance: 0, membershipLevel: 'Enterprise', riskScore: 15, outstandingDebt: 45000000, history: ['تامین‌کننده تایید شده مقوای مات هاردباکس'] }
+    { id: 'MEM-01', name: 'مهندس احسان آهنگر', companyName: 'زعفران قائنات عتیق', role: 'Customer', nationalId: '۰۹۲۳۴۸۱۷۲', economicCode: '۴۱۱۵۶۸۹۴۳', phone: '09153108763', email: 'ehsanahangar2010@gmail.com', creditLimit: 45000000, walletBalance: 12500000, membershipLevel: 'Gold', riskScore: 12, outstandingDebt: 15400000, history: ['عضویت طلایی ثبت شد', 'پیش‌پرداخت سفارش فولدینگ کارتن: ۱.۵ میلیون'] },
+    { id: 'MEM-02', name: 'سهراب زارعی', companyName: 'چاپخانه خلیج‌فارس کاشان', role: 'Sales Partner', nationalId: '۱۰۳۲۴۹۸۲۳', economicCode: '---', phone: '09153108763', email: 'sohrab@kashanprint.ir', creditLimit: 20000000, walletBalance: 1200000, membershipLevel: 'Silver', riskScore: 48, outstandingDebt: 8500000, history: ['عضویت نقره‌ای ثبت شد'] },
+    { id: 'MEM-03', name: 'امین کاظمی', companyName: 'استودیو طراحی امین هنر', role: 'Designer', nationalId: '۱۲۹۳۸۴۷۵۶', economicCode: '---', phone: '09153108763', email: 'art_amin@outlook.com', creditLimit: 5000000, walletBalance: 4500000, membershipLevel: 'Standard', riskScore: 8, outstandingDebt: 0, history: ['عضویت مستقل ثبت شد'] },
+    { id: 'MEM-04', name: 'کارخانه مقوای البرز', companyName: 'شرکت صنایع سلولزی البرز', role: 'Supplier', nationalId: '۱۰۴۴۸۳۹۲۳', economicCode: '۸۹۱۲۳۷۴۸۴', phone: '09153108763', email: 'allborz-paper@melli.ir', creditLimit: 150000000, walletBalance: 0, membershipLevel: 'Enterprise', riskScore: 15, outstandingDebt: 45000000, history: ['تامین‌کننده تایید شده مقوای مات هاردباکس'] }
   ]);
 
   const [leads, setLeads] = useState<Lead[]>([
-    { id: 'LD-81', name: 'مهندس رضایی', company: 'گز اصفهان مظفری', phone: '۰۹۱۳۴۹۸۲۳', interest: 'کارتن صادراتی گز لولایی دایکاتی', status: 'Lead', score: 85, estimatedValue: 12000000, lastContact: '۲ روز پیش', assignedTo: 'آرش علوی', followUps: ['ارسال استعلام اولیه قیمت ورق'] },
-    { id: 'LD-82', name: 'خانم دکتر صادقی', company: 'داروسازی سلامت البرز', phone: '۰۹۲۱۲۸۳۷۴', interest: 'جعبه ایندربرد بهداشتی ضد نور', status: 'Prospect', score: 92, estimatedValue: 56000000, lastContact: '۳ ساعت پیش', assignedTo: 'الهام سهرابی', followUps: ['طراحی اولیه دیلاین و ارسال برای گرافیست'] },
-    { id: 'LD-83', name: 'آقای پورعلی', company: 'ادکلن لوکس تبريز', phone: '۰۹۴۱۱۲۸۹۳', interest: 'هاردباکس مغناطیسی مخمل طلاکوب', status: 'Quotation', score: 78, estimatedValue: 75000000, lastContact: '۱ هفته پیش', assignedTo: 'آرش علوی', followUps: ['ارائه پیش‌فاکتور ۳۰٪ پیش‌پرداخت تسلیمی', 'مشتری تقاضای مهلت تسویه کرده است'] },
-    { id: 'LD-84', name: 'سهراب منش', company: 'خشکبار مهر پارس', phone: '۰۹۱۲۴۴۳۹۸', interest: 'کیسه کرافت دسته‌دار زیپدار چاپی', status: 'Negotiation', score: 98, estimatedValue: 18500000, lastContact: 'امروز', assignedTo: 'اکبر شاهی', followUps: ['مذاکره نهایی جهت تامین کاغذ ورق کرافت وارداتی'] }
+    { id: 'LD-81', name: 'مهندس رضایی', company: 'گز اصفهان مظفری', phone: '09153108763', interest: 'کارتن صادراتی گز لولایی دایکاتی', status: 'Lead', score: 85, estimatedValue: 12000000, lastContact: '۲ روز پیش', assignedTo: 'آرش علوی', followUps: ['ارسال استعلام اولیه قیمت ورق'] },
+    { id: 'LD-82', name: 'خانم دکتر صادقی', company: 'داروسازی سلامت البرز', phone: '09153108763', interest: 'جعبه ایندربرد بهداشتی ضد نور', status: 'Prospect', score: 92, estimatedValue: 56000000, lastContact: '۳ ساعت پیش', assignedTo: 'الهام سهرابی', followUps: ['طراحی اولیه دیلاین و ارسال برای گرافیست'] },
+    { id: 'LD-83', name: 'آقای پورعلی', company: 'ادکلن لوکس تبريز', phone: '09153108763', interest: 'هاردباکس مغناطیسی مخمل طلاکوب', status: 'Quotation', score: 78, estimatedValue: 75000000, lastContact: '۱ هفته پیش', assignedTo: 'آرش علوی', followUps: ['ارائه پیش‌فاکتور ۳۰٪ پیش‌پرداخت تسلیمی', 'مشتری تقاضای مهلت تسویه کرده است'] },
+    { id: 'LD-84', name: 'سهراب منش', company: 'خشکبار مهر پارس', phone: '09153108763', interest: 'کیسه کرافت دسته‌دار زیپدار چاپی', status: 'Negotiation', score: 98, estimatedValue: 18500000, lastContact: 'امروز', assignedTo: 'اکبر شاهی', followUps: ['مذاکره نهایی جهت تامین کاغذ ورق کرافت وارداتی'] }
   ]);
 
   const [orders, setOrders] = useState<ERPOrder[]>([
@@ -753,8 +753,8 @@ export const MembersTab: React.FC<{ members: Member[]; setMembers: React.Dispatc
       role: newRole,
       nationalId: newNationalId || '---',
       economicCode: newEcoCode || '---',
-      phone: newPhone || '۰۹۱۲---',
-      email: newEmail || 'info@---',
+      phone: newPhone || '09153108763',
+      email: newEmail || 'info@ashkghalam.ir',
       creditLimit: Number(newCreditLimit),
       walletBalance: 0,
       membershipLevel: membership,
@@ -782,7 +782,6 @@ export const MembersTab: React.FC<{ members: Member[]; setMembers: React.Dispatc
       return m;
     }));
     logSystemAction('EDIT', 'Member', id, `شارژ دستی پیش‌پرداخت زنجیره تامین به میزان ${walletRechargeAmount.toLocaleString()} تومان`);
-    alert('کیف پول کاربر با موفقیت ثبت شد.');
   };
 
   const filteredMembers = filterRole === 'All' ? members : members.filter(m => m.role === filterRole);

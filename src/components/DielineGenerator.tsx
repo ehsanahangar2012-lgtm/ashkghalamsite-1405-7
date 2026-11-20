@@ -3441,7 +3441,7 @@ export const DielineGenerator: React.FC<{ onSaveProject?: (p: Project) => void }
         <footer>
           این سند راهنما به صورت خودکار توسط سیستم هوشمند طراح دایلاین اشک قلم با محاسبات ریاضی کالیبره شده صادر شده است.
           <br/>
-          آدرس سامانه: www.ashkghalam.com | کلیه حقوق علمی اثر محفوظ است.
+          آدرس سامانه: https://ashkghalam.ir | کلیه حقوق علمی اثر محفوظ است.
         </footer>
 
         <script>
