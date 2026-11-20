@@ -21,11 +21,11 @@ interface DownloadReleasePageProps {
 export const DownloadReleasePage: React.FC<DownloadReleasePageProps> = ({ onBack, hideBreadcrumb = false }) => {
   const [release, setRelease] = useState<ReleaseData>({
     available: true,
-    version: '3.22.0',
-    fileName: 'ashk-ghalam-v3.22.0-cpanel.zip',
-    sizeMb: 6.95,
+    version: '3.26.6',
+    fileName: 'ashk-ghalam-v3.26.6-cpanel.zip',
+    sizeMb: 1.8,
     downloadUrl: '/api/release/download',
-    staticUrl: '/downloads/ashk-ghalam-v3.22.0-cpanel.zip',
+    staticUrl: '/downloads/ashk-ghalam-v3.26.6-cpanel.zip',
   });
   const [isDownloading, setIsDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -71,7 +71,7 @@ export const DownloadReleasePage: React.FC<DownloadReleasePageProps> = ({ onBack
     setStatusMessage(null);
     setErrorMessage(null);
 
-    const targetName = release.fileName || 'ashk-ghalam-v3.22.0-cpanel.zip';
+    const targetName = release.fileName || 'ashk-ghalam-v3.26.6-cpanel.zip';
     const endpoints = [
       `${release.downloadUrl || '/api/release/download'}?t=${Date.now()}`,
       `/api.php?r=release/download&t=${Date.now()}`,
@@ -303,6 +303,9 @@ export const DownloadReleasePage: React.FC<DownloadReleasePageProps> = ({ onBack
             </li>
             <li>
               بک‌اند PHP به صورت خودکار تمام درخواست‌های ذخیره کاتالوگ سه‌بعدی، آپلود تصاویر (<code dir="ltr">uploads/flipbooks/</code>)، مقالات و تنظیمات را پردازش می‌کند.
+            </li>
+            <li>
+              برای سبک ماندن بسته استقرار (حدود ۱ تا ۲ مگابایت)، فایل‌های حجیم ابزارهای <strong className="text-slate-900 dark:text-white">PhotoCraft</strong>، <strong className="text-slate-900 dark:text-white">VectorCraft</strong> و <strong className="text-slate-900 dark:text-white">CADCraft</strong> در این فایل قرار نگرفته‌اند؛ پس از استقرار سایت، از طریق <strong>پنل مدیریت ← نصب ابزارهای استودیو روی هاست</strong> با یک کلیک مستقیماً روی سرور دانلود و تکمیل می‌شوند.
             </li>
           </ol>
         </div>

@@ -4,8 +4,10 @@ import { CatalogItem } from '../../services/catalogService';
 import { useCatalog } from '../../contexts/CatalogContext';
 import { saveInquiryPrefill } from '../../utils/inquiryPrefill';
 import { CatalogSpreadModal, getCatalogDossier } from './CatalogSpreadModal';
+import { CatalogImageLightbox, LightboxSlide } from './CatalogImageLightbox';
 import { ImageWrapper } from './ImageWrapper';
-import { BookOpen, Search, Download, Eye, ArrowUpRight, Box, BookMarked } from 'lucide-react';
+import { resolveCatalogCoverImage } from '../../utils/catalogAssets';
+import { BookOpen, Search, Download, Eye, ArrowUpRight, Box, BookMarked, ZoomIn } from 'lucide-react';
 import { SmartHelpButton } from '../SmartHelpModal';
 import { BackButton } from '../UIComponents';
 
@@ -32,6 +34,7 @@ export const CatalogSection: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [activeSpreadCatalog, setActiveSpreadCatalog] = useState<CatalogItem | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
     void ensureLoaded(false);
@@ -74,6 +77,23 @@ export const CatalogSection: React.FC = () => {
   const showFeaturedSplit = selectedCategory === 'ALL' && !search.trim() && filtered.length > 1;
   const featuredCatalog = showFeaturedSplit ? filtered[0] : null;
   const archiveList = showFeaturedSplit ? filtered.slice(1) : filtered;
+
+  const lightboxSlides = useMemo<LightboxSlide[]>(
+    () =>
+      filtered.map((c) => ({
+        id: String(c.id),
+        src: resolveCatalogCoverImage(c.coverImage, c.id),
+        title: c.title,
+        category: c.category,
+        description: c.description,
+      })),
+    [filtered]
+  );
+
+  const openCatalogImageLightbox = (catalogId: string | number) => {
+    const idx = filtered.findIndex((c) => String(c.id) === String(catalogId));
+    setLightboxIndex(idx >= 0 ? idx : 0);
+  };
 
   return (
     <section
@@ -191,14 +211,33 @@ export const CatalogSection: React.FC = () => {
           {/* Featured Monograph Split Showcase */}
           {featuredCatalog && (
             <article className="group bg-white dark:bg-[#0d1320] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 items-stretch shadow-sm hover:shadow-xl dark:hover:shadow-black/50 transition-shadow duration-200">
-              <div className="lg:col-span-6 aspect-[16/10] lg:aspect-auto lg:min-h-[380px] bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
-                <CatalogCoverThumb catalog={featuredCatalog} />
+              <div className="lg:col-span-6 aspect-[4/3] sm:aspect-[16/10] lg:aspect-auto lg:min-h-[380px] bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
+                <button
+                  type="button"
+                  onClick={() => setActiveSpreadCatalog(featuredCatalog)}
+                  className="w-full h-full block cursor-pointer"
+                  aria-label={`باز کردن ${featuredCatalog.title}`}
+                >
+                  <CatalogCoverThumb catalog={featuredCatalog} />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openCatalogImageLightbox(featuredCatalog.id);
+                  }}
+                  title="زوم، چرخش ۹۰ درجه و نمایش تمام‌صفحه"
+                  className="absolute bottom-2.5 left-2.5 z-10 px-2.5 py-1.5 rounded-lg bg-slate-950/85 hover:bg-slate-950 text-white text-[10px] sm:text-[11px] font-bold flex items-center gap-1 shadow-lg border border-white/15 cursor-pointer"
+                >
+                  <ZoomIn className="w-3.5 h-3.5 text-amber-400" />
+                  <span>زوم و تمام‌صفحه</span>
+                </button>
                 <div className="hidden lg:block absolute inset-0 bg-gradient-to-l from-black/10 to-transparent pointer-events-none" />
               </div>
 
-              <div className="lg:col-span-6 p-4 sm:p-6 md:p-10 flex flex-col justify-between gap-4 md:gap-6">
+              <div className="lg:col-span-6 p-3.5 sm:p-6 md:p-10 flex flex-col justify-between gap-3 md:gap-6">
                 <div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 tabular-nums mb-2">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 tabular-nums mb-1.5 sm:mb-2">
                     <span className="font-bold text-amber-600 dark:text-amber-400">نسخه شاخص · ۰۱</span>
                     <span aria-hidden="true">·</span>
                     <span>{featuredCatalog.category}</span>
@@ -216,12 +255,12 @@ export const CatalogSection: React.FC = () => {
                     )}
                   </div>
 
-                  <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 leading-snug mb-2 md:mb-3 [text-wrap:balance]">
+                  <h2 className="text-base sm:text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 leading-snug mb-1.5 md:mb-3 [text-wrap:balance]">
                     {featuredCatalog.title}
                   </h2>
 
                   {featuredCatalog.description && (
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-3 md:line-clamp-none mb-4 md:mb-6">
+                    <p className="text-[11px] sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2 md:line-clamp-none mb-3 md:mb-6">
                       {featuredCatalog.description}
                     </p>
                   )}
@@ -284,29 +323,44 @@ export const CatalogSection: React.FC = () => {
             </article>
           )}
 
-          {/* Monograph Archive Grid (Horizontal swipe carousel on phones, full grid on md+) */}
-          <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 overflow-x-auto md:overflow-visible snap-x snap-mandatory pb-2 md:pb-0 no-scrollbar">
+          {/* Monograph Archive Grid (Wider image-first cards on phones, full grid on md+) */}
+          <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-3.5 md:gap-8 overflow-x-auto md:overflow-visible snap-x snap-mandatory pb-2 md:pb-0 no-scrollbar">
             {archiveList.map((cat, idx) => {
               const displayIndex = showFeaturedSplit ? idx + 2 : idx + 1;
               const dossier = getCatalogDossier(cat);
               return (
                 <article
                   key={cat.id}
-                  className="group w-[78vw] sm:w-[56vw] md:w-auto shrink-0 snap-start bg-white dark:bg-[#0d1320] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-xl dark:hover:shadow-black/50 transition-all duration-200"
+                  className="group w-[88vw] sm:w-[64vw] md:w-auto shrink-0 snap-start bg-white dark:bg-[#0d1320] border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-xl dark:hover:shadow-black/50 transition-all duration-200"
                 >
                   <div>
-                    {/* Media-First 4:3 Studio Frame (Opens in-place without leaving page) */}
-                    <button
-                      type="button"
-                      onClick={() => setActiveSpreadCatalog(cat)}
-                      className="w-full block aspect-[4/3] bg-slate-100 dark:bg-slate-900 overflow-hidden border-b border-slate-200 dark:border-slate-800 cursor-pointer text-right"
-                    >
-                      <CatalogCoverThumb catalog={cat} />
-                    </button>
+                    {/* Media-First 4:3 Studio Frame with 1-tap Fullscreen Zoom */}
+                    <div className="relative aspect-[4/3] bg-slate-100 dark:bg-slate-900 overflow-hidden border-b border-slate-200 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSpreadCatalog(cat)}
+                        className="w-full h-full block cursor-pointer text-right"
+                      >
+                        <CatalogCoverThumb catalog={cat} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openCatalogImageLightbox(cat.id);
+                        }}
+                        title="زوم، چرخش و نمایش تمام‌صفحه"
+                        aria-label={`بزرگ‌نمایی تصویر ${cat.title}`}
+                        className="absolute bottom-2 left-2 z-10 h-7 px-2 rounded-lg bg-slate-950/85 hover:bg-slate-950 text-white text-[10px] font-bold flex items-center gap-1 shadow-md border border-white/15 cursor-pointer"
+                      >
+                        <ZoomIn className="w-3 h-3 text-amber-400" />
+                        <span>زوم</span>
+                      </button>
+                    </div>
 
-                    <div className="p-5 md:p-6">
+                    <div className="p-3.5 sm:p-5 md:p-6">
                       {/* Clean Unboxed Metadata */}
-                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 tabular-nums mb-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 tabular-nums mb-1.5">
                         <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
                           {String(displayIndex).padStart(2, '0')}
                         </span>
@@ -331,25 +385,25 @@ export const CatalogSection: React.FC = () => {
                         onClick={() => setActiveSpreadCatalog(cat)}
                         className="w-full text-right cursor-pointer"
                       >
-                        <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 leading-snug mb-2 line-clamp-2 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-slate-100 leading-snug mb-1.5 line-clamp-2 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                           {cat.title}
                         </h3>
                       </button>
 
                       {cat.description && (
-                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2 mb-3">
+                        <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-2 mb-2">
                           {cat.description}
                         </p>
                       )}
 
-                      <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                      <div className="text-[10px] sm:text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
                         {dossier.code}
                       </div>
                     </div>
                   </div>
 
                   {/* Card Footer Action Row */}
-                  <div className="px-5 md:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+                  <div className="px-3.5 sm:px-5 md:px-6 py-2.5 sm:py-3.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -436,6 +490,15 @@ export const CatalogSection: React.FC = () => {
             setActiveSpreadCatalog(null);
             navigate('/tools/dieline');
           }}
+        />
+      )}
+
+      {/* Fullscreen Zoom & 90° Rotation Gallery Lightbox */}
+      {lightboxIndex !== null && lightboxSlides.length > 0 && (
+        <CatalogImageLightbox
+          slides={lightboxSlides}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
         />
       )}
     </section>

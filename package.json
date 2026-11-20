@@ -1,12 +1,15 @@
 {
   "name": "ashk-ghalam-erp",
   "private": true,
-  "version": "3.25.0",
+  "version": "3.26.6",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "node -e \"const fs=require('fs'),path=require('path');for(const p of ['public/ashk-ghalam-erp-cpanel-release.zip','dist/ashk-ghalam-erp-cpanel-release.zip'])try{fs.unlinkSync(p)}catch{};for(const dir of ['public/downloads','dist'])try{for(const f of fs.readdirSync(dir))if(f.endsWith('.zip'))fs.unlinkSync(path.join(dir,f))}catch{}\" && vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js && npm run build:worker && node scripts/pack_release_zips.cjs",
+    "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/server.js && npm run build:worker && node scripts/sync_graphify.cjs",
     "build:worker": "esbuild agent/worker.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/agent-worker.js",
+    "version:bump": "node scripts/bump_version.cjs",
+    "studio:install": "node scripts/install_offline_studios.cjs",
+    "release:cpanel": "node scripts/bump_version.cjs && npm run build && node scripts/pack_release_zips.cjs",
     "start": "node dist/server.js",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
@@ -14,7 +17,11 @@
     "verify:3d-caliper": "tsx scripts/verify-3d-board-caliper.ts",
     "verify:dxf-scale": "tsx scripts/verify-dxf-scale-warning.ts",
     "verify:cms-storage": "tsx scripts/verify-local-cms-storage.ts",
-    "verify:all": "npm run verify:dieline && npm run verify:3d-caliper && npm run verify:dxf-scale && npm run verify:cms-storage"
+    "verify:all": "npm run verify:dieline && npm run verify:3d-caliper && npm run verify:dxf-scale && npm run verify:cms-storage",
+    "graphify:update": "graphify update . && graphify cluster-only . --no-label",
+    "graphify:watch": "graphify watch .",
+    "graphify:benchmark": "graphify benchmark graphify-out/graph.json",
+    "graphify:tree": "graphify tree --graph graphify-out/graph.json --output graphify-out/GRAPH_TREE.html"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1062.0",

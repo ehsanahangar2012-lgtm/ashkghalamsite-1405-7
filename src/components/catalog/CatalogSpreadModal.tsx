@@ -3,8 +3,9 @@ import { CatalogItem } from '../../services/catalogService';
 import { resolveCatalogCoverImage, getUploadFallbackCandidates } from '../../utils/catalogAssets';
 import { useCatalog } from '../../contexts/CatalogContext';
 import { CatalogProject } from '../../types/flipbook';
-import { BookOpen, ChevronLeft, ChevronRight, Download, Box, ArrowUpRight, Layers, Printer, Ruler, Loader2, AlertCircle } from 'lucide-react';
+import { BookOpen, ChevronLeft, ChevronRight, Download, Box, ArrowUpRight, Layers, Printer, Ruler, Loader2, AlertCircle, ZoomIn } from 'lucide-react';
 import { BackButton } from '../UIComponents';
+import { CatalogImageLightbox } from './CatalogImageLightbox';
 
 const FlipbookViewer = lazy(() =>
   import('../studio/FlipbookViewer').then((m) => ({ default: m.FlipbookViewer }))
@@ -288,6 +289,7 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
   );
   const [coverIdx, setCoverIdx] = useState(0);
   const [imgFailed, setImgFailed] = useState(false);
+  const [coverLightboxOpen, setCoverLightboxOpen] = useState(false);
 
   useEffect(() => {
     setCoverIdx(0);
@@ -350,38 +352,38 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[120] bg-black/85 flex items-center justify-center p-2 sm:p-4"
+      className="fixed inset-0 z-[120] bg-black/90 flex items-center justify-center p-0 sm:p-4"
       dir="rtl"
       onClick={onClose}
     >
       <div
         className={`w-full ${
           catalog.flipbookId
-            ? 'max-w-[96vw] xl:max-w-[1440px] h-[94vh]'
-            : 'max-w-5xl max-h-[90vh]'
-        } bg-white dark:bg-[#0c111d] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col`}
+            ? 'h-[100dvh] sm:h-[94vh] sm:max-w-[96vw] xl:max-w-[1440px]'
+            : 'h-[100dvh] sm:h-auto sm:max-h-[90vh] sm:max-w-5xl'
+        } bg-white dark:bg-[#0c111d] border-0 sm:border border-slate-200 dark:border-slate-800 rounded-none sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Spread Bar */}
-        <div className="px-4 sm:px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shrink-0">
+        <div className="px-3 sm:px-5 py-2 sm:py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 sm:gap-4 shrink-0">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-              <span>{catalog.category}</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
+              <span className="truncate">{catalog.category}</span>
               <span aria-hidden="true">·</span>
-              <span className="font-mono tabular-nums">{dossier.code}</span>
+              <span className="font-mono tabular-nums truncate">{dossier.code}</span>
               {catalog.pageCount && (
                 <>
                   <span aria-hidden="true">·</span>
-                  <span className="tabular-nums">{catalog.pageCount} صفحه</span>
+                  <span className="tabular-nums shrink-0">{catalog.pageCount} صفحه</span>
                 </>
               )}
             </div>
-            <h3 className="text-base md:text-lg font-extrabold text-slate-900 dark:text-slate-100 truncate mt-0.5">
+            <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-slate-900 dark:text-slate-100 truncate mt-0.5">
               {catalog.title}
             </h3>
           </div>
 
-          <BackButton label="بستن و بازگشت" onClick={onClose} variant="auto" />
+          <BackButton label="بستن" onClick={onClose} variant="auto" />
         </div>
 
         {/* Interactive Spread Tabs (for legacy non-flipbook technical catalogs) */}
@@ -432,7 +434,7 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
 
         {/* Spread Canvas Content */}
         {catalog.flipbookId ? (
-          <div className="flex-1 min-h-0 p-2 sm:p-3 bg-[#0d1017] flex flex-col">
+          <div className="flex-1 min-h-0 p-1 sm:p-3 bg-[#0d1017] flex flex-col">
             {loadingFlipbook ? (
               <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-3 text-sm">
                 <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
@@ -459,18 +461,29 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
             ) : null}
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-5 md:p-8">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8">
           {spreadIndex === 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-              <div className="lg:col-span-7 aspect-[4/3] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-stretch">
+              <div className="lg:col-span-7 relative aspect-[4/3] sm:aspect-[4/3] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 group">
                 {coverSrc && !imgFailed ? (
-                  <img
-                    src={coverSrc}
-                    alt={catalog.title}
-                    referrerPolicy="no-referrer"
-                    onError={handleCoverError}
-                    className="w-full h-full object-cover"
-                  />
+                  <>
+                    <img
+                      src={coverSrc}
+                      alt={catalog.title}
+                      referrerPolicy="no-referrer"
+                      onError={handleCoverError}
+                      onClick={() => setCoverLightboxOpen(true)}
+                      className="w-full h-full object-contain bg-slate-950/5 dark:bg-black/40 cursor-zoom-in"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCoverLightboxOpen(true)}
+                      className="absolute bottom-2.5 left-2.5 z-10 px-2.5 py-1.5 rounded-lg bg-slate-950/85 hover:bg-slate-950 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-lg border border-white/15 cursor-pointer"
+                    >
+                      <ZoomIn className="w-3.5 h-3.5 text-amber-400" />
+                      <span>زوم، چرخش و تمام‌صفحه</span>
+                    </button>
+                  </>
                 ) : (
                   <div className="w-full h-full flex flex-col items-center justify-center p-8 text-slate-500">
                     <BookOpen className="w-12 h-12 mb-3 text-amber-500 opacity-70" />
@@ -569,23 +582,23 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
         )}
 
         {/* Sticky Bottom Action Footer */}
-        <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-[#090d17] flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2.5">
+        <div className="px-3 sm:px-5 py-2.5 sm:py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-[#090d17] flex flex-wrap items-center justify-between gap-2 sm:gap-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => onRequestInquiry(catalog)}
-              className="py-2 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="py-1.5 sm:py-2 px-3 sm:px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-[11px] sm:text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
-              <span>استعلام قیمت بر اساس این کاتالوگ</span>
-              <ArrowUpRight className="w-4 h-4" />
+              <span>استعلام قیمت</span>
+              <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
             <button
               type="button"
               onClick={onOpenDielineStudio}
-              className="py-2 px-4 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-amber-500 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              className="py-1.5 sm:py-2 px-3 sm:px-4 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:border-amber-500 font-bold text-[11px] sm:text-xs flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Box className="w-4 h-4 text-amber-500" />
-              <span>بازکردن جعبه‌ساز ۳D</span>
+              <Box className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500" />
+              <span>جعبه‌ساز ۳D</span>
             </button>
           </div>
 
@@ -595,14 +608,30 @@ export const CatalogSpreadModal: React.FC<CatalogSpreadModalProps> = ({
               target="_blank"
               rel="noopener noreferrer"
               download
-              className="py-2 px-4 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"
+              className="py-1.5 sm:py-2 px-3 sm:px-4 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-[11px] sm:text-xs font-bold flex items-center gap-1.5 hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"
             >
-              <Download className="w-4 h-4" />
-              <span>دانلود نسخه PDF</span>
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>PDF</span>
             </a>
           )}
         </div>
       </div>
+
+      {coverLightboxOpen && coverSrc && (
+        <CatalogImageLightbox
+          slides={[
+            {
+              id: String(catalog.id),
+              src: coverSrc,
+              title: catalog.title,
+              category: catalog.category,
+              description: catalog.description,
+            },
+          ]}
+          initialIndex={0}
+          onClose={() => setCoverLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 };

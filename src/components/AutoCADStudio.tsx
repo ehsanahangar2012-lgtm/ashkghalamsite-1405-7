@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect, MouseEvent as ReactMouseEvent, DragEvent } from 'react';
-import { Upload, MousePointer2, Hand, Layers, Settings, Maximize2, Minimize2, ZoomIn, ZoomOut, Download, Plus, Trash2, Command, Circle, Square, Minus, Move, Undo, Redo, RotateCw, Grid3X3, Type, FileDown, Image as ImageIcon, FileType2 } from 'lucide-react';
+import { Upload, MousePointer2, Hand, Layers, Settings, Maximize2, Minimize2, ZoomIn, ZoomOut, Download, Plus, Trash2, Command, Circle, Square, Minus, Move, Undo, Redo, RotateCw, Grid3X3, Type, FileDown, Image as ImageIcon, FileType2, RefreshCw, ExternalLink, Box } from 'lucide-react';
 import { BackButton } from './UIComponents';
 import DxfParser from 'dxf-parser';
+import { apiRequestJson } from '../utils/apiClient';
+import { useAuth } from '../contexts/AuthContext';
 
 type Point = { x: number, y: number, bulge?: number };
 
@@ -176,7 +178,44 @@ const PropInput = ({ label, value, onChange, type = 'number' }: { label: string,
 );
 
 export const AutoCADStudio = ({ onExit }: { onExit?: () => void }) => {
+  const { user } = useAuth();
+  const [cadEngine, setCadEngine] = useState<'autocad' | 'cadcraft'>('autocad');
+  const [cadCraftLoaded, setCadCraftLoaded] = useState(false);
+  const [cadCraftKey, setCadCraftKey] = useState(0);
+  const [cadCraftInstalled, setCadCraftInstalled] = useState<boolean | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+
+  const refreshCadCraftStatus = async () => {
+    try {
+      const { res, data } = await apiRequestJson<{ studios?: Array<{ id: string; installed: boolean }> }>('studios/status', {
+        cache: 'no-store',
+      });
+      if (res.ok && Array.isArray(data?.studios)) {
+        const found = data.studios.find((s) => s.id === 'cadcraft');
+        if (found) setCadCraftInstalled(Boolean(found.installed));
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    void refreshCadCraftStatus();
+  }, []);
+
+  useEffect(() => {
+    const handleCadMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.type !== 'ASHK_CAD_SWITCH') return;
+      if (event.data.mode === 'autocad' || event.data.mode === 'cadcraft') {
+        setCadEngine(event.data.mode);
+      }
+    };
+    window.addEventListener('message', handleCadMessage);
+    return () => window.removeEventListener('message', handleCadMessage);
+  }, []);
+
+  const reloadCadCraft = () => {
+    setCadCraftLoaded(false);
+    setCadCraftKey((k) => k + 1);
+  };
   
   const [entities, setEntities] = useState<Entity[]>([]);
   const [previewEntities, setPreviewEntities] = useState<Entity[] | null>(null);
@@ -622,25 +661,64 @@ export const AutoCADStudio = ({ onExit }: { onExit?: () => void }) => {
 
   return (
     <div className={`flex flex-col bg-[#1e1e24] text-slate-300 font-sans ${isFullScreen ? 'fixed inset-0 z-[100]' : 'h-screen w-full'}`} dir="ltr">
-      <div className="h-14 bg-[#18181c] border-b border-slate-700/80 flex items-center justify-between px-4 shrink-0 shadow-md z-20">
-        <div className="flex items-center gap-4">
+      <div className="min-h-14 py-1.5 bg-[#18181c] border-b border-slate-700/80 flex flex-wrap items-center justify-between gap-2 px-4 shrink-0 shadow-md z-20">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 text-blue-400 font-bold tracking-wide">
             <Command className="w-5 h-5" />
-            <span>CAD Studio PRO Engine</span>
+            <span className="hidden sm:inline">CAD Studio</span>
           </div>
-          <div className="h-5 w-px bg-slate-700 mx-1" />
-          <div className="flex gap-2">
-            <button onClick={() => fileInputRef.current?.click()} className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-1.5 rounded text-xs font-semibold transition flex items-center gap-2">
-              <Upload className="w-4 h-4 text-blue-400" /> Open DXF/DWG
+
+          <div className="h-5 w-px bg-slate-700 hidden sm:block" />
+
+          {/* Dual Engine Switcher: AutoCAD Online + CADCraft */}
+          <div className="flex items-center bg-[#101218] p-1 rounded-xl border border-slate-700/80 gap-1" dir="rtl">
+            <button
+              type="button"
+              onClick={() => setCadEngine('autocad')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                cadEngine === 'autocad'
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+              }`}
+              title="ویرایشگر اتوکد آنلاین (DXF/DWG)"
+            >
+              <Command className="w-3.5 h-3.5" />
+              <span>اتوکد آنلاین</span>
             </button>
-            <input ref={fileInputRef} type="file" accept=".dxf,.dwg" className="hidden" onChange={handleFileUpload} />
+            <button
+              type="button"
+              onClick={() => setCadEngine('cadcraft')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                cadEngine === 'cadcraft'
+                  ? 'bg-sky-600 border-sky-400/50 text-white shadow'
+                  : 'bg-[#181c26] border-slate-700 text-slate-200 hover:border-sky-500/50 hover:text-white'
+              }`}
+              title="محیط نقشه‌کشی CADCraft"
+            >
+              <Box className="w-3.5 h-3.5" />
+              <span>CADCraft</span>
+            </button>
           </div>
+
+          {cadEngine === 'autocad' && (
+            <>
+              <div className="h-5 w-px bg-slate-700 mx-0.5 hidden md:block" />
+              <div className="flex gap-2">
+                <button onClick={() => fileInputRef.current?.click()} className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-1.5 rounded text-xs font-semibold transition flex items-center gap-2 cursor-pointer">
+                  <Upload className="w-4 h-4 text-blue-400" /> Open DXF/DWG
+                </button>
+                <input ref={fileInputRef} type="file" accept=".dxf,.dwg" className="hidden" onChange={handleFileUpload} />
+              </div>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-slate-400 bg-[#141419] border border-slate-700/50 px-3 py-1.5 rounded-full shadow-inner">
-            {fileName || 'No file selected'}
-          </span>
-          <button onClick={() => setIsFullScreen(!isFullScreen)} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition">
+          {cadEngine === 'autocad' && (
+            <span className="text-xs font-mono text-slate-400 bg-[#141419] border border-slate-700/50 px-3 py-1.5 rounded-full shadow-inner hidden lg:inline">
+              {fileName || 'No file selected'}
+            </span>
+          )}
+          <button onClick={() => setIsFullScreen(!isFullScreen)} className="p-1.5 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition cursor-pointer" title="Toggle Fullscreen">
             {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
           <div dir="rtl">
@@ -653,10 +731,135 @@ export const AutoCADStudio = ({ onExit }: { onExit?: () => void }) => {
           </div>
         </div>
       </div>
-      
-      <div className="h-12 bg-[#18181c] border-b border-slate-700/80 flex items-center px-4 shrink-0 gap-1 overflow-x-auto z-10 shadow-sm">
-        <ToolButton icon={<MousePointer2 className="w-4 h-4"/>} active={activeTool === 'select'} onClick={() => {setActiveTool('select'); setDrawState({step:0});}} title="Select/Move/Resize" text="Select" />
-        <ToolButton icon={<Hand className="w-4 h-4"/>} active={activeTool === 'pan'} onClick={() => setActiveTool('pan')} title="Pan Canvas" />
+
+      {cadEngine === 'cadcraft' ? (
+        cadCraftInstalled === false ? (
+          <div className="flex-1 flex flex-col items-center justify-center bg-[#181c24] p-6 text-center" dir="rtl">
+            <div className="max-w-md w-full bg-[#1e2432] border border-slate-700/80 rounded-3xl p-6 shadow-2xl space-y-4">
+              <div className="w-12 h-12 mx-auto rounded-2xl border bg-sky-500/15 border-sky-500/35 text-sky-300 flex items-center justify-center">
+                <Box className="w-6 h-6" />
+              </div>
+              <h2 className="text-base font-black text-white">محیط طراحی CADCraft هنوز تکمیل نشده است</h2>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                فایل‌های این ابزار هنوز از طریق پنل مدیریت دانلود و نصب نشده‌اند. هم‌اکنون می‌توانید از <strong className="text-white">اتوکد آنلاین</strong> استفاده کنید.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCadEngine('autocad')}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black transition cursor-pointer"
+                >
+                  بازگشت به اتوکد آنلاین
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void refreshCadCraftStatus()}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>بررسی مجدد</span>
+                </button>
+              </div>
+              {user?.role === 'ADMIN' && (
+                <div className="pt-3 border-t border-slate-700/80">
+                  <a
+                    href="/admin"
+                    onClick={() => {
+                      try {
+                        sessionStorage.setItem('ashk_admin_active_tab', 'studio_installer');
+                      } catch {}
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-black text-sky-400 hover:text-sky-300"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>رفتن به پنل مدیریت برای دانلود و نصب CADCraft</span>
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+        <div className="flex-1 flex flex-col relative bg-[#181c24] overflow-hidden">
+          {!cadCraftLoaded && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#181c24] z-20 p-6 text-center" dir="rtl">
+              <div className="w-10 h-10 border-4 border-t-sky-400 border-slate-700 rounded-full animate-spin mb-4" />
+              <p className="text-slate-100 text-sm font-bold font-sans">در حال آماده‌سازی محیط طراحی CADCraft...</p>
+              <p className="text-slate-400 text-xs mt-1.5 max-w-md font-sans leading-relaxed">
+                در صورت تمایل یا طولانی شدن بارگذاری می‌توانید به اتوکد آنلاین بازگردید.
+              </p>
+              <div className="mt-4 flex gap-2 flex-wrap justify-center">
+                <button
+                  type="button"
+                  onClick={() => setCadEngine('autocad')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+                >
+                  انتقال به اتوکد آنلاین
+                </button>
+                <button
+                  type="button"
+                  onClick={reloadCadCraft}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition cursor-pointer"
+                >
+                  تلاش مجدد
+                </button>
+              </div>
+            </div>
+          )}
+
+          <iframe
+            key={`cadcraft-${cadCraftKey}`}
+            src="/studio/cadcraft/index.html"
+            title="CADCraft"
+            className="flex-1 w-full h-full border-0 relative z-10 bg-[#181c24]"
+            onLoad={() => setCadCraftLoaded(true)}
+            allow="clipboard-read; clipboard-write; fullscreen"
+            allowFullScreen
+          />
+
+          <div
+            dir="rtl"
+            className="bg-[#12141c] px-4 py-1.5 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300 font-sans z-10"
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded border bg-sky-500/15 border-sky-500/35 text-sky-300 font-bold">
+                <Box className="w-3.5 h-3.5" />
+                <span>محیط طراحی CADCraft</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setCadEngine('autocad')}
+                className="px-2.5 py-0.5 rounded bg-blue-600/20 hover:bg-blue-600/35 text-blue-300 border border-blue-500/35 font-bold cursor-pointer transition"
+              >
+                بازگشت به اتوکد آنلاین
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={reloadCadCraft}
+                className="text-slate-300 hover:text-white font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>بارگذاری مجدد</span>
+              </button>
+              <a
+                href="/studio/cadcraft/index.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sky-400 hover:text-sky-300 font-bold flex items-center gap-1"
+              >
+                <span>پنجره مجزا</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          </div>
+        </div>
+        )
+      ) : (
+        <>
+          <div className="h-12 bg-[#18181c] border-b border-slate-700/80 flex items-center px-4 shrink-0 gap-1 overflow-x-auto z-10 shadow-sm">
+            <ToolButton icon={<MousePointer2 className="w-4 h-4"/>} active={activeTool === 'select'} onClick={() => {setActiveTool('select'); setDrawState({step:0});}} title="Select/Move/Resize" text="Select" />
+            <ToolButton icon={<Hand className="w-4 h-4"/>} active={activeTool === 'pan'} onClick={() => setActiveTool('pan')} title="Pan Canvas" />
         <div className="w-px h-5 bg-slate-700 mx-2" />
         <ToolButton icon={<Trash2 className="w-4 h-4"/>} onClick={deleteSelected} title="Delete Selected" />
         <div className="w-px h-5 bg-slate-700 mx-2" />
@@ -809,6 +1012,8 @@ export const AutoCADStudio = ({ onExit }: { onExit?: () => void }) => {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

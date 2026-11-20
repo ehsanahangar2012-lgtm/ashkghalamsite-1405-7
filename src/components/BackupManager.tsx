@@ -65,10 +65,10 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
     staticUrl?: string;
   }>({
     available: true,
-    version: '3.22.0',
-    fileName: 'ashk-ghalam-v3.22.0-cpanel.zip',
+    version: '3.26.6',
+    fileName: 'ashk-ghalam-v3.26.6-cpanel.zip',
     downloadUrl: '/api/release/download',
-    staticUrl: '/downloads/ashk-ghalam-v3.22.0-cpanel.zip',
+    staticUrl: '/downloads/ashk-ghalam-v3.26.6-cpanel.zip',
   });
   const [showHostGuide, setShowHostGuide] = useState(false);
 
@@ -81,7 +81,7 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
         }
       })
       .catch(() => {
-        // keep default v3.22.0 metadata
+        // keep default v3.26.6 metadata
       });
     return () => {
       active = false;
@@ -93,7 +93,7 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
     setIsBuildingZip(true);
     setZipBuildSuccess(null);
     setZipDownloadError(null);
-    const targetName = releaseInfo.fileName || 'ashk-ghalam-v3.22.0-cpanel.zip';
+    const targetName = releaseInfo.fileName || 'ashk-ghalam-v3.26.6-cpanel.zip';
     const candidates = [
       `${releaseInfo.downloadUrl || '/api/release/download'}?t=${Date.now()}`,
       `/api.php?r=release/download&t=${Date.now()}`,
@@ -1454,7 +1454,7 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
                       <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
                         <span>بسته نهایی cPanel استاندارد (خالص PHP بدون Node.js)</span>
                         <span className="bg-amber-500/20 text-amber-300 text-[10px] px-2 py-0.5 rounded-full border border-amber-500/40 font-mono">
-                          v{releaseInfo.version || '3.22.0'} cPanel PHP
+                          v{releaseInfo.version || '3.26.6'} cPanel PHP
                         </span>
                       </h3>
                       <p className="text-xs text-slate-400 mt-0.5">
@@ -1485,7 +1485,7 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
                       <span>دستورالعمل استقرار سریع روی هاست معمولی cPanel (بدون نیاز به Node.js):</span>
                     </div>
                     <ul className="list-disc list-inside space-y-1.5 text-[11px] text-slate-300 mr-2">
-                      <li><strong>استقرار مستقیم در <code>public_html</code>:</strong> فایل <code dir="ltr">{releaseInfo.fileName || 'ashk-ghalam-v3.22.0-cpanel.zip'}</code> را در File Manager هاست cPanel آپلود و Extract کنید؛ فایل‌های <code>index.html</code>، <code>api.php</code>، <code>.htaccess</code> و فایل‌های JSON مستقیماً در ریشه قرار می‌گیرند.</li>
+                      <li><strong>استقرار مستقیم در <code>public_html</code>:</strong> فایل <code dir="ltr">{releaseInfo.fileName || 'ashk-ghalam-v3.26.6-cpanel.zip'}</code> را در File Manager هاست cPanel آپلود و Extract کنید؛ فایل‌های <code>index.html</code>، <code>api.php</code>، <code>.htaccess</code> و فایل‌های JSON مستقیماً در ریشه قرار می‌گیرند.</li>
                       <li><strong>بک‌اند خودکار PHP:</strong> فایل <code>.htaccess</code> تمام درخواست‌های <code>/api/*</code> را به <code>api.php</code> هدایت می‌کند و نیازی به هیچ تنظیم یا دستور ترمینالی وجود ندارد.</li>
                       <li><strong>ذخیره کاتالوگ‌ها و تصاویر:</strong> تصاویر صفحات کاتالوگ با فرمت WebP در پوشه <code>uploads/flipbooks/</code> و متادیتا در <code>flipbooks.json</code> و <code>catalogs.json</code> ذخیره می‌شوند.</li>
                     </ul>
@@ -1519,13 +1519,13 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
                     </Badge>
                   </div>
                   <h4 className="font-extrabold text-base text-white">
-                    پکیج کامل cPanel معمولی — نسخه ۳.۲۲.۰
+                    پکیج کامل cPanel معمولی — نسخه {releaseInfo.version || '3.26.6'}
                   </h4>
                   <p className="text-xs text-slate-300 leading-relaxed">
                     خروجی نهایی پروژه با ساختار مسطح (Flat Root) شامل <code>index.html</code>، پوشه <code>assets/</code>، بک‌اند PHP (<code>api.php</code>)، پوشه آپلود تصاویر <code>uploads/flipbooks/</code>، فایل‌های <code>sitemap.xml</code>، <code>robots.txt</code> و <code>.htaccess</code> (بدون فایل Node.js).
                   </p>
                   <div className="pt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-400 font-mono">
-                    <span className="text-amber-300 font-bold" dir="ltr">{releaseInfo.fileName || 'ashk-ghalam-v3.22.0-cpanel.zip'}</span>
+                    <span className="text-amber-300 font-bold" dir="ltr">{releaseInfo.fileName || 'ashk-ghalam-v3.26.6-cpanel.zip'}</span>
                     <span>•</span>
                     <span>آماده استخراج در public_html</span>
                     {releaseInfo.sizeMb ? (
@@ -1535,7 +1535,7 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
                       </>
                     ) : null}
                     <span>•</span>
-                    <span>نسخه v{releaseInfo.version || '3.22.0'}</span>
+                    <span>نسخه v{releaseInfo.version || '3.26.6'}</span>
                   </div>
                 </div>
 
@@ -1554,7 +1554,7 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
                     ) : (
                       <>
                         <Download className="w-4 h-4" />
-                        <span>دانلود فایل زیپ cPanel ({releaseInfo.fileName || 'ashk-ghalam-v3.22.0-cpanel.zip'})</span>
+                        <span>دانلود فایل زیپ cPanel ({releaseInfo.fileName || 'ashk-ghalam-v3.26.6-cpanel.zip'})</span>
                       </>
                     )}
                   </button>
@@ -1563,13 +1563,13 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
                     <span>لینک جایگزین دانلود مستقیم:</span>
                     <a
                       href={releaseInfo.downloadUrl || '/api/release/download'}
-                      download={releaseInfo.fileName || 'ashk-ghalam-v3.22.0-cpanel.zip'}
+                      download={releaseInfo.fileName || 'ashk-ghalam-v3.26.6-cpanel.zip'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-amber-300 hover:text-amber-200 underline font-mono"
                       dir="ltr"
                     >
-                      /downloads/{releaseInfo.fileName || 'ashk-ghalam-v3.22.0-cpanel.zip'}
+                      /downloads/{releaseInfo.fileName || 'ashk-ghalam-v3.26.6-cpanel.zip'}
                     </a>
                   </div>
                 </div>
@@ -1580,11 +1580,11 @@ export const BackupManager: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode =
                 <div className="flex items-center gap-2">
                   <HardDrive className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>
-                    فایل در مسیر <code dir="ltr">/downloads/{releaseInfo.fileName || 'ashk-ghalam-v3.22.0-cpanel.zip'}</code> و <code dir="ltr">/api/release/download</code> آماده دانلود است.
+                    فایل در مسیر <code dir="ltr">/downloads/{releaseInfo.fileName || 'ashk-ghalam-v3.26.6-cpanel.zip'}</code> و <code dir="ltr">/api/release/download</code> آماده دانلود است.
                   </span>
                 </div>
                 <span className="font-mono text-[10px] bg-slate-800 px-2.5 py-1 rounded-lg text-emerald-300">
-                  Flat Root · v{releaseInfo.version || '3.22.0'}
+                  Flat Root · v{releaseInfo.version || '3.26.6'}
                 </span>
               </div>
             </div>

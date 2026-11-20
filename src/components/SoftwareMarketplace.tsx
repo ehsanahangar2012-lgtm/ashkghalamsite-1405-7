@@ -24,8 +24,8 @@ const softwares: SoftwareItem[] = [
   {
     id: 'ashk-cpanel-release',
     title: 'پکیج کامل استقرار هاست معمولی cPanel (نسخه استاندارد PHP)',
-    version: 'v3.22.0',
-    fileName: 'ashk-ghalam-v3.22.0-cpanel.zip',
+    version: 'v3.26.6',
+    fileName: 'ashk-ghalam-v3.26.6-cpanel.zip',
     isStaticRelease: true,
     downloadUrl: '/api/release/download',
     description: 'بسته جامع استقرار فلت (Flat Root) شامل فرانت‌اند بهینه‌شده، بک‌اند خالص PHP در فایل api.php، ذخیره مستقیم کاتالوگ‌ها و تصاویر در public_html، فایل‌های sitemap.xml و کانفیگ کامل .htaccess آماده استخراج در cPanel معمولی.',
@@ -34,22 +34,22 @@ const softwares: SoftwareItem[] = [
   {
     id: 'ashk-cad-plugin',
     title: 'اسکریپت اتوکد اشک قلم (Ashk AutoLISP Box Drawer)',
-    version: 'v3.22.0',
+    version: 'v3.26.6',
     fileName: 'ashk-fefco0201-autolisp.lsp',
     description: 'ماژول تخصصی AutoLISP جهت ترسیم خودکار خطوط تا (Crease) و برش (Cut) استاندارد FEFCO 0201 درون محیط AutoCAD بدون نیاز به اتصال اینترنت.',
     features: ['ترسیم خودکار لایه‌های Cut و Crease', 'محاسبه ضخامت فلوت‌های B و E', 'سازگار با AutoCAD 2020 تا 2025'],
-    payload: `; Ashk Ghalam AutoLISP Offline Box Generator v3.22.0\n(defun c:ASHKBOX (/ L W H x0 y0)\n  (setq L (getreal "\\nTool Length (mm): "))\n  (setq W (getreal "\\nWidth (mm): "))\n  (setq H (getreal "\\nHeight (mm): "))\n  (command "._RECTANG" (list 0 0) (list (+ (* 2 L) (* 2 W)) H))\n  (princ "\\nAshk Ghalam base layout created.")\n  (princ)\n)\n`,
+    payload: `; Ashk Ghalam AutoLISP Offline Box Generator v3.26.6\n(defun c:ASHKBOX (/ L W H x0 y0)\n  (setq L (getreal "\\nTool Length (mm): "))\n  (setq W (getreal "\\nWidth (mm): "))\n  (setq H (getreal "\\nHeight (mm): "))\n  (command "._RECTANG" (list 0 0) (list (+ (* 2 L) (* 2 W)) H))\n  (princ "\\nAshk Ghalam base layout created.")\n  (princ)\n)\n`,
   },
   {
     id: 'dieline-calc-cli',
     title: 'پروفایل آفلاین محاسبه شیت و BCT اشک قلم',
-    version: 'v3.22.0',
-    fileName: 'ashk-packaging-rules-v3.22.0.json',
+    version: 'v3.26.6',
+    fileName: 'ashk-packaging-rules-v3.26.6.json',
     description: 'فایل قوانین مهندسی مک‌کی (McKee BCT) و استاندارد شیت‌بندی (۷۰×۱۰۰ و ۶۰×۹۰) برای استفاده درون نرم‌افزارهای چاپخانه در محیط آفلاین.',
     features: ['ورودی پارامترهای ابعاد L×W×H', 'تست مقاومت فشاری ستونی (BCT)', 'بهینه‌سازی چیدمان روی شیت چاپی'],
     payload: JSON.stringify({
       engine: 'Ashk Ghalam Offline CAD Core',
-      version: '3.22.0',
+      version: '3.26.6',
       standards: ['FEFCO-0201', 'FEFCO-0427', 'ECMA-A2020'],
       sheetsCm: [
         { name: '۷۰×۱۰۰ سانتی‌متر', width: 100, height: 70, gripperCm: 1.5 },

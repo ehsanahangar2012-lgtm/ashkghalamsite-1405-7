@@ -86,7 +86,7 @@ export const Login: React.FC<LoginProps> = ({ onSuccess, onBack, onLoginSuccess,
           ) : <div />}
 
           <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 font-mono">
-            PORTAL SECURITY v3.22.0
+            PORTAL SECURITY v3.26.6
           </span>
         </div>
 

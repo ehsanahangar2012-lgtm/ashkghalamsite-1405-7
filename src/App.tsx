@@ -11,26 +11,28 @@ import {
 } from 'react-router-dom';
 import { findBySlugOrId, toSlug } from './utils/slugUtils';
 import { AppView, User, UserRole, Project, SitePortalId } from './types';
-import { Inquiry } from './components/Inquiry';
-import { CatalogSection } from './components/catalog/CatalogSection';
-import { CatalogItemPage } from './components/catalog/CatalogItemPage';
 import { Button, Card, Badge, BackButton } from './components/UIComponents';
-import { generateSupportResponse, analyzeDesignStyle } from './services/geminiService';
-import { ThreeDProductSlider } from './components/ThreeDProductSlider';
-import { InteractiveServicesSpace } from './components/InteractiveServicesSpace';
 import { ContentProvider, useContent } from './contexts/ContentContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CatalogProvider } from './contexts/CatalogContext';
-import { Login } from './components/Login';
 import { SeoHead } from './components/SeoHead';
-import { ServicesHub } from './components/ServicesHub';
-import { ProductsHub } from './components/ProductsHub';
 import { NotFound } from './components/NotFound';
 import { getPathForView, getViewForPath } from './utils/navigationRoutes';
 
 import { EmergencyNotificationBar } from './components/EmergencyNotificationBar';
-import { SiteSwitcherModal } from './components/SiteSwitcherModal';
-import { EmbedViewerPage } from './components/studio/EmbedViewerPage';
+import { apiFetch } from './utils/apiClient';
+
+// Code-split heavy homepage, 3D WebGL, catalog, modal, and route modules
+const Inquiry = lazy(() => import('./components/Inquiry').then(m => ({ default: m.Inquiry })));
+const CatalogSection = lazy(() => import('./components/catalog/CatalogSection').then(m => ({ default: m.CatalogSection })));
+const CatalogItemPage = lazy(() => import('./components/catalog/CatalogItemPage').then(m => ({ default: m.CatalogItemPage })));
+const ThreeDProductSlider = lazy(() => import('./components/ThreeDProductSlider').then(m => ({ default: m.ThreeDProductSlider })));
+const InteractiveServicesSpace = lazy(() => import('./components/InteractiveServicesSpace').then(m => ({ default: m.InteractiveServicesSpace })));
+const Login = lazy(() => import('./components/Login').then(m => ({ default: m.Login })));
+const ServicesHub = lazy(() => import('./components/ServicesHub').then(m => ({ default: m.ServicesHub })));
+const ProductsHub = lazy(() => import('./components/ProductsHub').then(m => ({ default: m.ProductsHub })));
+const SiteSwitcherModal = lazy(() => import('./components/SiteSwitcherModal').then(m => ({ default: m.SiteSwitcherModal })));
+const EmbedViewerPage = lazy(() => import('./components/studio/EmbedViewerPage').then(m => ({ default: m.EmbedViewerPage })));
 
 const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
 const DesignStudio = lazy(() => import('./components/DesignStudio').then(m => ({ default: m.DesignStudio })));
@@ -45,6 +47,57 @@ const CustomPageView = lazy(() => import('./components/CustomPageView').then(m =
 const DownloadReleasePage = lazy(() => import('./components/DownloadReleasePage').then(m => ({ default: m.DownloadReleasePage })));
 const PacklyIndustrialDielineStudio = lazy(() => import('./components/PacklyIndustrialDielineStudio').then(m => ({ default: m.PacklyIndustrialDielineStudio })));
 const BoxStudio = lazy(() => import('./components/BoxStudio').then(m => ({ default: m.BoxStudio })));
+
+// Viewport-gated wrapper so heavy below-the-fold WebGL & catalog sections only load when scrolled near view
+const LazyViewportSection: React.FC<{
+  children: React.ReactNode;
+  minHeight?: string;
+  rootMargin?: string;
+  label?: string;
+}> = ({ children, minHeight = '320px', rootMargin = '280px', label = 'در حال بارگذاری بخش...' }) => {
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const [shouldRender, setShouldRender] = useState(false);
+
+  useEffect(() => {
+    if (shouldRender) return;
+    const el = hostRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setShouldRender(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShouldRender(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [shouldRender, rootMargin]);
+
+  return (
+    <div ref={hostRef} style={!shouldRender ? { minHeight } : undefined}>
+      {shouldRender ? (
+        <Suspense
+          fallback={
+            <div style={{ minHeight }} className="flex items-center justify-center text-xs text-slate-400">
+              {label}
+            </div>
+          }
+        >
+          {children}
+        </Suspense>
+      ) : (
+        <div style={{ minHeight }} className="flex items-center justify-center text-xs text-slate-500/70">
+          {label}
+        </div>
+      )}
+    </div>
+  );
+};
 
 import {
   Menu, X, Home, Grid, Users, Moon, Sun, MessageSquare,
@@ -73,7 +126,8 @@ const SmartPortfolio = ({ isEmbedded = false }: { isEmbedded?: boolean }) => {
       setIsAnalyzing(true);
       setAiAnalysis(null);
 
-      analyzeDesignStyle(activeItem.title)
+      import('./services/geminiService')
+        .then(({ analyzeDesignStyle }) => analyzeDesignStyle(activeItem.title))
         .then((res) => {
           if (isSubscribed) {
             setAiAnalysis(res);
@@ -412,6 +466,7 @@ const ChatWidget = () => {
     setInput('');
     setLoading(true);
 
+    const { generateSupportResponse } = await import('./services/geminiService');
     const response = await generateSupportResponse(userMsg);
     setMessages(prev => [...prev, { role: 'model', text: response }]);
     setLoading(false);
@@ -633,9 +688,11 @@ const AppContent = () => {
   // Standalone WordPress Embed View renders cleanly with zero site chrome
   if (location.pathname.startsWith('/embed/')) {
     return (
-      <Routes>
-        <Route path="/embed/:id" element={<EmbedViewerPage />} />
-      </Routes>
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-xs text-slate-400">در حال بارگذاری کاتالوگ...</div>}>
+        <Routes>
+          <Route path="/embed/:id" element={<EmbedViewerPage />} />
+        </Routes>
+      </Suspense>
     );
   }
 
@@ -828,15 +885,17 @@ const AppContent = () => {
 
   if (isLoginOpen) {
     return (
-      <Login
-        onBack={handleLoginCancel}
-        onLoginSuccess={handleLoginSuccess}
-        targetRole={loginTargetRole}
-        onNavigateView={(view) => {
-          setIsLoginOpen(false);
-          navigate(getPathForView(view));
-        }}
-      />
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-950 text-xs text-slate-400">در حال باز کردن صفحه ورود...</div>}>
+        <Login
+          onBack={handleLoginCancel}
+          onLoginSuccess={handleLoginSuccess}
+          targetRole={loginTargetRole}
+          onNavigateView={(view) => {
+            setIsLoginOpen(false);
+            navigate(getPathForView(view));
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -1022,13 +1081,19 @@ const AppContent = () => {
               element={
                 <>
                   <SeoHead view={AppView.HOME} canonicalPath="/" />
-                  <ThreeDProductSlider onNavigate={toggleView} />
+                  <Suspense fallback={<div className="min-h-[420px] flex items-center justify-center text-xs text-slate-400">در حال بارگذاری نمایشگر سه‌بعدی...</div>}>
+                    <ThreeDProductSlider onNavigate={toggleView} />
+                  </Suspense>
 
                   <div id="catalog-section" className="w-full">
-                    <CatalogSection />
+                    <LazyViewportSection minHeight="360px" label="در حال بارگذاری کاتالوگ‌های تعاملی...">
+                      <CatalogSection />
+                    </LazyViewportSection>
                   </div>
 
-                  <InteractiveServicesSpace />
+                  <LazyViewportSection minHeight="420px" label="در حال آماده‌سازی فضای سه‌بعدی خدمات...">
+                    <InteractiveServicesSpace />
+                  </LazyViewportSection>
 
                   <div className="max-w-7xl mx-auto px-4 md:px-8 mt-12">
                     <SmartPortfolio isEmbedded={true} />
@@ -1132,12 +1197,16 @@ const AppContent = () => {
         </>
       )}
 
-      <SiteSwitcherModal
-        isOpen={isSiteSwitcherOpen}
-        onClose={() => setIsSiteSwitcherOpen(false)}
-        activePortal={activePortal}
-        onSelectPortal={selectPortal}
-      />
+      {isSiteSwitcherOpen && (
+        <Suspense fallback={null}>
+          <SiteSwitcherModal
+            isOpen={isSiteSwitcherOpen}
+            onClose={() => setIsSiteSwitcherOpen(false)}
+            activePortal={activePortal}
+            onSelectPortal={selectPortal}
+          />
+        </Suspense>
+      )}
 
       <div className="fixed bottom-20 right-4 sm:bottom-8 sm:right-8 z-40">
         <button
@@ -1184,6 +1253,18 @@ const AppContent = () => {
 };
 
 export default function App() {
+  useEffect(() => {
+    try {
+      const key = 'ashk_seo_tick_v1';
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+    } catch {}
+    const timer = window.setTimeout(() => {
+      void apiFetch('seo/autopilot/tick', { method: 'GET' }, 10000).catch(() => {});
+    }, 6500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>

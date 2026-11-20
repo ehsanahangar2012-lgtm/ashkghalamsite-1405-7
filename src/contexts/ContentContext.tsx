@@ -211,7 +211,7 @@ const defaultGlobalSettings: GlobalSettings = {
   contactPhone: '09153108763',
   contactEmail: 'info@ashkghalam.ir',
   address: 'مشهد، مجتمع چاپ اشک قلم',
-  heroBadge: 'نسخه ۳.۲۴.۰ - موتور اختصاصی CAD',
+  heroBadge: 'نسخه ۳.۲۶.۶ - موتور اختصاصی CAD',
   heroHeadline: 'مهندسی پیشرفته جعبه و کارتن',
   ashkPortalUrl: 'https://ashkghalam.ir',
   badikaranPortalTitle: 'مجتمع چاپ و بسته‌بندی بادیکاران توس',
@@ -370,7 +370,7 @@ function normalizeGlobalSettingsRecord(gs: GlobalSettings): GlobalSettings {
     ? '09153108763'
     : gs.whatsappNumber;
   const badge = gs.heroBadge
-    ? gs.heroBadge.replace(/۳\.(۲۰|۲۱|۲۲|۲۳)\.۰/g, '۳.۲۴.۰')
+    ? gs.heroBadge.replace(/۳\.(۲۰|۲۱|۲۲|۲۳|۲۴|۲۵|۲۶)\.۰/g, '۳.۲۶.۶')
     : gs.heroBadge;
   return {
     ...gs,
@@ -480,9 +480,6 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   useEffect(() => {
-    refreshPosts();
-    refreshAssets();
-
     const loadCatalogItems = () => {
       apiRequestJson<MediaItem[]>('catalogs')
         .then(({ res, data }) => {
@@ -492,7 +489,37 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
         })
         .catch(() => {});
     };
-    loadCatalogItems();
+
+    const scheduleIdle = (fn: () => void, delayMs = 120): number => {
+      if (typeof window === 'undefined') return 0;
+      if ('requestIdleCallback' in window) {
+        return (window as any).requestIdleCallback(fn, { timeout: 800 });
+      }
+      return globalThis.setTimeout(fn, delayMs) as unknown as number;
+    };
+
+    const cancelIdle = (id: number) => {
+      if (!id || typeof window === 'undefined') return;
+      if ('cancelIdleCallback' in window) {
+        (window as any).cancelIdleCallback(id);
+      } else {
+        globalThis.clearTimeout(id);
+      }
+    };
+
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+    const isAdminRoute = currentPath.startsWith('/admin');
+    const isBlogRoute = currentPath.startsWith('/blog');
+    const isCatalogRoute = currentPath.startsWith('/catalog');
+
+    if (isBlogRoute) void refreshPosts();
+    if (isCatalogRoute) loadCatalogItems();
+    if (isAdminRoute) void refreshAssets();
+
+    const idleId = scheduleIdle(() => {
+      if (!isBlogRoute) void refreshPosts();
+      if (!isCatalogRoute) loadCatalogItems();
+    }, 180);
 
     const onMediaSynced = () => {
       void refreshAssets();
@@ -539,6 +566,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .catch(() => {});
 
     return () => {
+      cancelIdle(idleId);
       window.removeEventListener('ashk-media-synced', onMediaSynced);
     };
   }, []);

@@ -20,7 +20,6 @@ import {
   RectangleHorizontal,
   RectangleVertical,
   Search,
-  X,
 } from 'lucide-react';
 import {
   CatalogPage,
@@ -36,6 +35,7 @@ import {
   primeFlipSoundAudio,
 } from '../../utils/flipSound';
 import { getUploadFallbackCandidates } from '../../utils/catalogAssets';
+import { CatalogImageLightbox, LightboxSlide } from '../catalog/CatalogImageLightbox';
 
 interface FlipbookViewerProps {
   project: CatalogProject;
@@ -112,13 +112,13 @@ const ProductPageSheet = React.memo(
             <div className="flip-page-right-shadow absolute inset-0 pointer-events-none z-20" />
           )}
 
-          {/* Product Image Area — flex-1 mat prevents cropping horizontal or vertical photos */}
+          {/* Product Image Area — flex-1 mat maximizes image clarity on mobile without cropping */}
           <div
             onDoubleClick={(e) => {
               e.stopPropagation();
               onInspectPage(page);
             }}
-            className="relative w-full flex-1 min-h-0 p-2 sm:p-2.5 overflow-hidden bg-stone-100/95 border-b border-stone-200/80 flex items-center justify-center"
+            className="relative w-full flex-1 min-h-0 p-1 sm:p-2 overflow-hidden bg-stone-100/95 border-b border-stone-200/80 flex items-center justify-center"
           >
             {!isNearActive ? (
               <div className="w-full h-full flex flex-col items-center justify-center bg-stone-100 text-stone-400 gap-2">
@@ -160,31 +160,31 @@ const ProductPageSheet = React.memo(
                     e.stopPropagation();
                     onInspectPage(page);
                   }}
-                  title="بزرگ‌نمایی تصویر و مشاهده کامل مشخصات"
-                  aria-label="بزرگ‌نمایی تصویر محصول"
-                  className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity absolute bottom-2 left-2 z-30 h-7 px-2 rounded-lg bg-stone-900/80 hover:bg-stone-900 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow"
+                  title="زوم، چرخش و نمایش تمام‌صفحه تصویر"
+                  aria-label="زوم و نمایش تمام‌صفحه تصویر محصول"
+                  className="opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 transition-opacity absolute bottom-1.5 left-1.5 sm:bottom-2 sm:left-2 z-30 h-7 px-2.5 rounded-lg bg-stone-950/85 hover:bg-stone-950 text-white text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-md border border-white/15"
                 >
                   <Search className="w-3 h-3 text-amber-400" />
-                  <span>بزرگ‌نمایی</span>
+                  <span>زوم / تمام‌صفحه</span>
                 </button>
               </>
             )}
           </div>
 
-          {/* Product Details Rendered Below the Photo */}
+          {/* Product Details Rendered Below the Photo — compact text on mobile so photo dominates */}
           <div
             className={`shrink-0 flex flex-col justify-between bg-white ${
-              isBookLandscape ? 'px-3.5 py-2 sm:px-4 sm:py-2.5' : 'px-3.5 py-2.5 sm:px-4 sm:py-3'
+              isBookLandscape ? 'px-2.5 py-1.5 sm:px-4 sm:py-2.5' : 'px-2.5 py-1.5 sm:px-4 sm:py-2.5'
             }`}
           >
-            <div className="space-y-1 overflow-hidden">
-              <div className="flex items-center justify-between gap-2 text-[10px] sm:text-[11px] text-stone-500">
+            <div className="space-y-0.5 sm:space-y-1 overflow-hidden">
+              <div className="flex items-center justify-between gap-1.5 text-[9px] sm:text-[11px] text-stone-500">
                 <span className="inline-flex items-center gap-1 font-bold text-amber-700 truncate">
-                  {isAiAnalyzed && <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+                  {isAiAnalyzed && <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-500 shrink-0" />}
                   <span className="truncate">{page.category || 'محصول کاتالوگ'}</span>
                 </span>
                 {page.sku && (
-                  <span className="font-mono text-[10px] text-stone-400 shrink-0 tabular-nums">
+                  <span className="font-mono text-[9px] sm:text-[10px] text-stone-400 shrink-0 tabular-nums">
                     {page.sku}
                   </span>
                 )}
@@ -192,28 +192,24 @@ const ProductPageSheet = React.memo(
 
               <h3
                 className={`font-extrabold text-stone-900 leading-snug ${
-                  isBookLandscape ? 'text-xs sm:text-sm line-clamp-1' : 'text-sm line-clamp-1'
+                  isBookLandscape ? 'text-[11px] sm:text-sm line-clamp-1' : 'text-[11px] sm:text-sm line-clamp-1'
                 }`}
               >
                 {page.title || 'محصول بدون عنوان'}
               </h3>
 
-              <p
-                className={`text-[11px] text-stone-600 leading-relaxed ${
-                  isBookLandscape ? 'line-clamp-2' : 'line-clamp-2'
-                }`}
-              >
+              <p className="text-[9.5px] sm:text-[11px] text-stone-600 leading-snug sm:leading-relaxed line-clamp-1 sm:line-clamp-2">
                 {page.description || 'توضیحات معرفی محصول در بخش ویرایشگر قابل تکمیل است.'}
               </p>
             </div>
 
-            <div className="pt-1.5 mt-1.5 border-t border-stone-200/90 flex items-center justify-between gap-2 text-[10px] sm:text-[11px]">
+            <div className="pt-1 mt-1 sm:pt-1.5 sm:mt-1.5 border-t border-stone-200/90 flex items-center justify-between gap-2 text-[9px] sm:text-[11px]">
               <div className="text-stone-500 truncate min-w-0">
                 {page.tags && page.tags.length > 0
-                  ? page.tags.slice(0, 4).join(' · ')
+                  ? page.tags.slice(0, 3).join(' · ')
                   : 'کاتالوگ دیجیتال'}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                 {page.priceLabel && (
                   <span className="font-bold text-stone-900 tabular-nums">{page.priceLabel}</span>
                 )}
@@ -272,46 +268,6 @@ const ColophonSheet = React.memo(
 );
 
 ColophonSheet.displayName = 'ColophonSheet';
-
-const InspectedLightboxImage: React.FC<{ page: CatalogPage }> = ({ page }) => {
-  const candidates = useMemo(
-    () => getUploadFallbackCandidates(page.optimizedDataUrl, page.originalDataUrl),
-    [page.optimizedDataUrl, page.originalDataUrl]
-  );
-  const [idx, setIdx] = useState(0);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setIdx(0);
-    setFailed(false);
-  }, [page.id, page.optimizedDataUrl, page.originalDataUrl]);
-
-  const activeSrc = candidates[idx] || '';
-  if (failed || !activeSrc) {
-    return (
-      <div className="py-12 flex flex-col items-center justify-center text-stone-400 gap-2 text-xs">
-        <ImageOff className="w-8 h-8 opacity-50" />
-        <span>تصویر محصول قابل بارگذاری نیست</span>
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={activeSrc}
-      alt={page.title || page.fileName}
-      referrerPolicy="no-referrer"
-      onError={() => {
-        if (idx + 1 < candidates.length) {
-          setIdx((prev) => prev + 1);
-        } else {
-          setFailed(true);
-        }
-      }}
-      className="max-w-full max-h-[50vh] object-contain rounded"
-    />
-  );
-};
 
 export const FlipbookViewer: React.FC<FlipbookViewerProps> = ({
   project,
@@ -484,14 +440,14 @@ export const FlipbookViewer: React.FC<FlipbookViewerProps> = ({
   }, [activeLogicalIdx, totalSheets]);
 
   const pageDims = useMemo(() => {
-    const padX = isMobile ? 20 : 52;
-    const padY = isMobile ? 20 : 36;
+    const padX = isMobile ? 6 : 52;
+    const padY = isMobile ? 8 : 36;
     const availW = Math.max(240, stageSize.width - padX);
     const availH = Math.max(240, stageSize.height - padY);
 
     // Sheet aspect ratio (width / height) follows the photo orientation cleanly
     const targetAspect = orientationMetrics.isLandscape
-      ? Math.max(1.22, Math.min(1.45, orientationMetrics.medianLandscapeRatio * 0.9))
+      ? Math.max(1.18, Math.min(1.45, orientationMetrics.medianLandscapeRatio * 0.9))
       : Math.max(0.68, Math.min(0.84, orientationMetrics.medianPortraitRatio));
 
     const maxPerPageW = isSingleView
@@ -721,6 +677,33 @@ export const FlipbookViewer: React.FC<FlipbookViewerProps> = ({
   const progressPercent =
     totalSheets > 1 ? Math.round((activeLogicalIdx / (totalSheets - 1)) * 100) : 100;
 
+  const activeSheetObj = logicalSheets[activeLogicalIdx];
+  const activeProductPage =
+    activeSheetObj && activeSheetObj.kind === 'product' ? activeSheetObj.page : null;
+
+  const productSlides = useMemo<LightboxSlide[]>(
+    () =>
+      project.pages.map((p) => ({
+        id: p.id,
+        src: p.optimizedDataUrl || p.originalDataUrl || '',
+        fallbackSrc: p.originalDataUrl || p.optimizedDataUrl || '',
+        title: p.title || p.fileName,
+        category: p.category || 'محصول کاتالوگ',
+        description: p.description,
+        sku: p.sku,
+        priceLabel: p.priceLabel,
+        tags: p.tags,
+        aiStatus: p.aiStatus,
+      })),
+    [project.pages]
+  );
+
+  const inspectedIdx = useMemo(() => {
+    if (!inspectedPage) return -1;
+    const found = project.pages.findIndex((p) => p.id === inspectedPage.id);
+    return found >= 0 ? found : 0;
+  }, [inspectedPage, project.pages]);
+
   return (
     <div
       ref={containerRef}
@@ -909,6 +892,18 @@ export const FlipbookViewer: React.FC<FlipbookViewerProps> = ({
             <span className="hidden sm:inline">{isMuted ? 'سایلنت' : 'صدا روشن'}</span>
           </button>
 
+          {activeProductPage && (
+            <button
+              type="button"
+              onClick={() => setInspectedPage(activeProductPage)}
+              title="زوم، چرخش ۹۰ درجه و نمایش تمام‌صفحه عکس فعلی"
+              className="h-8 px-2.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/40 text-sky-200 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Search className="w-3.5 h-3.5 text-sky-300" />
+              <span>زوم عکس</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={toggleFullscreen}
@@ -936,7 +931,7 @@ export const FlipbookViewer: React.FC<FlipbookViewerProps> = ({
         dir="ltr"
         className={`flipbook-stage relative flex-1 ${
           zoom > 1 ? 'overflow-auto' : 'overflow-hidden'
-        } flex items-center justify-center p-2 sm:p-4 bg-[radial-gradient(ellipse_at_center,_#222836_0%,_#101218_76%)]`}
+        } flex items-center justify-center p-1 sm:p-4 bg-[radial-gradient(ellipse_at_center,_#222836_0%,_#101218_76%)]`}
       >
         {/* Interactive Edge Navigation Overlay Buttons */}
         <button
@@ -1066,78 +1061,13 @@ export const FlipbookViewer: React.FC<FlipbookViewerProps> = ({
         </span>
       </div>
 
-      {/* Interactive Lightbox Inspector Modal for Clicked / Zoomed Product Photo */}
-      {inspectedPage && (
-        <div
-          className="fixed inset-0 z-[160] bg-black/85 p-4 sm:p-6 flex items-center justify-center"
-          dir="rtl"
-          onClick={() => setInspectedPage(null)}
-        >
-          <div
-            className="w-full max-w-4xl bg-white text-stone-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-5 py-3.5 border-b border-stone-200 flex items-center justify-between gap-4 bg-stone-50">
-              <div className="flex items-center gap-2 min-w-0">
-                {inspectedPage.aiStatus === 'done' && (
-                  <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                )}
-                <h4 className="text-sm sm:text-base font-extrabold truncate">
-                  {inspectedPage.title || 'جزئیات محصول'}
-                </h4>
-              </div>
-              <button
-                type="button"
-                onClick={() => setInspectedPage(null)}
-                className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-200 cursor-pointer"
-                aria-label="بستن بزرگ‌نمایی"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4">
-              <div className="w-full max-h-[55vh] rounded-xl bg-stone-100 border border-stone-200 flex items-center justify-center p-2 overflow-hidden">
-                <InspectedLightboxImage page={inspectedPage} />
-              </div>
-
-              <div className="space-y-2.5 pt-1">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
-                  <span className="font-bold text-amber-700">
-                    {inspectedPage.category || 'محصول کاتالوگ'}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    {inspectedPage.sku && (
-                      <span className="font-mono text-stone-500">کد: {inspectedPage.sku}</span>
-                    )}
-                    {inspectedPage.priceLabel && (
-                      <span className="font-extrabold text-stone-900">
-                        {inspectedPage.priceLabel}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <p className="text-sm text-stone-700 leading-relaxed">
-                  {inspectedPage.description || 'توضیحات تکمیلی این محصول ثبت نشده است.'}
-                </p>
-
-                {inspectedPage.tags && inspectedPage.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-2">
-                    {inspectedPage.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2.5 py-1 rounded-md bg-stone-100 border border-stone-200 text-[11px] font-semibold text-stone-700"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Interactive Fullscreen Zoom & Rotate Lightbox for Product Photos */}
+      {inspectedPage && productSlides.length > 0 && (
+        <CatalogImageLightbox
+          slides={productSlides}
+          initialIndex={inspectedIdx >= 0 ? inspectedIdx : 0}
+          onClose={() => setInspectedPage(null)}
+        />
       )}
     </div>
   );

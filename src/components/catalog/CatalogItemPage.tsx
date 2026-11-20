@@ -9,9 +9,10 @@ const FlipbookViewer = lazy(() =>
   import('../studio/FlipbookViewer').then((m) => ({ default: m.FlipbookViewer }))
 );
 import { getCatalogDossier, TechnicalSchematicSvg } from './CatalogSpreadModal';
+import { CatalogImageLightbox } from './CatalogImageLightbox';
 import { SeoHead } from '../SeoHead';
 import { NotFound } from '../NotFound';
-import { BookOpen, Download, HelpCircle, Box, ArrowUpRight, Layers, Printer, Ruler, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { BookOpen, Download, HelpCircle, Box, ArrowUpRight, Layers, Printer, Ruler, CheckCircle2, Loader2, AlertCircle, ZoomIn } from 'lucide-react';
 import { BackButton } from '../UIComponents';
 import { saveInquiryPrefill } from '../../utils/inquiryPrefill';
 
@@ -28,6 +29,7 @@ export const CatalogItemPage: React.FC = () => {
   const [activeSheet, setActiveSheet] = useState<'flipbook' | 'cover' | 'cad' | 'specs'>('cover');
   const [coverIdx, setCoverIdx] = useState(0);
   const [imgFailed, setImgFailed] = useState(false);
+  const [coverLightboxOpen, setCoverLightboxOpen] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -116,7 +118,7 @@ export const CatalogItemPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 font-sans text-right" dir="rtl">
+    <div className="max-w-7xl mx-auto px-2.5 sm:px-4 md:px-8 py-4 md:py-8 font-sans text-right" dir="rtl">
       <SeoHead
         customTitle={`${catalog.title} | کاتالوگ رسمی اشک قلم`}
         customDescription={catalog.description || `مشاهده و دریافت کاتالوگ ${catalog.title} در صنایع بسته‌بندی اشک قلم.`}
@@ -125,7 +127,7 @@ export const CatalogItemPage: React.FC = () => {
       />
 
       {/* Breadcrumb Row */}
-      <div className="flex items-center justify-between gap-4 pb-6 mb-6 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex items-center justify-between gap-3 pb-3 sm:pb-5 mb-4 sm:mb-6 border-b border-slate-200 dark:border-slate-800">
         <BackButton label="بازگشت به آرشیو کاتالوگ‌ها" to="/catalog" variant="auto" />
 
         <button
@@ -178,7 +180,7 @@ export const CatalogItemPage: React.FC = () => {
 
           {/* Interactive Stage Frame */}
           {activeSheet === 'flipbook' && catalog.flipbookId && (
-            <div className="h-[580px] sm:h-[660px] lg:h-[700px] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#12141a]">
+            <div className="h-[76dvh] min-h-[480px] sm:h-[660px] lg:h-[700px] rounded-xl sm:rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-[#12141a]">
               {loadingFlipbook ? (
                 <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-3 text-sm">
                   <Loader2 className="w-6 h-6 animate-spin text-amber-400" />
@@ -205,21 +207,32 @@ export const CatalogItemPage: React.FC = () => {
           )}
 
           {activeSheet === 'cover' && (
-            <div className="aspect-[4/3] rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="relative aspect-[4/3] rounded-xl sm:rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden">
               {coverSrc && !imgFailed ? (
-                <img
-                  src={coverSrc}
-                  alt={catalog.title}
-                  referrerPolicy="no-referrer"
-                  onError={() => {
-                    if (coverIdx + 1 < coverCandidates.length) {
-                      setCoverIdx((prev) => prev + 1);
-                    } else {
-                      setImgFailed(true);
-                    }
-                  }}
-                  className="w-full h-full object-cover"
-                />
+                <>
+                  <img
+                    src={coverSrc}
+                    alt={catalog.title}
+                    referrerPolicy="no-referrer"
+                    onClick={() => setCoverLightboxOpen(true)}
+                    onError={() => {
+                      if (coverIdx + 1 < coverCandidates.length) {
+                        setCoverIdx((prev) => prev + 1);
+                      } else {
+                        setImgFailed(true);
+                      }
+                    }}
+                    className="w-full h-full object-contain bg-slate-950/5 dark:bg-black/40 cursor-zoom-in"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCoverLightboxOpen(true)}
+                    className="absolute bottom-2.5 left-2.5 z-10 px-2.5 py-1.5 rounded-lg bg-slate-950/85 hover:bg-slate-950 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-lg border border-white/15 cursor-pointer"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5 text-amber-400" />
+                    <span>زوم، چرخش و تمام‌صفحه</span>
+                  </button>
+                </>
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center p-8 text-slate-500 text-center">
                   <BookOpen className="w-14 h-14 mb-3 opacity-50 text-amber-500" />
@@ -375,6 +388,22 @@ export const CatalogItemPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {coverLightboxOpen && coverSrc && (
+        <CatalogImageLightbox
+          slides={[
+            {
+              id: String(catalog.id),
+              src: coverSrc,
+              title: catalog.title,
+              category: catalog.category,
+              description: catalog.description,
+            },
+          ]}
+          initialIndex={0}
+          onClose={() => setCoverLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 };

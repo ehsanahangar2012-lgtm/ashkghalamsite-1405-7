@@ -17,6 +17,8 @@ import {
   BookOpen,
 } from 'lucide-react';
 
+import { apiFetch } from '../utils/apiClient';
+
 interface AuditIssue {
   path: string;
   severity: 'critical' | 'warning' | 'info';
@@ -49,7 +51,7 @@ export const ProfessionalSeoStudio: React.FC = () => {
 
   const loadReport = async () => {
     try {
-      const res = await fetch('/api/seo/report');
+      const res = await apiFetch('seo/report');
       if (res.ok) setReport(await res.json());
     } catch {}
   };
@@ -62,13 +64,14 @@ export const ProfessionalSeoStudio: React.FC = () => {
     setIsAuditing(true);
     setStatusBanner(null);
     try {
-      const res = await fetch('/api/seo/audit', { method: 'POST' });
+      const res = await apiFetch('seo/audit', { method: 'POST' });
       const data = await res.json();
-      if (data?.report) {
-        setReport(data.report);
+      const rep = data?.report || (data?.averageScore ? data : null);
+      if (rep) {
+        setReport(rep);
         setStatusBanner({
           type: 'ok',
-          text: `ممیزی تکنیکال انجام شد (امتیاز: ${data.report.averageScore}/100 | آدرس‌های Sitemap: ${data.report.sitemapUrlCount})`,
+          text: `ممیزی تکنیکال انجام شد (امتیاز: ${rep.averageScore}/100 | آدرس‌های Sitemap: ${rep.sitemapUrlCount})`,
         });
       }
     } catch {
@@ -82,11 +85,11 @@ export const ProfessionalSeoStudio: React.FC = () => {
     setIsPinging(true);
     setStatusBanner(null);
     try {
-      const res = await fetch('/api/seo/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const res = await apiFetch('seo/ping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
       const data = await res.json();
       setStatusBanner({
         type: 'ok',
-        text: `Sitemap به‌روزرسانی شد (${data.urlCount || 0} URL). وضعیت IndexNow: ${data?.notify?.indexNow?.message || 'ثبت شد'}`,
+        text: `Sitemap به‌روزرسانی شد (${data.urlCount || 0} URL). وضعیت IndexNow: ${data?.notify?.indexNow?.message || data?.message || 'ثبت شد'}`,
       });
     } catch {
       setStatusBanner({ type: 'err', text: 'خطا در ارسال پینگ به موتورهای جستجو.' });
@@ -99,7 +102,7 @@ export const ProfessionalSeoStudio: React.FC = () => {
     setIsGenerating(true);
     setStatusBanner(null);
     try {
-      const res = await fetch('/api/ai/generate-post', {
+      const res = await apiFetch('ai/generate-post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic: topicInput.trim() || undefined }),
@@ -119,7 +122,7 @@ export const ProfessionalSeoStudio: React.FC = () => {
         });
       }
     } catch {
-      setStatusBanner({ type: 'err', text: 'خطا در اجرای ورکر تولید محتوا.' });
+      setStatusBanner({ type: 'err', text: 'خطا در اجرای ماژول تولید محتوا.' });
     } finally {
       setIsGenerating(false);
     }
@@ -128,9 +131,9 @@ export const ProfessionalSeoStudio: React.FC = () => {
   const handleCopyPromptForWebAi = async () => {
     try {
       const url = topicInput.trim()
-        ? `/api/seo/manual-prompt?topic=${encodeURIComponent(topicInput.trim())}`
-        : '/api/seo/manual-prompt';
-      const res = await fetch(url);
+        ? `seo/manual-prompt?topic=${encodeURIComponent(topicInput.trim())}`
+        : 'seo/manual-prompt';
+      const res = await apiFetch(url);
       const data = await res.json();
       if (data?.prompt) {
         setManualPrompt(data.prompt);
@@ -145,7 +148,7 @@ export const ProfessionalSeoStudio: React.FC = () => {
     if (!manualJsonInput.trim()) return;
     setStatusBanner(null);
     try {
-      const res = await fetch('/api/seo/import-manual', {
+      const res = await apiFetch('seo/import-manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonText: manualJsonInput }),

@@ -8,7 +8,7 @@ import {
   Link, Trello, Printer, Trash2, Plus, Upload, BookOpen,
   Activity, Cpu, Sparkles, TrendingUp, ShieldCheck, AlertCircle, Coins, AlertTriangle,
   Clock, CheckCircle, RefreshCw, Layers, ArrowUpRight, UserCheck, Sliders,
-  Bell, AlertOctagon, Edit3, Search, Megaphone, X, ChevronDown, ChevronUp, ExternalLink, Menu, Globe, FolderArchive, Download
+  Bell, AlertOctagon, Edit3, Search, Megaphone, X, ChevronDown, ChevronUp, ExternalLink, Menu, Globe, FolderArchive, Download, Package, CalendarClock
 } from 'lucide-react';
 import { Project } from '../types';
 import { parsePersianFloat, cleanPersianNumberString } from '../services/numberUtils';
@@ -69,6 +69,69 @@ const PortalManagementAdmin = lazy(() =>
 const AdminContentPagesManager = lazy(() =>
   import('./AdminContentPagesManager').then(m => ({ default: m.AdminContentPagesManager }))
 );
+const AdminStudioInstaller = lazy(() =>
+  import('./AdminStudioInstaller').then(m => ({ default: m.AdminStudioInstaller }))
+);
+const AdminSeoAutopilot = lazy(() =>
+  import('./AdminSeoAutopilot').then(m => ({ default: m.AdminSeoAutopilot }))
+);
+
+const prefetchedAdminTabs = new Set<string>();
+const prefetchAdminTab = (tabId: string) => {
+  if (prefetchedAdminTabs.has(tabId)) return;
+  prefetchedAdminTabs.add(tabId);
+  switch (tabId) {
+    case 'cpanel_deploy':
+      void import('./DownloadReleasePage');
+      break;
+    case 'studio_installer':
+      void import('./AdminStudioInstaller');
+      break;
+    case 'seo_autopilot':
+      void import('./AdminSeoAutopilot');
+      break;
+    case 'catalogs':
+      void import('./AdminCatalogManager');
+      break;
+    case 'backup':
+      void import('./BackupManager');
+      break;
+    case 'zip_update':
+      void import('./ZipUpdateManager');
+      break;
+    case 'media_library':
+    case 'integrations':
+    case 'simulator':
+      void import('./AdminTools');
+      break;
+    case 'b2b_suite':
+      void import('./B2BSuite');
+      break;
+    case 'dieline_analyzer':
+      void import('./AdminDielineAnalyzer');
+      break;
+    case 'pages_products_services':
+      void import('./AdminContentPagesManager');
+      break;
+    case 'software_hub':
+      void import('./AdminSoftwareManager');
+      break;
+    case 'team_accounts':
+      void import('./TeamManagementPanel');
+      break;
+    case 'orders':
+      void import('./BusinessProcessManager');
+      break;
+    case 'slider_settings':
+      void import('./SliderSettingsPanel');
+      break;
+    case 'dxp':
+      void import('./PortalManagementAdmin');
+      break;
+    default:
+      break;
+  }
+};
 
 const AdminTabFallback: React.FC<{ label?: string }> = ({ label = 'در حال بارگذاری بخش...' }) => (
   <div className="p-10 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col items-center justify-center gap-3 text-slate-300 text-xs">
@@ -144,6 +207,7 @@ const ADMIN_TAB_CATEGORIES = [
       { id: 'catalogs', label: 'تولید و انتشار کاتالوگ سه‌بعدی (فلیپ‌بوک)', icon: BookOpen, color: 'text-amber-400', badge: 'استودیو', perm: 'cmsContentEditing' },
       { id: 'media_library', label: 'کتابخانه رسانه‌ها (گالری)', icon: ImageIcon, color: 'text-purple-400', perm: 'cmsContentEditing' },
       { id: 'slider_settings', label: 'تنظیمات اسلایدر استودیو', icon: Monitor, color: 'text-amber-500', perm: 'cmsContentEditing' },
+      { id: 'seo_autopilot', label: 'بهینه‌ساز دوره‌ای سئو (Gemini Cron) و مقالات', icon: CalendarClock, color: 'text-emerald-400', badge: 'Gemini Cron', perm: 'cmsContentEditing' },
       { id: 'seo_manager', label: 'سئو و معرفی به موتورهای جستجو و هوش مصنوعی', icon: Globe, color: 'text-emerald-400', badge: 'جدید', perm: 'cmsContentEditing' }
     ]
   },
@@ -154,8 +218,9 @@ const ADMIN_TAB_CATEGORIES = [
       { id: 'emergency_banner', label: 'نوتیفیکیشن وضعیت اضطراری', icon: Bell, color: 'text-rose-400', badge: 'جدید', perm: 'cmsContentEditing' },
       { id: 'integrations', label: 'اتصال به پایانه‌ها و API', icon: Link, color: 'text-orange-400', perm: 'backupSystem' },
       { id: 'backup', label: 'پشتیبان‌گیری و ایمن‌سازی', icon: ShieldCheck, color: 'text-emerald-400', badge: 'امنیتی', perm: 'backupSystem' },
-      { id: 'zip_update', label: 'مدیریت آپدیت و جایگزینی فایل زیپ', icon: FolderArchive, color: 'text-violet-400', badge: 'جدید', perm: 'backupSystem' },
-      { id: 'cpanel_deploy', label: 'دانلود بسته استقرار cPanel', icon: Download, color: 'text-amber-400', badge: 'v3.22.0', perm: 'backupSystem' },
+      { id: 'zip_update', label: 'آپلود و جایگزینی ZIP ابزارهای جانبی', icon: FolderArchive, color: 'text-violet-400', badge: 'سورس ابزار', perm: 'backupSystem' },
+      { id: 'studio_installer', label: 'نصب ابزارهای استودیو روی هاست', icon: Package, color: 'text-cyan-400', badge: 'نصب آنلاین', perm: 'backupSystem' },
+      { id: 'cpanel_deploy', label: 'دانلود بسته استقرار cPanel', icon: Download, color: 'text-amber-400', badge: 'v3.26.6', perm: 'backupSystem' },
       { id: 'settings', label: 'تنظیمات برندینگ و سیستم', icon: Settings, color: 'text-slate-400', perm: 'cmsContentEditing' }
     ]
   }
@@ -167,7 +232,7 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
     globalSettings, updateGlobalSettings, saveSettingsToHost,
     siteContent, updateSiteContent,
     pricingFormula, updatePricingFormula,
-    uploadAsset,
+    uploadAsset, refreshAssets,
     emergencyConfig, updateEmergencyConfig
   } = useContent();
 
@@ -188,7 +253,11 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
 
   useEffect(() => {
     mountedRef.current = true;
+    const mediaTimer = window.setTimeout(() => {
+      if (mountedRef.current) void refreshAssets();
+    }, 150);
     return () => {
+      window.clearTimeout(mediaTimer);
       mountedRef.current = false;
       timersRef.current.forEach((id) => window.clearTimeout(id));
       timersRef.current = [];
@@ -225,7 +294,7 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
     })).filter(cat => cat.tabs.length > 0);
   }, [user?.role, hasPermission]);
 
-  const [activeTab, setActiveTab] = useState<'dxp' | 'dashboard' | 'orders' | 'b2b_suite' | 'team_accounts' | 'formula' | 'simulator' | 'integrations' | 'backup' | 'zip_update' | 'cpanel_deploy' | 'settings' | 'pages_products_services' | 'software_hub' | 'catalogs' | 'media_library' | 'slider_settings' | 'dieline_analyzer' | 'templates_reset' | 'emergency_banner' | 'seo_manager'>(() => {
+  const [activeTab, setActiveTab] = useState<'dxp' | 'dashboard' | 'orders' | 'b2b_suite' | 'team_accounts' | 'formula' | 'simulator' | 'integrations' | 'backup' | 'zip_update' | 'studio_installer' | 'cpanel_deploy' | 'settings' | 'pages_products_services' | 'software_hub' | 'catalogs' | 'media_library' | 'slider_settings' | 'dieline_analyzer' | 'templates_reset' | 'emergency_banner' | 'seo_autopilot' | 'seo_manager'>(() => {
     try {
       const saved = sessionStorage.getItem('ashk_admin_active_tab');
       if (saved) return saved as any;
@@ -386,7 +455,7 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
               </div>
               
               <div className="flex items-center gap-1.5">
-                <span className="p-1 px-2.5 rounded-full text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 font-bold tracking-tight">v3.22.0 (cPanel)</span>
+                <span className="p-1 px-2.5 rounded-full text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 font-bold tracking-tight">v3.26.6 (cPanel)</span>
                 <button 
                   type="button"
                   onClick={toggleMobileMenu}
@@ -420,10 +489,10 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
                 handleTabClick('cpanel_deploy');
               }}
               className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm mt-1"
-              title="دریافت بسته استقرار cPanel (نسخه ۳.۲۲.۰)"
+              title="دریافت بسته استقرار cPanel (نسخه ۳.۲۶.۶)"
             >
               <Download className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>دانلود بسته استقرار cPanel (v3.22.0)</span>
+              <span>دانلود بسته استقرار cPanel (v3.26.6)</span>
             </button>
           </div>
 
@@ -442,6 +511,8 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
                       <button
                         key={tab.id}
                         type="button"
+                        onMouseEnter={() => prefetchAdminTab(tab.id)}
+                        onFocus={() => prefetchAdminTab(tab.id)}
                         onClick={() => handleTabClick(tab.id)}
                         className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors group ${
                           isSelected 
@@ -643,11 +714,13 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
               {activeTab === 'integrations' && 'اتصال پایانه‌های صنعتی'}
               {activeTab === 'formula' && 'موتور قیمت‌گذاری و هزینه‌های چاپ'}
               {activeTab === 'backup' && 'پشتیبان‌گیری امن داده‌ها'}
-              {activeTab === 'zip_update' && 'سامانه مدیریت آپدیت و جایگزینی فایل‌های ZIP پروژه'}
-              {activeTab === 'cpanel_deploy' && 'دریافت و استقرار بسته cPanel (نسخه ۳.۲۲.۰)'}
+              {activeTab === 'zip_update' && 'آپلود و جایگزینی فایل‌های ZIP ابزارهای جانبی (PhotoCraft / VectorCraft / CADCraft / اختصاصی)'}
+              {activeTab === 'studio_installer' && 'نصب و تکمیل ابزارهای استودیو روی هاست (PhotoCraft / VectorCraft / CADCraft)'}
+              {activeTab === 'cpanel_deploy' && 'دریافت و استقرار بسته cPanel (نسخه ۳.۲۶.۶)'}
               {activeTab === 'settings' && 'طرح زنده و رنگ سیستم'}
               {activeTab === 'slider_settings' && 'پنل تنظیمات استودیو نمایش محصول'}
               {activeTab === 'emergency_banner' && 'تنظیمات نوتیفیکیشن وضعیت اضطراری بالای سایت'}
+              {activeTab === 'seo_autopilot' && 'سرویس زمان‌بند هوشمند سئو صفحات با Gemini AI و اتوماسیون مقالات'}
               {activeTab === 'seo_manager' && 'سئو و معرفی سایت به موتورهای جستجو و هوش مصنوعی (Google & AI Indexing)'}
             </h1>
           </div>
@@ -942,6 +1015,8 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
 
             {activeTab === 'media_library' && <MediaManager />}
 
+            {activeTab === 'seo_autopilot' && <AdminSeoAutopilot />}
+
             {activeTab === 'seo_manager' && <ContentManager />}
 
             {activeTab === 'simulator' && (
@@ -976,6 +1051,8 @@ export const AdminPanel: React.FC<{ onBackToHome?: () => void; isDarkMode?: bool
             {activeTab === 'backup' && <BackupManager isDarkMode={isDarkMode} />}
 
             {activeTab === 'zip_update' && <ZipUpdateManager isDarkMode={isDarkMode} />}
+
+            {activeTab === 'studio_installer' && <AdminStudioInstaller />}
 
             {activeTab === 'cpanel_deploy' && <DownloadReleasePage hideBreadcrumb={true} />}
 

@@ -1,50 +1,150 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Card, Button, BackButton } from './UIComponents';
 import { 
-  Download, Upload, Monitor, Save, Share2, Info, ChevronLeft, Maximize, Minimize, 
-  Palette, Sparkles, Loader2, Image as ImageIcon, WifiOff, Type, Square, 
-  Circle, Paintbrush, Eraser, Trash2, Undo, Check, Eye, HelpCircle, Layers, Settings, FileImage
+  Download, Upload, Monitor, Share2, Info, Maximize, Minimize, 
+  Palette, Sparkles, Loader2, Image as ImageIcon, Type,
+  Paintbrush, Eraser, Trash2, Undo, Check, Eye, Layers, Settings, FileImage,
+  PenTool, RefreshCw, HardDrive, ExternalLink, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { SmartHelpButton } from './SmartHelpModal';
 import { generateAIPattern } from '../services/geminiService';
+import { apiRequestJson } from '../utils/apiClient';
+import { useAuth } from '../contexts/AuthContext';
 
 interface DesignStudioProps {
   isDarkMode: boolean;
 }
 
 type DesignTemplate = 'pizza' | 'mailer' | 'drug';
+type StudioMode = 'photocraft' | 'vectorcraft' | 'photopea' | 'local';
+
+interface OfflineEngineMeta {
+  id: 'photocraft' | 'vectorcraft';
+  title: string;
+  label: string;
+  src: string;
+  accentBg: string;
+  accentText: string;
+}
+
+const OFFLINE_ENGINES: Record<'photocraft' | 'vectorcraft', OfflineEngineMeta> = {
+  photocraft: {
+    id: 'photocraft',
+    title: 'PhotoCraft',
+    label: 'ویرایشگر تصویر PhotoCraft',
+    src: '/studio/photocraft/index.html',
+    accentBg: 'bg-cyan-500/15 border-cyan-500/30',
+    accentText: 'text-cyan-300',
+  },
+  vectorcraft: {
+    id: 'vectorcraft',
+    title: 'VectorCraft',
+    label: 'طراحی برداری VectorCraft',
+    src: '/studio/vectorcraft/index.html',
+    accentBg: 'bg-emerald-500/15 border-emerald-500/30',
+    accentText: 'text-emerald-300',
+  },
+};
 
 export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Studio Modes: 'local' (Guaranteed HTML5 Studio) and 'photopea' (Advanced Photoshop Cloud)
-  const [activeStudioTab, setActiveStudioTab] = useState<'local' | 'photopea'>('local');
+  const { user } = useAuth();
+  // Studio Modes: Photopea (default), PhotoCraft, VectorCraft, Local Dieline Canvas
+  const [activeStudioTab, setActiveStudioTab] = useState<StudioMode>('photopea');
+
+  // Installed status from /api/studios/status (null = still checking / unknown)
+  const [studioInstalled, setStudioInstalled] = useState<Record<'photocraft' | 'vectorcraft', boolean | null>>({
+    photocraft: null,
+    vectorcraft: null,
+  });
+
+  const refreshStudioInstallStatus = async () => {
+    try {
+      const { res, data } = await apiRequestJson<{ studios?: Array<{ id: string; installed: boolean }> }>('studios/status', {
+        cache: 'no-store',
+      });
+      if (res.ok && Array.isArray(data?.studios)) {
+        const next: Record<'photocraft' | 'vectorcraft', boolean | null> = {
+          photocraft: null,
+          vectorcraft: null,
+        };
+        for (const s of data.studios) {
+          if (s.id === 'photocraft' || s.id === 'vectorcraft') {
+            next[s.id] = Boolean(s.installed);
+          }
+        }
+        setStudioInstalled(next);
+      }
+    } catch {
+      // Leave null so iframe fallback still works if status endpoint is unreachable
+    }
+  };
+
+  useEffect(() => {
+    void refreshStudioInstallStatus();
+  }, []);
 
   // Common UI State
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [loadedEngines, setLoadedEngines] = useState<Record<'photocraft' | 'vectorcraft' | 'photopea', boolean>>({
+    photocraft: false,
+    vectorcraft: false,
+    photopea: false,
+  });
+  const [reloadKeys, setReloadKeys] = useState<Record<'photocraft' | 'vectorcraft' | 'photopea', number>>({
+    photocraft: 0,
+    vectorcraft: 0,
+    photopea: 0,
+  });
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [studioToast, setStudioToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
-  // Monitor network online/offline state & iframe connection timeouts
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setStudioToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (!studioToast) return;
+    const t = window.setTimeout(() => setStudioToast(null), 4200);
+    return () => window.clearTimeout(t);
+  }, [studioToast]);
+
+  const markEngineLoaded = (engine: 'photocraft' | 'vectorcraft' | 'photopea') => {
+    setLoadedEngines((prev) => (prev[engine] ? prev : { ...prev, [engine]: true }));
+  };
+
+  const reloadEngine = (engine: 'photocraft' | 'vectorcraft' | 'photopea') => {
+    setLoadedEngines((prev) => ({ ...prev, [engine]: false }));
+    setReloadKeys((prev) => ({ ...prev, [engine]: prev[engine] + 1 }));
+  };
+
+  // Allow embedded studios to switch back to Photopea or another tool cleanly
+  useEffect(() => {
+    const handleStudioMessage = (event: MessageEvent) => {
+      if (!event.data || event.data.type !== 'ASHK_STUDIO_SWITCH') return;
+      const target = event.data.engine as StudioMode;
+      if (target === 'photopea' || target === 'photocraft' || target === 'vectorcraft' || target === 'local') {
+        setActiveStudioTab(target);
+      }
+    };
+    window.addEventListener('message', handleStudioMessage);
+    return () => window.removeEventListener('message', handleStudioMessage);
+  }, []);
+
+  // Monitor network offline state when user is on Photopea
   useEffect(() => {
     const handleOffline = () => {
-      // Keep Photopea as default, only log warning instead of forced switching
       if (activeStudioTab === 'photopea') {
-        console.warn("Network offline detected.");
+        showToast('اتصال اینترنت قطع شد. می‌توانید از PhotoCraft، VectorCraft یا بوم فوری دایکات استفاده کنید.', 'info');
       }
     };
     window.addEventListener('offline', handleOffline);
     return () => window.removeEventListener('offline', handleOffline);
   }, [activeStudioTab]);
-
-  useEffect(() => {
-    // Disable automatic 10-second fallback to 'local' to keep Photoshop as absolute default
-    if (activeStudioTab === 'photopea' && !isLoaded) {
-      console.log("Loading Cloud Photoshop...");
-    }
-  }, [activeStudioTab, isLoaded]);
 
   // AI Generator state
   const [prompt, setPrompt] = useState('');
@@ -264,13 +364,20 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    if (window.confirm('آیا از پاک کردن کامل بوم طراحی اطمینان دارید؟')) {
-      ctx.fillStyle = bgColor;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      setUploadedStickers([]);
-      setCanvasHistory([]);
-      setTimeout(() => saveHistory(), 50);
+    if (!confirmClear) {
+      setConfirmClear(true);
+      showToast('برای پاک کردن کامل بوم، یک بار دیگر روی دکمه «پاک کردن کل طرح» کلیک کنید.', 'info');
+      window.setTimeout(() => setConfirmClear(false), 4000);
+      return;
     }
+
+    setConfirmClear(false);
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    setUploadedStickers([]);
+    setCanvasHistory([]);
+    setTimeout(() => saveHistory(), 50);
+    showToast('بوم طراحی با موفقیت پاک‌سازی شد.', 'success');
   };
 
   // Sticker logo upload handler
@@ -307,7 +414,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
 
         ctx.drawImage(img, x, y, w, h);
         saveHistory();
-        alert('🎨 نشان تجاری شما با موفقیت به مرکز بوم طراحی افزوده شد. اکنون می‌توانید روی آن نقاشی کنید یا متن اضافه کنید.');
+        showToast('نشان تجاری شما با موفقیت به مرکز بوم طراحی افزوده شد.', 'success');
       };
     };
     reader.readAsDataURL(file);
@@ -349,12 +456,13 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
       const result = await generateAIPattern(prompt);
       if (result) {
         setGeneratedPattern(result);
+        showToast('بافت اختصاصی شما با موفقیت تولید شد.', 'success');
       } else {
-        alert('خطا در تولید بافت با هوش مصنوعی. لطفاً مجدداً امتحان نمایید.');
+        showToast('خطا در تولید بافت با هوش مصنوعی. لطفاً مجدداً امتحان نمایید.', 'error');
       }
     } catch (error) {
       console.error(error);
-      alert('ارتباط با سرور هوش مصنوعی برقرار نشد.');
+      showToast('ارتباط با سرور هوش مصنوعی برقرار نشد.', 'error');
     } finally {
       setIsGenerating(false);
     }
@@ -372,10 +480,9 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Draw pattern tiled or stretched
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       saveHistory();
-      alert('✨ بافت هوش مصنوعی با موفقیت به عنوان پس‌زمینه بوم چاپ شما تنظیم شد!');
+      showToast('بافت هوش مصنوعی به عنوان پس‌زمینه بوم چاپ تنظیم شد.', 'success');
     };
   };
 
@@ -390,10 +497,21 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
         reader.onload = function() {
           if (iframeRef.current?.contentWindow) {
             iframeRef.current.contentWindow.postMessage(reader.result, "*");
+            showToast('بافت به فتوشاپ ابری Photopea ارسال شد.', 'success');
           }
         };
         reader.readAsArrayBuffer(file);
       });
+  };
+
+  // Download AI pattern for drag-and-drop into offline PhotoCraft / VectorCraft
+  const downloadAIPattern = () => {
+    if (!generatedPattern) return;
+    const link = document.createElement('a');
+    link.download = `ashkghalam_ai_pattern_${Date.now()}.png`;
+    link.href = generatedPattern;
+    link.click();
+    showToast('فایل بافت دانلود شد؛ اکنون می‌توانید آن را داخل PhotoCraft یا VectorCraft بکشید (Drag & Drop).', 'success');
   };
 
   // Local dieline vector drawing specifications
@@ -483,27 +601,69 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
             <Palette className="h-4 w-4 text-white animate-pulse" />
           </div>
           <div className="hidden sm:block truncate">
-            <h1 className="text-xs font-black text-slate-100 uppercase tracking-wider font-sans truncate">بوم استودیو طراحی خلاق</h1>
-            <p className="text-[9px] text-slate-400 font-sans truncate">CREATIVE CARTON GRAPHICS & PRE-PRESS SUITE</p>
+            <h1 className="text-xs font-black text-slate-100 font-sans truncate">استودیو طراحی گرافیک</h1>
+            <p className="text-[9.5px] text-slate-400 font-sans truncate">طراحی تصویر، وکتور و بسته‌بندی</p>
           </div>
         </div>
 
-        {/* Dual Mode Switcher Tabs */}
-        <div className="flex items-center bg-[#0a0d14] p-1 rounded-xl border border-slate-800">
-          <button
-            onClick={() => setActiveStudioTab('local')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${activeStudioTab === 'local' ? 'bg-indigo-650 text-white shadow' : 'text-slate-400 hover:text-white'}`}
-          >
-            <Paintbrush className="w-3.5 h-3.5 shrink-0" />
-            <span>استودیوی فوری</span>
-          </button>
+        {/* Studio Switcher: Photopea (Primary Default) + PhotoCraft / VectorCraft / Local (Secondary) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full">
           <button
             onClick={() => setActiveStudioTab('photopea')}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${activeStudioTab === 'photopea' ? 'bg-indigo-650 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+            className={`px-3 sm:px-3.5 py-1.5 rounded-xl text-[11px] font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap border ${
+              activeStudioTab === 'photopea'
+                ? 'bg-indigo-600 border-indigo-400/60 text-white shadow-lg shadow-indigo-600/25'
+                : 'bg-indigo-950/50 border-indigo-500/35 text-indigo-200 hover:bg-indigo-900/60 hover:text-white'
+            }`}
+            title="ویرایشگر آنلاین Photopea (پیش‌فرض)"
           >
             <Monitor className="w-3.5 h-3.5 shrink-0" />
-            <span>فتوشاپ ابری</span>
+            <span>Photopea</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/25 text-indigo-100 font-bold">پیش‌فرض</span>
           </button>
+
+          <div className="h-5 w-px bg-slate-800 hidden sm:block shrink-0" />
+
+          <div className="flex items-center bg-[#0a0d14] p-1 rounded-xl border border-slate-800 gap-1">
+            <button
+              onClick={() => setActiveStudioTab('photocraft')}
+              className={`px-2.5 sm:px-3 py-1 rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap border ${
+                activeStudioTab === 'photocraft'
+                  ? 'bg-cyan-600 border-cyan-400/50 text-white shadow'
+                  : 'bg-[#141824] border-slate-800 text-slate-300 hover:border-cyan-500/40 hover:text-white'
+              }`}
+              title="ویرایشگر تصویر PhotoCraft (جایگزین)"
+            >
+              <HardDrive className="w-3.5 h-3.5 shrink-0" />
+              <span>PhotoCraft</span>
+            </button>
+
+            <button
+              onClick={() => setActiveStudioTab('vectorcraft')}
+              className={`px-2.5 sm:px-3 py-1 rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap border ${
+                activeStudioTab === 'vectorcraft'
+                  ? 'bg-emerald-600 border-emerald-400/50 text-white shadow'
+                  : 'bg-[#141824] border-slate-800 text-slate-300 hover:border-emerald-500/40 hover:text-white'
+              }`}
+              title="طراحی برداری VectorCraft (جایگزین)"
+            >
+              <PenTool className="w-3.5 h-3.5 shrink-0" />
+              <span>VectorCraft</span>
+            </button>
+
+            <button
+              onClick={() => setActiveStudioTab('local')}
+              className={`px-2.5 sm:px-3 py-1 rounded-lg text-[10.5px] sm:text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap border ${
+                activeStudioTab === 'local'
+                  ? 'bg-amber-600 border-amber-400/50 text-white shadow'
+                  : 'bg-[#141824] border-slate-800 text-slate-300 hover:border-amber-500/40 hover:text-white'
+              }`}
+              title="بوم فوری طراحی روی قالب دایکات"
+            >
+              <Paintbrush className="w-3.5 h-3.5 shrink-0" />
+              <span>بوم فوری دایکات</span>
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -514,7 +674,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
             className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${isSidebarOpen ? 'bg-indigo-600 text-white shadow-lg' : 'bg-[#1e2330] text-slate-300 hover:bg-slate-750'}`}
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-            <span>بافت‌ساز هوش مصنوعی</span>
+            <span className="hidden md:inline">بافت‌ساز هوشمند</span>
           </Button>
 
           {/* Fullscreen Mode Toggle Button */}
@@ -525,7 +685,7 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30' 
                 : 'bg-[#1e2330] text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
             }`}
-            title={isFullscreen ? "خروج از حالت تمام‌صفحه (کلید F یا Esc)" : "حالت تمام‌صفحه و فضای کاری باز (کلید F)"}
+            title={isFullscreen ? "خروج از حالت تمام‌صفحه (کلید F یا Esc)" : "حالت تمام‌صفحه (کلید F)"}
           >
             {isFullscreen ? <Minimize className="w-4 h-4 text-amber-400" /> : <Maximize className="w-4 h-4" />}
             <span className="hidden sm:inline">{isFullscreen ? "خروج از تمام‌صفحه" : "تمام‌صفحه"}</span>
@@ -533,18 +693,47 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
 
           {/* Smart Help Button */}
           <SmartHelpButton
-            sectionTitle="استودیوی طراحی گرافیک و چاپ"
+            sectionTitle="استودیو طراحی گرافیک"
             sectionKey="design_studio"
-            description="محیط طراحی لایه باز وکتور و فتوشاپ ابری بسته‌بندی اشک قلم با ابزارهای نقاشی، تایپوگرافی، درج لیبل و بافت‌ساز هوشمند."
+            description="محیط طراحی تصویر، وکتور و آماده‌سازی فایل‌های چاپی بسته‌بندی."
             tips={[
-              "برای دسترسی به فضای طراحی گسترده و بدون حاشیه، دکمه 'تمام‌صفحه' یا کلید F کیبورد را فشار دهید.",
-              "می‌توانید بین 'استودیوی فوری' و 'فتوشاپ ابری' سوییچ کنید.",
-              "طرح‌های آماده شده را مستقیماً به فرمت PNG و PDF خروجی بگیرید."
+              "Photopea به عنوان محیط پیش‌فرض برای طراحی و ویرایش حرفه‌ای فایل‌های گرافیکی باز می‌شود.",
+              "در صورت عدم کارکرد یا کندی بارگذاری Photopea، می‌توانید از دکمه‌های جایگزین PhotoCraft، VectorCraft و بوم فوری دایکات در نوار بالا استفاده کنید.",
+              "برای فضای کاری گسترده‌تر، دکمه تمام‌صفحه یا کلید F کیبورد را بزنید."
             ]}
             className="w-8 h-8 rounded-xl bg-[#1e2330] text-indigo-400 border border-indigo-500/30 hover:bg-indigo-600/30"
           />
         </div>
       </div>
+
+      {/* Non-blocking inline toast notification */}
+      {studioToast && (
+        <div
+          dir="rtl"
+          className={`px-4 py-2 text-xs font-bold flex items-center justify-between gap-3 border-b shrink-0 ${
+            studioToast.type === 'error'
+              ? 'bg-rose-950/90 text-rose-200 border-rose-800/60'
+              : studioToast.type === 'success'
+              ? 'bg-emerald-950/90 text-emerald-200 border-emerald-800/60'
+              : 'bg-indigo-950/90 text-indigo-200 border-indigo-800/60'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {studioToast.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+            )}
+            <span>{studioToast.message}</span>
+          </div>
+          <button
+            onClick={() => setStudioToast(null)}
+            className="text-[10px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 cursor-pointer"
+          >
+            بستن
+          </button>
+        </div>
+      )}
 
       {/* Workspace Wrapper */}
       <div className="flex-1 relative w-full flex overflow-hidden">
@@ -557,8 +746,8 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
-                <h3 className="font-black text-xs text-white">تولید بافت چاپی هوشمند</h3>
-                <p className="text-[9px] text-slate-400 mt-0.5">AI Cardboard Texture Generator</p>
+                <h3 className="font-black text-xs text-white">تولید بافت چاپی</h3>
+                <p className="text-[9.5px] text-slate-400 mt-0.5">ایجاد پترن اختصاصی برای بسته‌بندی</p>
               </div>
             </div>
 
@@ -596,10 +785,15 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
                           <Upload className="w-3.5 h-3.5 ml-1.5" />
                           اعمال مستقیم به بوم طراحی
                         </Button>
-                      ) : (
+                      ) : activeStudioTab === 'photopea' ? (
                         <Button onClick={sendToPhotopea} size="sm" className="bg-emerald-600 hover:bg-emerald-550 text-white w-full text-[10px]">
                           <Upload className="w-3.5 h-3.5 ml-1.5" />
                           ارسال به فتوشاپ ابری
+                        </Button>
+                      ) : (
+                        <Button onClick={downloadAIPattern} size="sm" className="bg-cyan-600 hover:bg-cyan-500 text-white w-full text-[10px]">
+                          <Download className="w-3.5 h-3.5 ml-1.5" />
+                          دانلود برای PhotoCraft / VectorCraft
                         </Button>
                       )}
                     </div>
@@ -881,64 +1075,265 @@ export const DesignStudio: React.FC<DesignStudioProps> = ({ isDarkMode }) => {
             </div>
           )}
 
-          {/* TAB 2: ROBUST ADVANCED CLOUD PHOTOSHOP (PHOTOPEA) */}
+          {/* TAB: PHOTOCRAFT & VECTORCRAFT */}
+          {(activeStudioTab === 'photocraft' || activeStudioTab === 'vectorcraft') && (() => {
+            const engine = OFFLINE_ENGINES[activeStudioTab];
+            const otherEngine = activeStudioTab === 'photocraft' ? OFFLINE_ENGINES.vectorcraft : OFFLINE_ENGINES.photocraft;
+            const engineLoaded = loadedEngines[engine.id];
+            const isNotInstalled = studioInstalled[engine.id] === false;
+
+            if (isNotInstalled) {
+              return (
+                <div className="flex-1 flex flex-col items-center justify-center bg-[#141720] p-6 text-center" dir="rtl">
+                  <div className="max-w-md w-full bg-[#1a1f2e] border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4">
+                    <div className={`w-12 h-12 mx-auto rounded-2xl border flex items-center justify-center ${engine.accentBg} ${engine.accentText}`}>
+                      <HardDrive className="w-6 h-6" />
+                    </div>
+                    <h2 className="text-base font-black text-white">
+                      {engine.label} هنوز تکمیل نشده است
+                    </h2>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      فایل‌های این ابزار هنوز از طریق پنل مدیریت دانلود و تکمیل نشده‌اند. تا زمان فعال‌سازی، می‌توانید از محیط پیش‌فرض <strong className="text-white">Photopea</strong> یا <strong className="text-white">بوم فوری دایکات</strong> استفاده کنید.
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveStudioTab('photopea')}
+                        className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black transition cursor-pointer"
+                      >
+                        استفاده از Photopea
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveStudioTab('local')}
+                        className="px-3.5 py-2 rounded-xl bg-amber-600/20 hover:bg-amber-600/35 text-amber-300 border border-amber-500/35 text-xs font-bold transition cursor-pointer"
+                      >
+                        بوم فوری دایکات
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void refreshStudioInstallStatus()}
+                        className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>بررسی مجدد</span>
+                      </button>
+                    </div>
+                    {user?.role === 'ADMIN' && (
+                      <div className="pt-3 border-t border-slate-800">
+                        <a
+                          href="/admin"
+                          onClick={() => {
+                            try {
+                              sessionStorage.setItem('ashk_admin_active_tab', 'studio_installer');
+                            } catch {}
+                          }}
+                          className="inline-flex items-center gap-1.5 text-xs font-black text-cyan-400 hover:text-cyan-300"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>رفتن به پنل مدیریت برای دانلود و نصب {engine.title}</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="flex-1 flex flex-col relative bg-[#141720]">
+                {!engineLoaded && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#141720] z-20 p-6 text-center" dir="rtl">
+                    <div className="w-10 h-10 border-4 border-t-cyan-400 border-slate-700 rounded-full animate-spin mb-4" />
+                    <p className="text-slate-100 text-xs font-bold font-sans">
+                      در حال آماده‌سازی {engine.label}...
+                    </p>
+                    <p className="text-slate-400 text-[11px] mt-1.5 max-w-md font-sans leading-relaxed">
+                      در صورت طولانی شدن بارگذاری می‌توانید از Photopea یا ابزارهای دیگر استفاده کنید.
+                    </p>
+                    <div className="mt-4 flex gap-2 flex-wrap justify-center">
+                      <button
+                        onClick={() => setActiveStudioTab('photopea')}
+                        className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs transition-all cursor-pointer"
+                      >
+                        انتقال به Photopea
+                      </button>
+                      <button
+                        onClick={() => setActiveStudioTab(otherEngine.id)}
+                        className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                      >
+                        انتقال به {otherEngine.title}
+                      </button>
+                      <button
+                        onClick={() => setActiveStudioTab('local')}
+                        className="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                      >
+                        بوم فوری دایکات
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <iframe
+                  key={`${engine.id}-${reloadKeys[engine.id]}`}
+                  src={engine.src}
+                  title={engine.label}
+                  className="flex-1 h-full border-0 relative z-10 w-full bg-[#141720]"
+                  onLoad={() => markEngineLoaded(engine.id)}
+                  allow="clipboard-read; clipboard-write; fullscreen"
+                  allowFullScreen
+                />
+
+                <div
+                  dir="rtl"
+                  className="bg-[#12141c] px-4 py-1.5 border-t border-slate-850 flex flex-wrap items-center justify-between gap-2 text-[10.5px] text-slate-400 font-sans z-10"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-bold ${engine.accentBg} ${engine.accentText}`}>
+                      {engine.label}
+                    </span>
+                    <span className="text-slate-400 hidden md:inline">ابزار جایگزین:</span>
+                    <button
+                      onClick={() => setActiveStudioTab('photopea')}
+                      className="px-2 py-0.5 rounded bg-indigo-600/20 hover:bg-indigo-600/35 text-indigo-300 border border-indigo-500/30 font-bold cursor-pointer transition-colors"
+                    >
+                      Photopea
+                    </button>
+                    <button
+                      onClick={() => setActiveStudioTab(otherEngine.id)}
+                      className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold cursor-pointer transition-colors"
+                    >
+                      {otherEngine.title}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => reloadEngine(engine.id)}
+                      className="text-slate-300 hover:text-white font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>بارگذاری مجدد</span>
+                    </button>
+                    <a
+                      href={engine.src}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1"
+                    >
+                      <span>پنجره مجزا</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* TAB: PHOTOPEA (DEFAULT) */}
           {activeStudioTab === 'photopea' && (
             <div className="flex-1 flex flex-col relative bg-[#1e1e1e]">
-              
-              {/* Load Overlay guide is always helper */}
-              {!isLoaded && (
+              {!loadedEngines.photopea && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#13151f] z-20 p-6 text-center" dir="rtl">
-                  <div className="w-12 h-12 border-3 border-t-indigo-500 border-slate-850 rounded-full animate-spin mb-5"></div>
-                  <p className="text-slate-200 text-xs font-bold uppercase tracking-widest animate-pulse font-sans">در حال بارگذاری ایمن موتور فتوشاپ تحت وب پیشرفته...</p>
-                  <p className="text-slate-400 text-[10px] mt-2 max-w-md mx-auto leading-relaxed font-sans">
-                    نکته امنیتی: برخی مرورگرها به دلیل مسدود کردن کوکی‌های شخص ثالث (Third-party Cookies)، پنجره‌های تودرتوی iframe را به صورت صفحه سیاه نشان می‌دهند. در این حالت می‌توانید مستقیماً از دکمه زیر برای لود تضمینی استفاده کنید:
+                  <div className="w-10 h-10 border-4 border-t-indigo-500 border-slate-800 rounded-full animate-spin mb-4" />
+                  <p className="text-slate-100 text-sm font-bold font-sans">در حال آماده‌سازی Photopea...</p>
+                  <p className="text-slate-400 text-xs mt-2 max-w-md font-sans leading-relaxed">
+                    در صورت عدم کارکرد یا کندی بارگذاری Photopea، می‌توانید گزینه‌های جایگزین PhotoCraft، VectorCraft یا بوم فوری دایکات را امتحان کنید.
                   </p>
-                  <div className="mt-5 flex gap-3 flex-wrap justify-center">
+                  <div className="mt-4 flex gap-2 flex-wrap justify-center">
+                    <button
+                      onClick={() => setActiveStudioTab('photocraft')}
+                      className="px-3.5 py-2 bg-cyan-600/20 hover:bg-cyan-600/35 text-cyan-200 border border-cyan-500/40 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                    >
+                      استفاده از PhotoCraft
+                    </button>
+                    <button
+                      onClick={() => setActiveStudioTab('vectorcraft')}
+                      className="px-3.5 py-2 bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-200 border border-emerald-500/40 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                    >
+                      استفاده از VectorCraft
+                    </button>
+                    <button
+                      onClick={() => setActiveStudioTab('local')}
+                      className="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/35 text-amber-200 border border-amber-500/40 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                    >
+                      بوم فوری دایکات
+                    </button>
+                  </div>
+                  <div className="mt-3 flex gap-2.5 flex-wrap justify-center">
                     <a 
                       href="https://www.photopea.com" 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-550 text-white font-black rounded-xl text-xs shadow-lg flex items-center gap-1.5 transition-all text-center no-underline cursor-pointer"
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-550 text-white font-bold rounded-xl text-xs shadow-lg flex items-center gap-1.5 transition-all no-underline cursor-pointer"
                     >
-                      <span>اجرای مستقیم فتوشاپ در تب جدید (۱۰۰٪ تضمینی)</span>
-                      <Share2 className="w-4 h-4 text-white" />
+                      <span>باز کردن در تب جدید</span>
+                      <Share2 className="w-3.5 h-3.5 text-white" />
                     </a>
                     <Button 
-                      onClick={() => setIsLoaded(true)}
-                      className="px-4 py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                      onClick={() => markEngineLoaded('photopea')}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 font-bold rounded-xl text-xs transition-all cursor-pointer"
                     >
-                      تایید بارگذاری دستی و تلاش مجدد
+                      نمایش محیط کار
                     </Button>
                   </div>
                 </div>
               )}
 
-              {/* Robust Embedded frame */}
               <iframe
+                key={`photopea-${reloadKeys.photopea}`}
                 ref={iframeRef}
                 src={embedUrl}
-                title="Photopea Cloud Editor"
+                title="Photopea Editor"
                 className="flex-1 h-full border-0 relative z-10 w-full"
-                onLoad={() => setIsLoaded(true)}
+                onLoad={() => markEngineLoaded('photopea')}
                 allow="clipboard-read; clipboard-write; camera; fullscreen"
+                allowFullScreen
               />
 
-              {/* Tool Repair guide bar */}
-              <div className="bg-[#12141c] px-4 py-2 border-t border-slate-850 flex items-center justify-between text-[10px] text-slate-400 font-sans z-10">
-                <span className="flex items-center gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>اگر با خطا مواجه شدید، روی دکمه اجرای مستقیم راست کلیک کنید یا کش مرورگر را ریست کنید.</span>
-                </span>
-                <a 
-                  href="https://www.photopea.com" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-indigo-400 hover:text-indigo-300 font-black flex items-center gap-1 underline"
-                >
-                  <span>باز کردن در پنجره مجزا ↗</span>
-                </a>
+              <div dir="rtl" className="bg-[#12141c] px-4 py-1.5 border-t border-slate-850 flex flex-wrap items-center justify-between gap-2 text-[10.5px] text-slate-300 font-sans z-10">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="flex items-center gap-1.5 text-amber-300 font-bold">
+                    <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>در صورت عدم کارکرد یا بارگذاری نشدن Photopea، گزینه‌های جایگزین را امتحان کنید:</span>
+                  </span>
+                  <button
+                    onClick={() => setActiveStudioTab('photocraft')}
+                    className="px-2 py-0.5 rounded bg-cyan-600/20 hover:bg-cyan-600/35 text-cyan-300 border border-cyan-500/35 font-bold cursor-pointer transition-colors"
+                  >
+                    PhotoCraft
+                  </button>
+                  <button
+                    onClick={() => setActiveStudioTab('vectorcraft')}
+                    className="px-2 py-0.5 rounded bg-emerald-600/20 hover:bg-emerald-600/35 text-emerald-300 border border-emerald-500/35 font-bold cursor-pointer transition-colors"
+                  >
+                    VectorCraft
+                  </button>
+                  <button
+                    onClick={() => setActiveStudioTab('local')}
+                    className="px-2 py-0.5 rounded bg-amber-600/20 hover:bg-amber-600/35 text-amber-300 border border-amber-500/35 font-bold cursor-pointer transition-colors"
+                  >
+                    بوم فوری دایکات
+                  </button>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => reloadEngine('photopea')}
+                    className="text-slate-300 hover:text-white font-bold flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>بارگذاری مجدد</span>
+                  </button>
+                  <a 
+                    href="https://www.photopea.com" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1"
+                  >
+                    <span>پنجره مجزا</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
-
             </div>
           )}
 

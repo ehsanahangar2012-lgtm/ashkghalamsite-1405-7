@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dist-ssr/
+downloads/
+public/downloads/
+uploads/
+public/assets/aistudio/
+public/studio/
+logs/
+.git/
+graphify-out/
+*.zip
+*.map
+*.lock
+bun.lock

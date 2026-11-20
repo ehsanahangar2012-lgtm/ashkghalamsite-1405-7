@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AppView } from '../types';
+import { apiRequestJson } from '../utils/apiClient';
 
 interface SeoHeadProps {
   view?: AppView;
@@ -9,6 +10,43 @@ interface SeoHeadProps {
   noIndex?: boolean;
 }
 
+interface PublicSeoMetaEntry {
+  metaTitle?: string;
+  metaDescription?: string;
+  keywords?: string[];
+  focusKeyword?: string;
+}
+
+let cachedMetaMap: Record<string, PublicSeoMetaEntry> | null = null;
+let pendingMetaPromise: Promise<Record<string, PublicSeoMetaEntry>> | null = null;
+
+function loadGeminiPublicMeta(): Promise<Record<string, PublicSeoMetaEntry>> {
+  if (cachedMetaMap) return Promise.resolve(cachedMetaMap);
+  if (!pendingMetaPromise) {
+    pendingMetaPromise = apiRequestJson<{ ok?: boolean; metaByPath?: Record<string, PublicSeoMetaEntry> }>(
+      'seo/gemini-optimizer/public-meta',
+      { method: 'GET' },
+      6000
+    )
+      .then(({ res, data }) => {
+        if (res.ok && data?.metaByPath && typeof data.metaByPath === 'object') {
+          cachedMetaMap = data.metaByPath;
+          return cachedMetaMap;
+        }
+        return {};
+      })
+      .catch(() => ({}))
+      .finally(() => {
+        pendingMetaPromise = null;
+      });
+  }
+  return pendingMetaPromise;
+}
+
+export function invalidateGeminiPublicMetaCache() {
+  cachedMetaMap = null;
+}
+
 export const SeoHead: React.FC<SeoHeadProps> = ({
   view,
   canonicalPath,
@@ -16,27 +54,55 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
   customDescription,
   noIndex = false,
 }) => {
+  const [metaMap, setMetaMap] = useState<Record<string, PublicSeoMetaEntry> | null>(cachedMetaMap);
+
   useEffect(() => {
-    const defaultTitle = 'اشک قلم (Ashk Ghalam) - CAD Studio v3.9.1';
-    const defaultDesc = 'سامانه جامع مهندسی کارتن، بسته‌بندی، محصولات و کاتالوگ هوشمند اشک قلم v3.9.1';
-
-    document.title = customTitle || defaultTitle;
-
-    let metaDesc = document.querySelector('meta[name="description"]');
-    if (!metaDesc) {
-      metaDesc = document.createElement('meta');
-      metaDesc.setAttribute('name', 'description');
-      document.head.appendChild(metaDesc);
+    let active = true;
+    if (!metaMap) {
+      loadGeminiPublicMeta().then((map) => {
+        if (active && Object.keys(map).length > 0) {
+          setMetaMap(map);
+        }
+      });
     }
-    metaDesc.setAttribute('content', customDescription || defaultDesc);
+    return () => {
+      active = false;
+    };
+  }, [metaMap]);
 
-    let metaRobots = document.querySelector('meta[name="robots"]');
-    if (!metaRobots) {
-      metaRobots = document.createElement('meta');
-      metaRobots.setAttribute('name', 'robots');
-      document.head.appendChild(metaRobots);
+  useEffect(() => {
+    const activePath =
+      canonicalPath ||
+      (typeof window !== 'undefined' ? window.location.pathname || '/' : '/');
+    const override = metaMap?.[activePath];
+
+    const defaultTitle = 'صنایع چاپ و بسته‌بندی اشک قلم | جعبه‌ساز آنلاین سه‌بعدی';
+    const defaultDesc =
+      'سامانه جامع مهندسی کارتن، بسته‌بندی، چاپ افست ۵ رنگ، کاتالوگ سه‌بعدی و طراحی آنلاین دایلاین اشک قلم.';
+
+    const finalTitle = override?.metaTitle || customTitle || defaultTitle;
+    const finalDesc = override?.metaDescription || customDescription || defaultDesc;
+
+    document.title = finalTitle;
+
+    const upsertMeta = (attr: 'name' | 'property', key: string, content: string) => {
+      let el = document.querySelector(`meta[${attr}="${key}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    };
+
+    upsertMeta('name', 'description', finalDesc);
+    upsertMeta('property', 'og:title', finalTitle);
+    upsertMeta('property', 'og:description', finalDesc);
+    upsertMeta('name', 'robots', noIndex ? 'noindex, nofollow' : 'index, follow');
+
+    if (override?.keywords && override.keywords.length > 0) {
+      upsertMeta('name', 'keywords', override.keywords.join(', '));
     }
-    metaRobots.setAttribute('content', noIndex ? 'noindex, nofollow' : 'index, follow');
 
     if (canonicalPath) {
       let linkCanonical = document.querySelector('link[rel="canonical"]');
@@ -47,7 +113,7 @@ export const SeoHead: React.FC<SeoHeadProps> = ({
       }
       linkCanonical.setAttribute('href', `https://ashkghalam.ir${canonicalPath}`);
     }
-  }, [view, canonicalPath, customTitle, customDescription, noIndex]);
+  }, [view, canonicalPath, customTitle, customDescription, noIndex, metaMap]);
 
   return null;
 };
